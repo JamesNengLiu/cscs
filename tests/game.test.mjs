@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {Game} from '../game.mjs';
+import {RULES,SPAWNS,SITES,WEAPONS,collides,movePlayer,rayBox,direction,sanitizedInput,supportHeight,siteAt} from '../public/shared.js';
+const place=(p,values)=>{Object.assign(p,values);p.y=supportHeight(p.x,p.z,(values.y??p.y)+.1);p.vx=p.vz=p.vy=0;p.crouch=false;};
+const atSite=(p,name)=>{const s=SITES.find(s=>s.name===name);place(p,{x:s.x,y:s.y,z:s.z});};
+const tick=(g,seconds,inputs={})=>{for(let i=0;i<Math.ceil(seconds*RULES.tick);i++){for(const [id,input]of Object.entries(inputs))g.input(id,input);g.step();}};
+function duel(){const g=new Game({random:()=>.5});const t=g.add('t','进攻','T'),ct=g.add('ct','防守','CT');g.step();tick(g,4.1);assert.equal(g.phase,'live');return {g,t,ct};}
+test('movement: normalized diagonals and bounded hostile inputs',()=>{
+  const p={...SPAWNS.T,y:supportHeight(SPAWNS.T.x,SPAWNS.T.z,SPAWNS.T.y+.1),vy:0,pitch:0};const a={...p};movePlayer(p,{f:1,s:1,yaw:0},.1);assert.ok(Math.hypot(p.x-a.x,p.z-a.z)<=RULES.speed*.1+.00001);
+  const v=sanitizedInput({f:Infinity,s:-999,yaw:'nan',pitch:999,fire:'yes'});assert.equal(v.f,1);assert.equal(v.s,-1);assert.equal(v.yaw,0);assert.equal(v.pitch,1.45);assert.equal(v.fire,false);
+});
+test('ray test: near hit and no hit behind shooter',()=>{const b={x1:-1,x2:1,y1:0,y2:2,z1:-5,z2:-4};assert.equal(rayBox({x:0,y:1,z:0},direction(0,0),b),4);assert.equal(rayBox({x:0,y:1,z:0},direction(Math.PI,0),b),Infinity);});
+test('room: balanced capacity, invalid team and late join',()=>{const g=new Game();assert.throws(()=>g.add('x','x','bad'));for(let i=0;i<5;i++)g.add(`t${i}`,'a','T');assert.throws(()=>g.add('extra','a','T'));for(let i=0;i<5;i++)g.add(`ct${i}`,'a','CT');assert.throws(()=>g.add('over','a','CT'));const d=duel();assert.equal(d.g.add('late','晚加入','T').alive,false);});
+test('round: waits for both teams and resets after disconnect',()=>{const g=new Game();g.add('t','a','T');tick(g,1);assert.equal(g.phase,'waiting');g.add('ct','b','CT');g.step();assert.equal(g.phase,'countdown');g.remove('ct');g.step();assert.equal(g.phase,'waiting');});
+test('shooting: consumes ammo, enforces rate, kills enemy',()=>{const {g,t,ct}=duel();place(t,{x:-18.4,y:3.2,z:22,yaw:0});place(ct,{x:-18.4,y:3.2,z:19,yaw:0});g.shoot(t);assert.equal(t.ammo,29);assert.ok(ct.hp<100);g.shoot(t);assert.equal(t.ammo,29);g.time+=.12;g.shoot(t);assert.equal(ct.alive,false);assert.equal(t.kills,1);g.step();assert.equal(g.score.T,1);});
+test('shooting: original map blocks hits and no friendly fire',()=>{const {g,t,ct}=duel();t.yaw=0;g.shoot(t);assert.equal(ct.hp,100);const ally=g.add('ally','队友','T');place(ally,{alive:true,x:-18.4,y:3.2,z:19});place(t,{x:-18.4,y:3.2,z:22,yaw:0});g.time+=1;g.shoot(t);assert.equal(ally.hp,100);});
+test('reload: finite reserves and cannot fire while reloading',()=>{const {g,t}=duel();t.ammo=3;t.reserve=7;g.reload('t');assert.ok(t.reloadAt>g.time);g.shoot(t);assert.equal(t.ammo,3);tick(g,WEAPONS.rifle.reload+.1);assert.equal(t.ammo,10);assert.equal(t.reserve,0);assert.equal(t.reloadAt,0);});
+test('bomb: interrupted planting resets then plant and defuse in original A trigger',()=>{const {g,t,ct}=duel();atSite(t,'A');assert.equal(siteAt(t).name,'A');tick(g,1,{t:{use:true}});assert.ok(t.progress>.8);tick(g,.1,{t:{use:false}});assert.equal(t.progress,0);tick(g,3.1,{t:{use:true}});assert.equal(g.bomb.state,'planted');assert.equal(g.bomb.site,'A');atSite(ct,'A');ct.x+=.6;tick(g,5.1,{ct:{use:true}});assert.equal(g.phase,'ended');assert.equal(g.score.CT,1);assert.equal(g.bomb.state,'defused');});
+test('bomb: original B trigger, T death after plant and explosion',()=>{const {g,t}=duel();atSite(t,'B');tick(g,3.1,{t:{use:true}});assert.equal(g.bomb.state,'planted');g.damage(t,100);g.step();assert.equal(g.phase,'live');tick(g,40.1);assert.equal(g.bomb.state,'exploded');assert.equal(g.score.T,1);});
+test('bomb: carrier disconnect drops and another T picks up',()=>{const {g,t}=duel();const p=g.add('t2','第二名','T');place(p,{alive:true,x:t.x,y:t.y,z:t.z});g.remove('t');assert.equal(g.bomb.state,'dropped');tick(g,.1,{t2:{use:true}});assert.equal(g.bomb.state,'carried');assert.equal(g.bomb.holder,'t2');});
+test('round: timeout, delayed next round and scoring deduplication',()=>{const {g}=duel();g.time=g.endAt+.01;g.step();assert.equal(g.phase,'ended');assert.equal(g.score.CT,1);tick(g,1);assert.equal(g.score.CT,1);tick(g,5.2);assert.equal(g.phase,'countdown');assert.equal(g.round,2);});

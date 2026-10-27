@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAN STRIKE · 局域网战术射击原型</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tuning.css"></head>
+<body>
+<canvas id="game"></canvas>
+<div id="lobby" class="overlay"><section class="card">
+  <div class="eyebrow">LOCAL NETWORK / BROWSER FPS / V0.3</div><h1>LAN<span>STRIKE</span></h1>
+  <p class="subtitle">局域网战术射击 · de_dust2 BSP 地图</p>
+  <div class="tags"><span>无需插件</span><span>最多 5 对 5</span><span>爆破回合</span><span>资源本地加载</span></div>
+  <form id="joinForm"><label>玩家昵称<input id="name" maxlength="16" placeholder="输入昵称" value="玩家" autocomplete="off" required></label>
+  <label>加入阵营<select id="team"><option value="T">T · 进攻方 / 安放炸弹</option><option value="CT">CT · 防守方 / 拆除炸弹</option></select></label>
+  <button type="submit" id="joinButton" disabled>正在连接服务器…</button></form>
+  <button id="previewButton" class="secondary" type="button">先看地图 · 高差与路线预览</button><p class="quality">已启用原图贴图与 BSP 静态光照</p>
+  <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标</b><br>WASD 移动 · 鼠标瞄准 / 左键射击 · R 换弹<br>空格跳跃 · Shift 慢走 · C 蹲下 · 按住 E 安放 / 拆除<br>准备阶段按 1 / 2 / 3 选武器 · Tab 战绩 · Esc 释放鼠标<br>松键有减速；反方向键急停；短点射比移动连射更准</div>
+  <p class="disclaimer">地图由 CS 1.6 社区镜像 BSP 数据转换，保留源几何、贴图坐标、静态光照与碰撞树；不是完整原版引擎移植。双方各至少一人开始；地图预览无需开局。</p>
+</section></div>
+<section id="previewPanel" hidden><div class="eyebrow">MAP REVIEW / ORIGINAL BSP GEOMETRY / V0.3</div><h2>沙漠 2 · BSP 地图</h2><p>源坐标等比例转换；贴图和光照来自地图数据</p><nav><button data-view="overview">全图</button><button data-view="short">A 小道 / 台阶</button><button data-view="long">A 大道 / 大坑</button><button data-view="tunnels">B 通道</button><button data-view="mid">中门</button><button data-view="b">B 区</button><button data-view="a">A 区</button><button id="backButton">返回大厅</button></nav></section>
+<div id="hud" hidden>
+  <header><div class="brand">LAN<span>STRIKE</span><small>BSP 地图测试</small></div><div id="score">T 0 <em>:</em> 0 CT</div><div id="network">连接中</div></header>
+  <div id="topStatus"><strong id="timer">--:--</strong><div id="phase">等待玩家</div></div>
+  <canvas id="minimap" width="200" height="200"></canvas><div id="mapLabel">de_dust2 · BSP 导入 v0.3</div>
+  <div id="feed"></div><div id="notice"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div><div id="hitmarker">×</div><div id="tuning"></div>
+  <div id="interaction"><div id="actionText"></div><progress id="progress" max="1" value="0"></progress></div>
+  <footer><div><small id="identity">—</small><b id="health">100 <span>HP</span></b></div><div id="hint">按住 E 互动 · R 换弹</div><div class="ammo"><small id="weapon">突击步枪</small><b id="ammo">30 <span>/ 90</span></b></div></footer>
+  <div id="board" hidden><h2>本场战绩</h2><table><thead><tr><th>阵营</th><th>玩家</th><th>状态</th><th>击杀</th><th>死亡</th></tr></thead><tbody id="boardBody"></tbody></table><p>无友军伤害 · 死亡后等待下一回合 · 本原型无经济与购买系统</p></div>
+</div>
+<div id="resume" class="overlay" hidden><section class="card compact"><h2 id="resumeTitle">已进入房间</h2><p>点击按钮捕获鼠标，开始第一人称操作。</p><button id="resumeButton">进入游戏</button><p>Esc 释放鼠标；切换窗口后角色会停止操作。</p></section></div>
+<div id="damageFlash"></div>
+<script type="module" src="/client.js"></script></body></html>

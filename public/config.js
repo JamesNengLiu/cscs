@@ -1,13 +1,17 @@
-// Original prototype tuning; not extracted CS 1.5 configuration.
+import {GUNS} from './arsenal.js';
+import {ECONOMY} from './economy.js';
+// Original movement/recoil tuning; catalogue and money reference CS1.6 separately.
 // Hull dimensions follow BSP's original 32x32x72 / 32x32x36 hulls at 40 units per browser unit.
 export const RULES=Object.freeze({tick:60,maxPlayers:10,teamSize:5,radius:.4,eye:1.6,
   speed:5,walkSpeed:2.8,crouchSpeed:2.1,groundAcceleration:38,brake:20,counterBrake:52,
   airAcceleration:7,gravity:15,jumpSpeed:5.4,stepHeight:.45,bodyHeight:1.8,crouchHeight:.9,
-  roundSeconds:120,bombSeconds:40,plantSeconds:3,defuseSeconds:5});
+  freezeSeconds:ECONOMY.freezeSeconds,roundSeconds:ECONOMY.roundSeconds,bombSeconds:ECONOMY.bombSeconds,plantSeconds:3,defuseSeconds:ECONOMY.defuseSeconds,defuseKitSeconds:ECONOMY.defuseKitSeconds});
 export const WEAPONS=Object.freeze({
   rifle:{name:'步枪 · 原型调校',clip:30,reserve:90,interval:.11,damage:34,head:2.8,reload:2.2,spread:.0025,moveSpread:.034,airSpread:.075,heatSpread:.0014,recovery:.22},
   sniper:{name:'狙击步枪',clip:5,reserve:20,interval:1.25,damage:100,head:2,reload:3,spread:.001,moveSpread:.065,airSpread:.12,heatSpread:.001,recovery:.4},
-  pistol:{name:'手枪',clip:12,reserve:48,interval:.25,damage:24,head:3,reload:1.5,spread:.006,moveSpread:.025,airSpread:.06,heatSpread:.001,recovery:.18}
+  pistol:{name:'手枪',clip:12,reserve:48,interval:.25,damage:24,head:3,reload:1.5,spread:.006,moveSpread:.025,airSpread:.06,heatSpread:.001,recovery:.18},
+  ...GUNS,
+  ...Object.fromEntries([['knife','Knife',3],['hegrenade','HE Grenade',4],['flashbang','Flashbang',4],['smokegrenade','Smoke Grenade',4],['c4','C4',5]].map(([id,name,slot])=>[id,{id,name,slot,clip:0,reserve:0,interval:.4,damage:0,head:1,reload:0,spread:0,moveSpread:0,airSpread:0,heatSpread:0,recovery:.2,maxSpeed:id==='c4'?250:250}]))
 });
 // Repeatable rise and lateral drift make short bursts and manual compensation testable.
 // Values are yaw/pitch radians, NOT an original Counter-Strike recoil pattern.

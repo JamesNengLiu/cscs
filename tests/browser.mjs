@@ -20,6 +20,13 @@ try{
   assert.ok(await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().terrainTriangles>1000));const imported=await pages[0].evaluate(()=>window.lanStrike.getDiagnostics());assert.equal(imported.mapFaces,4002);assert.equal(imported.mapTextures,44);assert.equal(imported.terrainTriangles,9932);assert.match(imported.mapVersion,/bsp30/);check('seven original BSP map views, all imported faces, textures and triangles verified',imported.sourceSHA256);
   await pages[0].click('#backButton');await pages[0].waitForFunction(()=>!document.getElementById('lobby').hidden);
   for(let i=0;i<pages.length;i++){const p=pages[i];await p.fill('#name',i===0?'测试进攻':'测试防守');await p.selectOption('#team',i===0?'T':'CT');await p.click('#joinButton');await p.waitForFunction(()=>!document.getElementById('hud').hidden);}
+  await pages[0].click('#openBuyButton');await pages[0].locator('button[data-category="rifle"]').click();await pages[0].locator('[data-item="ak47"]').click();
+  await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='ak47'&&window.lanStrike.getDiagnostics().money===7500);
+  await pages[0].locator('button[data-category="ammo"]').click();await pages[0].locator('[data-item="primaryammo"]').click();
+  await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().money===7420);
+  await pages[0].waitForFunction(()=>{const m=window.lanStrike.getDiagnostics().weaponModel;return m.id==='ak47'&&m.source==='original-mdl'&&!m.loading;});check('actual converted MDL viewmodel loaded, not fallback',await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().weaponModel.sourceSHA256));
+  await pages[0].screenshot({path:'artifacts/purchase-live.png'});report.screenshots.push('artifacts/purchase-live.png');
+  await pages[0].click('#buyClose');check('real server purchase: AK47 plus paid ammunition, authoritative cash and inventory');
   await pages[0].waitForFunction(()=>window.lanStrike.getState()?.phase==='live',null,{timeout:18000});
   for(const p of pages)assert.equal(await p.evaluate(()=>window.lanStrike.getState().players.length),2);check('two isolated browser sessions join opposing teams and start a round');
   const p=pages[0];await p.bringToFront();await p.click('#resumeButton');

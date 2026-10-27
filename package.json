@@ -1,6 +1,6 @@
 {
   "name": "lan-strike-prototype",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "LAN browser FPS graybox prototype. Not a Counter-Strike port.",
@@ -8,6 +8,8 @@
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/run-browser.mjs",
+    "test:shop": "node tests/shop-browser.mjs --client",
+    "test:equipment": "node --test tests/equipment-game.test.mjs tests/arsenal.test.mjs tests/grenades.test.mjs tests/weapon-model.test.mjs",
     "test:downhill": "node --test tests/downhill.test.mjs && node tools/verify-downhill.mjs",
     "test:downhill:browser": "node tests/downhill-browser.mjs",
     "test:tuning": "node tests/evaluate-tuning.mjs",

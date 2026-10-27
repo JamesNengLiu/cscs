@@ -1,65 +1,61 @@
-# LAN STRIKE v0.3 — de_dust2 BSP 地图版
+# LAN STRIKE v0.4 — 武器、购买与经济开发版
 
-日期：2026-10-27。用途：可信局域网、本地开发验证。旧版 v0.2 工程保持不变。
+日期：2026-10-27。用于可信局域网和本地开发验证。稳定v0.3保留，本分支为 `feat/cs16-arsenal`。
 
-> **GitHub 代码仓库不包含原版地图及派生资源。** 克隆后不能直接进入游戏；请先按 [ASSETS.md](ASSETS.md) 准备合法取得的本地 BSP/WAD 并生成地图和天空资源。下文“本机已有资源”指开发机，不代表仓库附带素材。
+> **GitHub代码仓库不包含原版地图/武器及派生资源。** 克隆后不能直接玩；先按 [ASSETS.md](ASSETS.md) 准备有权使用的本地素材。下文“本机已有资源”不代表仓库附带素材。
 
-## 这次改了什么
+## 这次接入了什么
 
-### 下坡卡顿热修复
+- 24把枪、免费刀、HE/闪光/烟雾、护甲/头盔、拆弹器、夜视仪和CT盾牌。枪械、装备和备用弹药需要真实扣款购买。
+- 开局资金按用户要求为 **$10,000**，上限 **$16,000**；只在首次加入初始化，不是每回合重置。阵营默认手枪与刀免费，其余按规则购买。
+- 源BSP己方购买区、90秒购买窗；服务端核验资格、余额、阵营、库存与携带上限，不接受客户端自报金额、伤害或位置。
+- 按ReGameDLL参考核对购买价格、口径共享、护甲、击杀/胜负奖励、完整连败状态、T超时存活无补助等规则，不套用CS:GO经济。参考默认准备6秒、回合300秒、炸弹45秒；用户可配置的服务器参数不等于所有CS服务器都一样。
+- 持有武器切换、丢弃/拾取、霰弹枪逐发装填、三连发、消音器、瞄准镜和盾牌防护。
+- 本地转换30份真实MDLv10第一人称模型、原始皮肤和骨骼轨道。缺失时明确显示紫红线框占位；人物仍是原型网格，**不是人物模型还原完成**。
+- 保留原图碰撞及固定60Hz、ACK确认/未确认输入重放的下坡同步修复，不通过改图掩盖位置回拉。
 
-修复客户端保留未来的X/Z却直接套用旧快照Y造成的下坡位置回拉。预测改为固定60Hz指令，服务端在实际模拟后确认序号；客户端从完整权威姿态重放未确认输入，并只对显示位置做小偏差平滑。地图几何和原始碰撞树未修改。更新服务后所有游戏窗口需要刷新重连。
-
-专项验证：`npm run test:downhill`、`npm run test:downhill:browser`。后者使用临时回环服务器和仅限父进程IPC的测试点位，不向游戏服务器增加传送接口。详见 `下坡卡顿修复说明-2026-10-27.md`。
-
-### BSP地图导入
-
-旧版手绘估算灰盒已经退出活动地图。当前地图由已下载的 CS 1.6 社区镜像 `de_dust2.bsp` 转换：
-
-- 保留源多边形顶点、UV、门窗、箱体、台阶、坡道和高差，不重新拼接几何。
-- GoldSrc 坐标 `(X,Y,Z)` 统一转换为浏览器坐标 `(X,Z,-Y)/40`。40 是内部单位换算约定，不是实测的现实米制单位；相对尺寸与比例不变。
-- 44 张地图引用贴图由 BSP/WAD 提取；另有 `des` 天空盒六面。
-- 原始逐面静态光照打包为贴图集，并保留 UV。当前使用首个静态 light style，未逐像素对齐原版 gamma。
-- 直接保留原始 BSP 节点、平面、clipnodes 和模型 hull 头。身体使用站立/蹲下 hull，子弹使用点射线 hull；不是给画面套估算碰撞箱。
-- 保留双方各20个源出生实体，房间人数上限仍为每队5人；玩家落地后使用对应源位置，不再在单点周围人为铺开。
-- 安包判定使用原始爆破触发模型，不再是估计半径。
-- 小地图从原图表面生成；预览增加 A 区，共七个视角。
+**不能称完整1:1：** 移动引擎、逐枪散布与后坐力、骨骼命中盒、子弹穿透、动画事件/声音、世界模型、烟雾和夜视显示仍有近似或缺失。详见 [接入验收](docs/equipment-integration.md)、[规则来源](docs/cs16-sources.md)、[模型忠实度](docs/weapon-model-fidelity.md) 和 [投掷物限制](docs/grenades-fidelity.md)。
 
 ## 运行
 
-本机开发目录已经包含转换后的资源及已安装的依赖，可直接运行。另一台设备不需要安装依赖。
+开发机已备资源。若从代码检出，须先完成ASSETS中的资源准备：
 
 ```sh
 npm ci
-PORT=3001 npm start
+HOST=0.0.0.0 PORT=3002 npm start
 ```
 
-主机：`http://localhost:3001`。同一路由器的其他电脑使用启动日志中的主机局域网IP和3001端口。3000可能仍由旧版占用；不要把旧版页面误认为新版。
+- 建议开发版用3002，**不要误覆盖正在使用的3001稳定版**。文档给出启动命令不表示3002已经常驻启动。
+- 主机用 `http://localhost:3002`；其他电脑用主机局域网IP与3002端口，不能用另一台电脑自己的localhost。
+- 仅限可信局域网；不自动开放防火墙，不配置公网转发。仅本机测试用 `HOST=127.0.0.1`。
+- 桌面Chrome/Edge、WebGL、键盘鼠标。双方各至少一人开始；无机器人，单人可看静态地图。
+- Windows PowerShell先设置 `$env:HOST="0.0.0.0"; $env:PORT=3002`，再 `npm start`。
+- 服务重启会断开连接；更新后所有窗口刷新重连。Ctrl+C停止对应进程，不停止其他版本。
 
-默认 HTTP 服务仅用于可信局域网，不开放公网、不自动修改防火墙。`HOST=127.0.0.1 PORT=3001 npm start` 可仅供本机访问。Windows PowerShell 使用 `$env:PORT=3001; npm start`。
+## 操作
 
-- 桌面 Chrome/Edge、WebGL、键鼠。
-- 双方各至少一人开始。单人可点击“先看地图”切换静态预览，没有机器人或单人自由训练模式。
-- `/?view=b`、`/?view=a` 可直接查看双点。可选 overview、short、long、tunnels、mid、b、a。
-- `Ctrl+C` 停止服务；失焦和释放鼠标清除输入。
-- WASD 移动，鼠标/左键瞄准开火；R换弹、空格跳跃、C蹲下、Shift慢走、E静止安拆包、Tab战绩、Esc释放鼠标；准备阶段1/2/3免费选原型武器。
+WASD移动；左键射击/投掷，右键副功能（刀刺/开镜/切连发/消音器/举盾）。
 
-## 重建地图
+B购买；1主武器、2手枪、3刀、4切换投掷物、5 C4；Q上一武器、滚轮切换、G丢弃、R换弹、N夜视。
 
-原始数据保存在同级 `lan-strike-original-map-2026-10-27/`，不从网上下载或执行游戏安装程序。
+空格跳跃、C蹲下、Shift慢走、E静止安拆包/交互、Tab战绩、Esc释放鼠标。打开购买菜单会清空按住的移动/射击输入；点击“继续游戏”重新捕获鼠标。
+
+## 原始地图与重建
+
+活动地图不是估算灰盒：相对于已下载的社区镜像BSP，保留源多边形、UV、原始站立/蹲伏/点射线碰撞hull、出生点和爆破/购买触发模型。
+
+统一坐标转换为 `(X,Y,Z) -> (X,Z,-Y)/40`；40是内部单位换算约定，不是现实米制实测。44张地图贴图、4002个可见面、9932个三角形；首个静态light style与六面天空，不是原版gamma逐像素复现。
 
 ```sh
 npm run import:map
+# 或 python3 tools/import-map.py --source /path/to/local/map-assets
+# 天空来源与使用授权确认后，才手动运行：
 python3 tools/fetch-sky.py
 ```
 
-也可指定来源目录：
+默认原始目录为同级 `lan-strike-original-map-2026-10-27/`，包括 `de_dust2-csboost.bsp` 与补齐引用贴图的WAD。转换生成 `public/map-data.js`、`public/assets/dust2/` 和地图导入报告。
 
-```sh
-python3 tools/import-map.py --source /path/to/local/map-assets
-```
-
-来源目录需要 `de_dust2-csboost.bsp` 以及补齐全部地图引用贴图的WAD。生成目标为 `public/map-data.js` 和 `public/assets/dust2/`。
+源地图SHA-256：`15945389528d113562ede0a2c80647ebfa799079ed1c05a25379bcf84e4e9286`。镜像一致不是Valve官方版本认证。
 
 ## 验证
 
@@ -68,36 +64,25 @@ npm test
 npm run test:map
 npm run test:tuning
 npm run test:browser
-python3 tests/package.py
+npm run test:shop
+npm run test:downhill
+npm run test:downhill:browser
 ```
 
-- `test:map`：逐面比较源坐标、UV、碰撞树和实体；自动寻路后用真正移动函数重放T经A大道、A小道、B通道，以及CT到双点的路线，检查全过程不进入实体。模拟跑图时间不是原版实测，也不是最短路线成绩。
-- `test:browser`：使用本机 Chrome 和 Playwright，临时随机端口、两个隔离会话；核对七个地图视角、导入面/贴图数量、开局、移动、跳跃、连射、换弹、断线。最后关闭临时服务，不停止其他已有进程。
-- `test:tuning`：既有原型参数的确定性模拟，不是原版枪感或人类实玩结果。
-- `tests/package.py`：汇总并核对报告新鲜度，生成 `artifacts/verification.json`。默认不打包原版素材。加 `--code-only` 才生成不含地图资源的代码包，该代码包需要自行恢复本地资源才能运行。
+- 规则测试自动发现 `tests/*.test.mjs`；武器/经济集成覆盖24把枪的购买、切换、开火，以及余额、奖励、护甲、投掷、携带与死亡规则。
+- `test:map` 对照源坐标/UV/碰撞树/实体，再用真实移动函数重放五条出生到包点路线；首次运行前先导入，不能复制旧导入报告冒充本次校验。
+- `test:browser` 用临时127.0.0.1随机端口和两个隔离Chrome会话，真实WebSocket购买/扣款、开局、移动、跳跃、开火、换弹、断线；finally关闭临时服务并核查端口。
+- `test:shop` 包含独立菜单测试及**拦截传输的客户端夹具**，用于UI/闪光/烟雾，不作为真实服务端联网证据。
+- 下坡真实浏览器夹具只通过父进程IPC设置点位，不为生产服务器增加传送接口。
+- `test:tuning` 仍是旧原型参数的确定性比较，不是CS原版枪感认证。
 
-最终数量以 `artifacts/verification.json` 为准。截图在 `artifacts/map-*.png`，来源和限制在 `artifacts/map-import.json`、`sky-sources.json`。
+本地报告与截图位于忽略的 `artifacts/`。实体双机Wi-Fi、10人负载、目标硬件FPS、原版逐帧对照尚未验收。测试通过不等于完整原版还原。
 
-## 1∶1 的已完成与边界
+## 来源与许可
 
-已完成：相对于这份BSP，源几何/UV等比例导入、原始碰撞树接入、原始出生和爆破实体接入。可逐项重跑校验，不再用“路线差不多”当作还原。
+- 地图：https://www.csboost.eu/downloads/maps/de_dust2.bsp 、https://en.ds-servers.com/goldsrc-res/r11417/de_dust2.bsp
+- WAD：https://en.ds-servers.com/goldsrc-res/r102947/cs_dust.wad 、https://en.ds-servers.com/goldsrc-res/r7/halflife.wad
+- 天空：https://luxserv.ge/cstrike/gfx/env/
+- 规则与模型来源、固定参考提交和逐项限制见 `docs/`。
 
-未完成或未验收：
-
-- 原版引擎逐像素 gamma、动态 light style 和透明/动画材质的全部语义。
-- 爆炸后场景刷子模型破坏、碎片效果；当前保持静态。
-- CS原版移动、武器、穿透、护甲、经济、投掷物、角色/武器模型和动画；本项目仍是独立原型。
-- 双实体电脑对战、10人负载、目标硬件FPS和网络抖动。
-- Valve官方版本散列认证。两份独立社区镜像字节一致，但不等于官方签名认证。
-
-## 来源和许可
-
-地图源文件 SHA-256：`15945389528d113562ede0a2c80647ebfa799079ed1c05a25379bcf84e4e9286`。
-
-- https://www.csboost.eu/downloads/maps/de_dust2.bsp
-- https://en.ds-servers.com/goldsrc-res/r11417/de_dust2.bsp
-- https://en.ds-servers.com/goldsrc-res/r102947/cs_dust.wad
-- https://en.ds-servers.com/goldsrc-res/r7/halflife.wad
-- https://luxserv.ge/cstrike/gfx/env/
-
-公开可下载不代表有权公开或商业再分发。原版地图与贴图仅保存在本地验证工程中；没有将其并入对外代码发行包。发布前需单独核查授权。几何转换和独立运动实现不代表移植了原版引擎代码。
+公开下载不等于有权公开或商业再分发。原版BSP/WAD/MDL和派生JSON/PNG仅保存在本地验证工程，不纳入公开代码包。独立转换器和浏览器实现不代表移植了原版引擎。

@@ -49,6 +49,9 @@ export function groundHeight(x,z,maxFeet=24){return supportHeight(x,z,maxFeet);}
 export function isGrounded(p){const t=trace(p,{...p,y:p.y-.04},p.crouch?RULES.crouchHeight:RULES.bodyHeight);return !t.startSolid&&t.fraction<1&&t.normal[1]>.7&&(p.vy||0)<=.01;}
 export function wallDistance(o,d){const t=trace(o,{x:o.x+d.x*250,y:o.y+d.y*250,z:o.z+d.z*250});return t.fraction*250;}
 export function siteAt(p){const h=p.crouch?RULES.crouchHeight:RULES.bodyHeight,center={x:p.x,y:p.y+h/2,z:p.z};return SITES.find(s=>contents(MAP_DATA.models[s.model],center,hull(h))===-2);}
+// Original BSP buy triggers are queried, never replaced by estimated spawn circles.
+export function buyZoneAt(p){const h=p.crouch?RULES.crouchHeight:RULES.bodyHeight,center={x:p.x,y:p.y+h/2,z:p.z};
+  return MAP_DATA.models.some(m=>m.entity.classname==='func_buyzone'&&(!m.entity.team||m.entity.team==='0'||m.entity.team===(p.team==='T'?'1':'2'))&&contents(m,center,hull(h))===-2);}
 export const VIEWS={overview:{eye:[72,100,90],target:[-8,0,-28]},short:{eye:[8,1.6,-38.4],target:[10.4,3.4,-45.6]},
   long:{eye:[40,4.6,-18],target:[33,4,-60]},tunnels:{eye:[-48.8,2.4,-38.4],target:[-47.2,1.6,-47.2]},
   mid:{eye:[-6,3,-32],target:[3,-1,-47]},b:{eye:[-52,5.2,-45.6],target:[-42,1.4,-62.4]},a:{eye:[39.2,7.6,-76],target:[28.6,3.4,-61.4]}};

@@ -25,6 +25,8 @@ export function refillAmmo(p,keys=Object.keys(p.inventory)){
 export function ownedWeapons(p,hasBomb=false){return [p.primary,p.pistol,'knife',...GRENADE_IDS.filter(k=>p.grenades[k]>0),hasBomb?'c4':null].filter(Boolean);}
 export function activate(p,key,now=0){
   saveActive(p);p.previousWeapon=p.weapon;p.weapon=key;p.reloadAt=0;p.burstRemaining=0;p.fireHeld=false;p.zoom=90;p.shieldRaised=false;
+  // Switching weapons cancels the previous sniper shot's pending scope recovery.
+  p.resumeZoom=0;p.resumeZoomAt=0;
   const w=GUNS[key],entry=p.inventory[key];p.ammo=w?(entry?.ammo||0):0;p.reserve=w?(p.ammoPool[w.ammoType]||0):0;
   p.silenced=!!entry?.silenced;p.burstMode=!!entry?.burstMode;p.lastShot=-100;p.nextAttackAt=now+.5;resetWeapon(p);
 }

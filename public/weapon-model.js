@@ -1,4 +1,5 @@
 // Real MDLv10 geometry/skins and embedded skeletal tracks, converted locally.
+import {createRigidSkinning} from './rigid-skinning.js';
 // No proprietary assets are embedded in this module. See docs/weapon-model-fidelity.md.
 export const WEAPON_MODEL_IDS = Object.freeze('glock18 usp p228 deagle elite fiveseven m3 xm1014 mac10 tmp mp5navy ump45 p90 galil famas ak47 m4a1 aug sg552 scout awp g3sg1 sg550 m249 knife hegrenade flashbang smokegrenade c4 shield'.split(' '));
 const BASE = '/assets/weapons/';
@@ -90,7 +91,7 @@ function disposeTree(root) {
   root.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); } });
 }
 
-async function buildOriginal(THREE, id, entry) {
+async function buildOriginal(THREE, id, entry, skinningMode) {
   check(entry?.source === 'original-mdl' && entry.file === `${id}/model.json`, 'No converted original asset');
   const {data, verified} = await fetchJSON(BASE + entry.file, entry.convertedSHA256);
   validate(data, id, entry);
@@ -100,6 +101,8 @@ async function buildOriginal(THREE, id, entry) {
     for (const r of loaded) if (r.status === 'fulfilled') r.value.dispose();
     throw new Error('Original texture load failed');
   }
+  const matrices = data.bones.map(() => new THREE.Matrix4());
+  const skinning = createRigidSkinning(THREE, matrices, skinningMode);
   const materials = loaded.map((result, i) => {
     const texture = result.value, spec = data.textures[i];
     // Original pixel S/T is top-left. flipY=false preserves S and T directly.
@@ -114,6 +117,7 @@ async function buildOriginal(THREE, id, entry) {
       alphaTest: spec.flags & 64 ? 0.5 : 0, transparent: !!(spec.flags & 32),
       blending: spec.flags & 32 ? THREE.AdditiveBlending : THREE.NormalBlending});
   });
+  materials.forEach(m => skinning.material(m));
   const root = new THREE.Group();
   root.name = `original-mdl:${id}`;
   root.matrixAutoUpdate = false;
@@ -123,8 +127,7 @@ async function buildOriginal(THREE, id, entry) {
   root.matrix.set(0, SCALE, 0, -LEGACY_ORIGIN[0], 0, 0, SCALE, -LEGACY_ORIGIN[1], -SCALE, 0, 0, -LEGACY_ORIGIN[2], 0, 0, 0, 1);
   const meshes = data.meshes.map(spec => {
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(spec.positions, 3).setUsage(THREE.DynamicDrawUsage));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(spec.normals, 3).setUsage(THREE.DynamicDrawUsage));
+    skinning.geometry(geometry, spec);
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(spec.uvPixels.length), 2));
     geometry.setIndex(spec.indices);
     const mesh = new THREE.Mesh(geometry, materials[data.skins[0][spec.skinref]]);
@@ -132,7 +135,6 @@ async function buildOriginal(THREE, id, entry) {
     return mesh;
   });
   root.traverse(foreground);
-  const matrices = data.bones.map(() => new THREE.Matrix4());
   const position = new THREE.Vector3(), unit = new THREE.Vector3(1, 1, 1), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), euler = new THREE.Euler(0, 0, 0, 'ZYX');
   const a = new Array(6), b = new Array(6);
   const adjustment = (data.controllers || []).map(c => {
@@ -174,24 +176,17 @@ async function buildOriginal(THREE, id, entry) {
       matrices[i].compose(position, q, unit);
       if (bone.parent >= 0) matrices[i].premultiply(matrices[bone.parent]);
     });
-    data.meshes.forEach((spec, i) => {
-      if (!meshes[i].visible) return;
-      const {position: out, normal} = meshes[i].geometry.attributes;
-      for (let v = 0; v < out.count; v++) {
-        position.fromArray(spec.positions, v * 3).applyMatrix4(matrices[spec.vertexBones[v]]);
-        out.setXYZ(v, position.x, position.y, position.z);
-        position.fromArray(spec.normals, v * 3).transformDirection(matrices[spec.normalBones[v]]);
-        normal.setXYZ(v, position.x, position.y, position.z);
-      }
-      out.needsUpdate = normal.needsUpdate = true;
-    });
+    skinning.update(meshes);
   }
   function muzzlePosition(target) {
     const attachment = data.attachments[0];
     if (attachment) target.fromArray(attachment.origin).applyMatrix4(matrices[attachment.bone]).applyMatrix4(root.matrix);
     else target.set(0, 0, -0.43);
   }
-  return {root, data, pose, muzzlePosition, verified};
+  return {root, data, pose, muzzlePosition, verified, dispose() {
+    skinning.dispose(); meshes.forEach(m => m.geometry.dispose());
+    materials.forEach(m => { m.map.dispose(); m.dispose(); });
+  }};
 }
 
 /** Camera child with caller-owned outer recoil transform. setWeapon returns a
@@ -199,7 +194,7 @@ async function buildOriginal(THREE, id, entry) {
  * update accepts optional weaponSequence (label/index), weaponFrame, animationToken,
  * skin/body; otherwise draw/idle/reload and observed ammo/lastShot changes drive it.
  */
-export async function createWeaponView(THREE, camera) {
+export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
   const group = new THREE.Group();
   group.name = 'first-person-weapon';
   group.layers.set(1);
@@ -217,7 +212,7 @@ export async function createWeaponView(THREE, camera) {
   let manifest = null, manifestError = null;
   try { manifest = (await fetchJSON(BASE + 'manifest.json')).data; check(manifest.schema === 'goldsrc-viewmodels-v1', 'Invalid weapon manifest'); }
   catch (error) { manifestError = String(error.message || error); }
-  let id = null, active = null, placeholder = null, generation = 0, pending = null, error = null;
+  let id = null, active = null, placeholder = null, generation = 0, pending = null, error = null, disposed = false;
   let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0;
   const find = pattern => active?.data.sequences.find(s => s.tracks && pattern.test(s.name));
   function start(s) { sequence = s || idle; elapsed = 0; frame = 0; }
@@ -227,6 +222,7 @@ export async function createWeaponView(THREE, camera) {
     active = placeholder = null;
   }
   function setWeapon(nextId) {
+    if (disposed) return Promise.resolve(info());
     if (nextId === id) return pending || Promise.resolve(info());
     id = String(nextId);
     const ticket = ++generation;
@@ -242,8 +238,18 @@ export async function createWeaponView(THREE, camera) {
       pending = null;
       return Promise.resolve(info());
     }
-    if (!cache.has(id)) cache.set(id, buildOriginal(THREE, id, manifest.weapons[id]));
-    pending = cache.get(id).then(model => {
+    if (!cache.has(id)) {
+      const modelId = id;
+      const promise = buildOriginal(THREE, id, manifest.weapons[id], skinning).catch(cause => { if(cache.get(modelId)===promise)cache.delete(modelId); throw cause; });
+      cache.set(id, promise);
+      // Bound cached geometry/textures to the four most recent weapons.
+      if (cache.size > 4) {
+        const oldest = cache.keys().next().value, evicted = cache.get(oldest); cache.delete(oldest);
+        evicted.then(model => model.dispose(), () => {});
+      }
+    }
+    const cached=cache.get(id);cache.delete(id);cache.set(id,cached);
+    pending = cached.then(model => {
       if (ticket !== generation) return info();
       removeCurrent(); active = model; group.add(model.root);
       idle = find(/^idle/i) || model.data.sequences.find(s => s.tracks) || null;
@@ -258,7 +264,7 @@ export async function createWeaponView(THREE, camera) {
     return pending;
   }
   function update(dt, state = {}) {
-    if (!active) return;
+    if (!active || disposed) return;
     state ||= {};
     const specified = state.weaponSequence;
     const key = specified == null ? null : `${specified}:${state.animationToken ?? ''}`;
@@ -291,7 +297,7 @@ export async function createWeaponView(THREE, camera) {
   function info() {
     return {
       ...(active ? active.data.metadata : {id, source: 'procedural-fallback', sourceSHA256: null, animationSupport: 'none'}),
-      id, loading: !!pending, error, sequence: sequence?.name || null, frame,
+      id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,
       convertedSHA256Verified: active?.verified || false,
       availableSequences: active?.data.sequences.map(s => ({name: s.name, fps: s.fps, frames: s.frames, imported: !!s.tracks})) || [],
       transform: {goldSrcToCamera: '(Y,Z,-X)/40 (right hand)', legacyOrigin: [...LEGACY_ORIGIN], uniformScale: SCALE},
@@ -300,6 +306,12 @@ export async function createWeaponView(THREE, camera) {
       muzzleSource: active?.data.attachments.length ? 'procedural-flash-at-original-attachment-0' : 'procedural-flash-at-fallback-position',
     };
   }
+  function dispose() {
+    if (disposed) return;
+    disposed = true; generation++; pending = null; removeCurrent();
+    for (const promise of cache.values()) promise.then(model => model.dispose(), () => {});
+    cache.clear(); muzzle.geometry.dispose(); muzzle.material.dispose(); group.removeFromParent();
+  }
   await setWeapon('glock18');
-  return {group, muzzle, setWeapon, update, info};
+  return {group, muzzle, setWeapon, update, info, dispose};
 }

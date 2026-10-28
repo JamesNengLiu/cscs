@@ -1,4 +1,5 @@
 // GoldSrc player rendering. Assets are supplied separately; no retail mesh data here.
+import {createRigidSkinning} from './rigid-skinning.js';
 export const ORIGINAL_PLAYER_IDS = Object.freeze('terror leet arctic guerilla urban gsg9 sas gign'.split(' '));
 export const PLAYER_MODEL_IDS = Object.freeze([...ORIGINAL_PLAYER_IDS, ...ORIGINAL_PLAYER_IDS.slice(0, 4).map(id => `${id}_trump`)]);
 const BASE = '/assets/players/';
@@ -221,8 +222,10 @@ function placeholder(THREE, id) {
   mesh.position.y = 0.9; root.add(mesh); root.traverse(world);
   return {root, dispose() { mesh.geometry.dispose(); mesh.material.dispose(); }};
 }
-function buildPose(THREE, asset, shared) {
+function buildPose(THREE, asset, shared, skinningMode) {
   const data = asset.data, root = new THREE.Group();
+  const matrices = data.bones.map(() => new THREE.Matrix4());
+  const skinning = createRigidSkinning(THREE, matrices, skinningMode);
   root.name = `${data.metadata.source}:${data.metadata.id}`;
   root.matrixAutoUpdate = false;
   // Determinant +1 before uniform scale: source +X forward maps to world -Z.
@@ -232,17 +235,16 @@ function buildPose(THREE, asset, shared) {
     transparent: !!(data.textures[i].flags & 32),
     blending: data.textures[i].flags & 32 ? THREE.AdditiveBlending : THREE.NormalBlending,
     depthTest: true, depthWrite: true, toneMapped: false, fog: true}));
+  materials.forEach(m => skinning.material(m));
   const meshes = data.meshes.map(spec => {
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(spec.positions, 3).setUsage(THREE.DynamicDrawUsage));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(spec.normals, 3).setUsage(THREE.DynamicDrawUsage));
+    skinning.geometry(geometry, spec);
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(spec.uvPixels.length), 2));
     geometry.setIndex(spec.indices);
     const mesh = new THREE.Mesh(geometry, materials[0]); root.add(mesh); return mesh;
   });
   root.traverse(world);
-  const matrices = data.bones.map(() => new THREE.Matrix4());
-  const position = new THREE.Vector3(), unit = new THREE.Vector3(1, 1, 1);
+  const unit = new THREE.Vector3(1, 1, 1);
   const euler = new THREE.Euler(0, 0, 0, 'ZYX'), nextQ = new THREE.Quaternion();
   const positions = Array.from({length: 4}, () => new THREE.Vector3());
   const rotations = Array.from({length: 4}, () => new THREE.Quaternion());
@@ -317,18 +319,10 @@ function buildPose(THREE, asset, shared) {
       matrices[i].compose(positions[0], rotations[0], unit);
       if (bone.parent >= 0) matrices[i].premultiply(matrices[bone.parent]);
     }
-    for (let i = 0; i < meshes.length; i++) {
-      if (!meshes[i].visible) continue;
-      const spec = data.meshes[i], out = meshes[i].geometry.attributes.position, normal = meshes[i].geometry.attributes.normal;
-      for (let v = 0; v < out.count; v++) {
-        position.fromArray(spec.positions, v * 3).applyMatrix4(matrices[spec.vertexBones[v]]); out.setXYZ(v, position.x, position.y, position.z);
-        position.fromArray(spec.normals, v * 3).transformDirection(matrices[spec.normalBones[v]]); normal.setXYZ(v, position.x, position.y, position.z);
-      }
-      out.needsUpdate = normal.needsUpdate = true;
-    }
+    skinning.update(meshes);
   }
   return {root, data, asset, matrices, pose, blendInfo: () => blendDescription,
-    dispose() { for (const mesh of meshes) mesh.geometry.dispose(); for (const m of materials) m.dispose(); shared.release(); }};
+    dispose() { skinning.dispose(); for (const mesh of meshes) mesh.geometry.dispose(); for (const m of materials) m.dispose(); shared.release(); }};
 }
 const weaponSuffix = id => ({glock18: 'onehanded', usp: 'onehanded', p228: 'onehanded', deagle: 'onehanded', fiveseven: 'onehanded',
   elite: 'dualpistols', m4a1: 'carbine', galil: 'carbine', famas: 'carbine', aug: 'rifle', sg552: 'rifle', scout: 'rifle', awp: 'rifle',
@@ -357,7 +351,7 @@ function selector(data) {
  * Call setCharacter(id), attach group to scene, then update(dt, state) in seconds.
  * See docs/player-renderer.md for explicit animation controls and provenance.
  */
-export function createPlayerActor(THREE, {onChange = () => {}} = {}) {
+export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'} = {}) {
   const group = new THREE.Group(); group.name = 'goldsrc-player'; group.layers.set(0);
   const cache = cacheFor(THREE);
   let id = null, active = null, missing = null, manifest = null, generation = 0, pending = null, disposed = false, error = null;
@@ -389,7 +383,7 @@ export function createPlayerActor(THREE, {onChange = () => {}} = {}) {
       if (disposed || ticket !== weaponGeneration || owner !== active) { shared.release(); return; }
       const map = asset.data.bones.map(b => owner.data.bones.findIndex(pb => pb.name.toLowerCase() === b.name.toLowerCase()));
       if (!map.some(n => n >= 0)) { shared.release(); throw new Error('No p_weapon bones match player bone names'); }
-      weapon = buildPose(THREE, asset, shared); weaponMapping = map; group.add(weapon.root);
+      weapon = buildPose(THREE, asset, shared, skinning); weaponMapping = map; group.add(weapon.root);
       weapon.pose(null, 0, state, active.matrices, weaponMapping);
       weaponStatus = `Merged ${map.filter(n => n >= 0).length}/${map.length} p_weapon bones by name`;
       notify();
@@ -413,7 +407,7 @@ export function createPlayerActor(THREE, {onChange = () => {}} = {}) {
       if (ticket !== generation || disposed) return info();
       const shared = await texturesFor(THREE, cache, asset);
       if (ticket !== generation || disposed) { shared.release(); return info(); }
-      const built = buildPose(THREE, asset, shared);
+      const built = buildPose(THREE, asset, shared, skinning);
       clear(); active = built; choose = selector(active.data); group.add(active.root);
       update(0, state);
       pending = null; notify(); return info();
@@ -485,7 +479,7 @@ export function createPlayerActor(THREE, {onChange = () => {}} = {}) {
       counts: active?.data.metadata.counts ? {...active.data.metadata.counts} : null,
       sourceHashStatus: active ? 'MDL provenance declared by manifest; raw MDL not fetched by renderer' : 'no loaded source',
       customCosmetic: active?.data.metadata.source === 'custom-trump-face',
-      sequence: sequence?.name || null, action, frame, animationWarning,
+      sequence: sequence?.name || null, action, frame, animationWarning, skinning,
       blendSupport: active?.blendInfo() || 'none',
       availableSequences: active?.data.sequences.map((s, index) => ({index, name: s.name, frames: s.frames, fps: s.fps, blendCount: s.blendCount,
         imported: !!(s.tracks || s.blendTracks), allBlends: !!s.blendTracks || s.blendCount === 1})) || [],

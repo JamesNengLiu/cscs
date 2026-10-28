@@ -128,13 +128,14 @@ test('runtime loads all canonical weapons, samples real skeletal motion, preserv
   globalThis.fetch = localFetch;
   t.after(() => { globalThis.fetch = old; });
   const camera = new THREE.PerspectiveCamera(80, 16 / 9, 0.06, 450);
-  const view = await createWeaponView(three, camera);
+  const view = await createWeaponView(three, camera, {skinning:'cpu'}); t.after(()=>view.dispose());
   assert.equal(view.group.parent, camera);
   assert.equal(view.muzzle.isMesh, true);
   for (const id of WEAPON_MODEL_IDS) {
     await view.setWeapon(id);
     assert.equal(view.info().source, 'original-mdl', `${id}: ${view.info().error}`);
     assert.equal(view.info().convertedSHA256Verified, true);
+    assert.ok(view.info().cachedModels<=4,'Viewmodel cache must remain bounded during all-weapon cycling');
     view.update(0.016, {weaponSequence: view.info().availableSequences.find(s => s.name.startsWith('idle')).name, weaponFrame: 0});
     view.group.traverse(o => { if (o.isMesh) { assert.equal(o.material.depthTest, true); assert.equal(o.material.depthWrite, true); assert.equal(o.layers.mask,2); assert.ok(o.renderOrder >= 100); assert.ok(o.geometry.attributes.position.array.every(Number.isFinite)); } });
   }

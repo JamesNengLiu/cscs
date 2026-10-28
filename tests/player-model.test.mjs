@@ -55,7 +55,7 @@ function setup(t, models = [fixture()], {weapons = [], fetcher, loader} = {}) {
   }
   const three = {...THREE, TextureLoader};
   const actors = [];
-  const actor = () => { const a = createPlayerActor(three); actors.push(a); return a; };
+  const actor = () => { const a = createPlayerActor(three, {skinning:'cpu'}); actors.push(a); return a; };
   t.after(() => actors.forEach(a => a.dispose()));
   return {actor, three, manifest, files, loadedTextures, requests};
 }
@@ -221,7 +221,7 @@ test('file-backed real player assets load with Three, exact hashes and animated 
       const texture = new THREE.Texture(); texture.image = {width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20)}; return texture;
     }
   }
-  const a = createPlayerActor({...THREE, TextureLoader: FileTextures}); t.after(() => a.dispose());
+  const a = createPlayerActor({...THREE, TextureLoader: FileTextures}, {skinning:'cpu'}); t.after(() => a.dispose());
   const available = PLAYER_MODEL_IDS.filter(id => manifest.models[id]?.file);
   assert.ok(available.length > 0, 'Manifest exists but has no usable assets');
   for (const id of available) {

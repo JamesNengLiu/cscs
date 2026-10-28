@@ -9,15 +9,17 @@
   <form id="joinForm"><label>玩家昵称<input id="name" maxlength="16" placeholder="输入昵称" value="玩家" autocomplete="off" required></label>
   <label>加入阵营<select id="team"><option value="T">T · 进攻方 / 安放炸弹</option><option value="CT">CT · 防守方 / 拆除炸弹</option></select></label>
   <label>人物外观<select id="character"></select></label>
+  <label>画质 / 流畅度<select data-quality aria-label="画质 / 流畅度"><option value="auto">自动 · 显卡持续过载时调整分辨率</option><option value="performance">优先流畅 · 较低渲染分辨率</option><option value="sharp">优先清晰 · 固定高分辨率</option></select></label>
   <button type="submit" id="joinButton" disabled>正在连接服务器…</button></form>
   <button id="characterPreview" class="secondary" type="button">人物预览 · CS原版 / 自定义面部</button>
+  <button id="lobbySettingsButton" class="secondary" type="button">游戏菜单 · 鼠标 / 画质设置</button>
   <button id="previewButton" class="secondary" type="button">先看地图 · 高差与路线预览</button><p class="quality">已启用原图贴图与 BSP 静态光照</p>
   <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标 · 自定义开局 $10,000</b><br>WASD 移动 · 左键射击 / 投掷 · 右键武器副功能<br>空格跳跃 · Shift 慢走 · C 蹲下 · 按住 E 安放 / 拆除<br>B 购买 · 1 主武器 / 2 手枪 / 3 匕首 / 4 手雷 / 5 C4<br>Q 上一武器 · 滚轮切换 · G 丢弃 · R 换弹 · Tab 战绩<br>Esc 释放鼠标；购买后点击“继续游戏”恢复操作</div>
   <p class="disclaimer">CS 1.6 武器目录与自定义经济；地图由社区镜像 BSP 数据转换。此项目不是完整原版引擎移植，武器动画与烟雾效果为浏览器近似实现。双方各至少一人开始；地图预览无需开局。</p>
 </section></div>
 <section id="previewPanel" hidden><div class="eyebrow">MAP REVIEW / ORIGINAL BSP GEOMETRY / V0.3</div><h2>沙漠 2 · BSP 地图</h2><p>源坐标等比例转换；贴图和光照来自地图数据</p><nav><button data-view="overview">全图</button><button data-view="short">A 小道 / 台阶</button><button data-view="long">A 大道 / 大坑</button><button data-view="tunnels">B 通道</button><button data-view="mid">中门</button><button data-view="b">B 区</button><button data-view="a">A 区</button><button id="backButton">返回大厅</button></nav></section>
 <div id="hud" hidden>
-  <header><div class="brand">LAN<span>STRIKE</span><small>BSP 地图测试</small></div><div id="score">T 0 <em>:</em> 0 CT</div><div id="network">连接中</div></header>
+  <header><div class="brand">LAN<span>STRIKE</span><small>BSP 地图测试</small></div><div id="score">T 0 <em>:</em> 0 CT</div><div class="hud-menu-actions"><div id="network">连接中</div><button id="gameMenuButton" type="button" aria-haspopup="dialog" aria-controls="resume">菜单 <kbd>Esc</kbd></button></div></header>
   <div id="topStatus"><strong id="timer">--:--</strong><div id="phase">等待玩家</div></div>
   <canvas id="minimap" width="200" height="200"></canvas><div id="mapLabel">de_dust2 · BSP 导入 v0.3</div>
   <div id="feed"></div><div id="notice"></div>
@@ -27,7 +29,21 @@
   <footer><div class="vitals"><small id="identity">—</small><div class="vital-values"><b id="health"><strong id="healthValue">100</strong> <span>HP</span></b><b id="armour"><strong id="armourValue">0</strong> <span id="armourType">护甲</span></b></div><small id="equipmentStatus"></small></div><div class="hud-center"><div id="money">$—</div><div id="buyIndicator">B 浏览装备</div><div id="hint">按住 E 互动 · R 换弹</div></div><div class="ammo"><small id="weapon">—</small><b id="ammo"><strong id="ammoValue">—</strong> <span id="reserveValue"></span></b></div></footer>
   <div id="board" hidden><h2>本场战绩</h2><table><thead><tr><th>阵营</th><th>玩家</th><th>状态</th><th>击杀</th><th>死亡</th></tr></thead><tbody id="boardBody"></tbody></table><p>无友军伤害 · 死亡后等待下一回合 · B 购买 · 自定义开局 $10,000</p></div>
 </div>
-<div id="resume" class="overlay" hidden><section class="card compact"><h2 id="resumeTitle">已进入房间</h2><p>点击按钮捕获鼠标，开始第一人称操作。</p><button id="resumeButton">进入游戏</button><button id="openBuyButton" class="secondary">购买武器 / 装备 · B</button><p>Esc 释放鼠标；切换窗口后角色会停止操作。右键：瞄准镜 / 连发 / 消音器 / 刀刺 / 举盾，取决于当前装备。</p></section></div>
+<div id="resume" class="overlay" role="dialog" aria-modal="true" aria-labelledby="resumeTitle" aria-describedby="menuNotice" hidden>
+  <section class="card game-menu">
+    <div class="eyebrow">GAME MENU / LOCAL SETTINGS</div><h2 id="resumeTitle">游戏菜单</h2>
+    <p id="menuNotice">设置只影响本机；局域网对局不会暂停。</p>
+    <fieldset class="menu-section"><legend>鼠标与瞄准</legend>
+      <div class="sensitivity-heading"><label for="mouseSensitivity">鼠标灵敏度（倍率）</label><output id="mouseSensitivityValue" for="mouseSensitivity mouseSensitivityNumber">1.00×</output></div>
+      <div class="sensitivity-controls"><input id="mouseSensitivity" type="range" min="0.1" max="5" step="0.05" value="1" aria-describedby="mouseSensitivityHelp"><label class="sensitivity-number-label" for="mouseSensitivityNumber">精确数值<input id="mouseSensitivityNumber" type="number" min="0.1" max="5" step="0.05" value="1.00" inputmode="decimal" aria-describedby="mouseSensitivityHelp"></label></div>
+      <p id="mouseSensitivityHelp" class="menu-help">0.10×–5.00×，默认 1.00× 与之前手感相同；同时调整水平和垂直转向，不改变后坐力规则。</p>
+      <div class="sensitivity-footer"><small id="mouseSettingsStatus" role="status" aria-live="polite"></small><button id="resetMouseSettings" class="secondary" type="button">恢复默认灵敏度</button></div>
+    </fieldset>
+    <fieldset class="menu-section"><legend>图形与性能</legend><label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label></fieldset>
+    <div class="menu-actions"><button id="resumeButton" type="button">继续游戏</button><button id="openBuyButton" class="secondary" type="button">购买武器 / 装备 · B</button></div>
+    <p class="menu-help">Esc 打开菜单并释放鼠标；点击“继续游戏”重新捕获鼠标。菜单内不会移动、开火或切换装备。</p>
+  </section>
+</div>
 <section id="buyMenu" class="buy-overlay" role="dialog" aria-modal="true" aria-labelledby="buyTitle" hidden>
   <div class="buy-panel">
     <header class="buy-header"><div><div class="eyebrow">ARMORY / CS 1.6 CATALOG</div><h2 id="buyTitle">武器与装备</h2><small id="buyTeam">—</small></div><div class="buy-wallet"><small>可用资金</small><strong id="buyBalance">$—</strong><span id="buyAvailability">等待服务器</span></div><button id="buyClose" aria-label="关闭购买菜单">关闭 <kbd>B / Esc</kbd></button></header>

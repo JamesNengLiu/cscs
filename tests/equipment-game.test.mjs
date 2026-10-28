@@ -82,8 +82,11 @@ test('carryover: survivors refill ammo and keep armour/equipment; death resets g
 test('knife: equip anytime owned, primary and backstab hit, no ammo or free sniper',()=>{
   const {g,t,ct}=match();g.equip('t',3);g.time+=1;place(t);place(ct,-18.4,21.3);t.pitch=-.4;ct.hp=1000;const hp=ct.hp;g.shoot(t);assert.ok(ct.hp<hp);assert.equal(t.ammo,0);g.time+=2;ct.yaw=0;const before=ct.hp;g.secondary('t');assert.ok(before-ct.hp>65);assert.equal(g.equip('t','awp'),false);
 });
-test('grenade integration: server consumes exactly one grenade, creates live projectile and switches back',()=>{
-  const {g,t}=match();g.buy('t','hegrenade');g.equip('t',4);g.time+=1;assert.equal(t.weapon,'hegrenade');assert.equal(g.shoot(t),true);assert.equal(t.grenades.hegrenade,0);assert.equal(g.projectiles.length,1);assert.equal(t.weapon,'glock18');
+test('grenade integration: pull pin, release, consume once and finish throwing before switching back',()=>{
+  const {g,t}=match();g.buy('t','hegrenade');g.equip('t',4);g.time+=1;assert.equal(t.weapon,'hegrenade');
+  tick(g,.6,{t:{fire:true}});assert.equal(t.grenadePhase,'hold');assert.equal(t.grenades.hegrenade,1);assert.equal(g.projectiles.length,0);
+  tick(g,.02,{t:{fire:false}});assert.equal(t.grenades.hegrenade,0);assert.equal(g.projectiles.length,1);assert.equal(t.weapon,'hegrenade');
+  tick(g,.51,{t:{fire:false}});assert.equal(t.weapon,'glock18');
 });
 test('gun modes: silencer, burst, zoom, reload and equipment ownership are authoritative',()=>{
   {const {g,ct}=match();g.buy('ct','m4a1');g.time+=1;g.secondary('ct');assert.equal(ct.silenced,true);assert.equal(g.shoot(ct),false);}
@@ -100,5 +103,5 @@ test('death drops: only best firearm, and a CT kit can be recovered without purc
   const {g,t,ct}=match();g.buy('ct','m4a1');g.buy('ct','defusekit');const ally=g.add('ally','CT ally','CT');g.spawn(ally);g.damage(ct,1000,t);assert.deepEqual(g.drops.filter(d=>d.kind==='weapon').map(d=>d.weapon),['m4a1']);const kit=g.drops.find(d=>d.kind==='defusekit');assert.ok(kit);Object.assign(ally,{x:kit.x,y:kit.y,z:kit.z});g.time+=.6;g.pickup(ally);assert.equal(ally.defuseKit,true);assert.equal(ally.primary,'m4a1');
 });
 test('privacy: opponent snapshots omit cash, ammunition inventory and flash state',()=>{
-  const {g,t}=match();const self=g.snapshot('t').players.find(p=>p.id==='t'),other=g.snapshot('ct').players.find(p=>p.id==='t');assert.equal(self.money,10000);assert.equal(other.money,undefined);assert.equal(other.inventory,undefined);assert.equal(other.ammoPool,undefined);assert.equal(other.flashUntil,undefined);self.inventory.knife.ammo=99;assert.equal(t.inventory.knife.ammo,0);
+  const {g,t}=match();const self=g.snapshot('t').players.find(p=>p.id==='t'),other=g.snapshot('ct').players.find(p=>p.id==='t');assert.equal(self.money,10000);assert.equal(other.money,undefined);assert.equal(other.inventory,undefined);assert.equal(other.ammoPool,undefined);assert.equal(other.flashUntil,undefined);assert.equal(other.flashFade,undefined);self.inventory.knife.ammo=99;assert.equal(t.inventory.knife.ammo,0);
 });

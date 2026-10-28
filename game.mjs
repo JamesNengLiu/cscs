@@ -7,6 +7,7 @@ import {armourDamage} from './public/armour.js';
 import {freshLoadout,saveActive,refillAmmo,activate,ownedWeapons,GRENADE_IDS} from './inventory.mjs';
 import {createGrenade,stepGrenades,GRENADE_LIMITS} from './grenades.mjs';
 import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/input-protocol.js';
+import {GRENADE_TIMING,resetGrenadeThrow} from './public/grenade-state.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
@@ -30,7 +31,7 @@ export class Game {
   spawn(p){const index=[...this.players.values()].filter(a=>a.team===p.team).indexOf(p),s=SPAWN_POINTS[p.team][Math.max(0,index)%SPAWN_POINTS[p.team].length];
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
-    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
+    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0});
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
@@ -55,6 +56,7 @@ export class Game {
       // simulation tick, not on receipt; late redundant copies cannot revive it.
       // Optional sender watermark also cancels datagrams still in flight.
       const cancel=raw.cancelThroughSeq===undefined?source.cancelThroughSeq:raw.cancelThroughSeq;
+      if((state.sequenced||cancel!==undefined)&&p.grenadePhase!=='throw')resetGrenadeThrow(p);
       const watermark=validInputSequence(cancel)&&cancel<=p.ackInputSeq+MAX_INPUT_QUEUE?cancel:0;
       state.skipThrough=Math.max(state.skipThrough,p.lastInputSeq,watermark);
       state.queue.clear();state.gapSince=null;
@@ -147,6 +149,7 @@ export class Game {
     this.drops.splice(i,1);activate(p,d.weapon,this.time);
   }}
   secondary(id){const p=this.players.get(id);if(!p?.alive||!allowsPlayerActions(this.phase)||this.time<(p.nextSecondaryAt||0)||p.reloadAt)return false;
+    if(p.grenadePhase)return false;
     if(p.shield){p.shieldRaised=!p.shieldRaised;p.nextAttackAt=this.time+.4;p.nextSecondaryAt=this.time+.4;return true;}
     if(p.weapon==='knife')return this.knife(p,true);const w=GUNS[p.weapon];if(!w)return false;
     if(w.zoom){const levels=[90,...w.zoom];p.zoom=levels[(levels.indexOf(p.zoom)+1)%levels.length];p.nextSecondaryAt=this.time+.3;}
@@ -174,7 +177,7 @@ export class Game {
     if(killer&&killer!==p&&killer.team===p.team&&!this.friendlyFire)return 0;
     const result=armourDamage(amount,p.armour||0,p.helmet,options.hitgroup||'chest',options.armourRatio??1,!!options.blast);p.armour=result.armour;
     p.hp=Math.max(0,p.hp-result.healthDamage);p.progress=0;p.action='';this.emit({type:'damage',id:p.id,amount:result.healthDamage,armour:result.armourDamage});
-    if(p.hp<=0){p.alive=false;p.deaths++;p.reloadAt=0;p.burstRemaining=0;saveActive(p);
+    if(p.hp<=0){p.alive=false;p.deaths++;p.reloadAt=0;p.burstRemaining=0;resetGrenadeThrow(p);saveActive(p);
       if(p.shield)this.releaseShield(p);else {const best=p.primary||p.pistol;if(best)this.releaseGun(p,best);}
       if(p.defuseKit){this.drops.push({id:`drop-${++this.nextDrop}`,kind:'defusekit',x:p.x,y:p.y,z:p.z,pickupAt:this.time+.5,endAt:this.time+180});p.defuseKit=false;this.drops=this.drops.slice(-64);}this.dropBomb(p);
       if(killer){if(killer===p){killer.kills--;}else if(killer.team===p.team){killer.kills--;this.credit(killer,ECONOMY.teamKillPenalty,'teamkill');}else {killer.kills++;this.credit(killer,ECONOMY.killReward,'kill');}}
@@ -199,9 +202,8 @@ export class Game {
   shoot(p,burstFollowup=false){if(!p?.alive||!allowsPlayerActions(this.phase)||p.shieldRaised)return false;
     if(p.weapon==='knife')return this.knife(p);
     if(GRENADE_IDS.includes(p.weapon)){
-      if(this.time<(p.nextAttackAt||0)||this.projectiles.length>=GRENADE_LIMITS.active||p.grenades[p.weapon]<=0)return false;
-      const kind=p.weapon,grenade=createGrenade(p,kind,this.time);if(!grenade)return false;p.grenades[kind]--;this.projectiles.push(grenade);p.nextAttackAt=this.time+.5;this.emit({type:'throw',id:p.id,kind});
-      if(!p.grenades[kind])activate(p,p.primary||p.pistol||'knife',this.time);return true;
+      if(this.time<(p.nextAttackAt||0)||p.grenadePhase||p.grenades[p.weapon]<=0)return false;
+      p.grenadePhase='pin';p.grenadeStartedAt=this.time;p.grenadeReleased=false;return true;
     }
     const w=GUNS[p.weapon];if(!w||this.time<(p.nextAttackAt||0)||p.ammo<=0)return false;
     const interval=p.burstMode&&p.weapon==='glock18'?.5:p.burstMode&&p.weapon==='famas'?.55:w.interval;
@@ -219,6 +221,23 @@ export class Game {
     if(p.burstMode&&!burstFollowup&&['glock18','famas'].includes(p.weapon)){p.burstRemaining=Math.min(2,p.ammo);p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
     if(['awp','scout'].includes(p.weapon)&&p.zoom!==90){p.resumeZoom=p.zoom;p.zoom=90;p.resumeZoomAt=this.time+w.interval;}
     saveActive(p);return true;
+  }
+  updateGrenade(p,actualInput){
+    if(!p.grenadePhase||!GRENADE_IDS.includes(p.weapon))return;
+    if(p.grenadePhase==='throw'){
+      if(this.time+1e-8>=p.grenadeThrownAt+GRENADE_TIMING.recoverSeconds)activate(p,p.primary||p.pistol||'knife',this.time);
+      return;
+    }
+    // A missing sequenced command is not a release; prolonged silence cancels preparation.
+    if(!actualInput&&this.time-Math.max(p.lastInput,p.grenadeStartedAt)>LEGACY_INPUT_GRACE_SECONDS){resetGrenadeThrow(p);return;}
+    if(actualInput&&!p.input.fire)p.grenadeReleased=true;
+    if(this.time+1e-8<p.grenadeStartedAt+GRENADE_TIMING.pinSeconds)return;
+    p.grenadePhase='hold';if(!p.grenadeReleased)return;
+    if(this.projectiles.length>=GRENADE_LIMITS.active){resetGrenadeThrow(p);return;}
+    const kind=p.weapon,grenade=createGrenade(p,kind,this.time);
+    if(!grenade){resetGrenadeThrow(p);return;}
+    p.grenades[kind]--;this.projectiles.push(grenade);p.grenadePhase='throw';p.grenadeThrownAt=this.time;
+    p.nextAttackAt=this.time+GRENADE_TIMING.recoverSeconds;p.lastShot=this.time;this.emit({type:'throw',id:p.id,kind});
   }
   canReach(p,b,radius){if(Math.hypot(p.x-b.x,p.z-b.z)>=radius||Math.abs(p.y-(b.y||0))>1.3)return false;
     const o={x:p.x,y:p.y+eyeHeight(p),z:p.z},dx=b.x-o.x,dy=(b.y||0)+.2-o.y,dz=b.z-o.z,length=Math.hypot(dx,dy,dz);
@@ -254,7 +273,8 @@ export class Game {
       if(p.reloadAt&&this.time>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?this.time+w.reload:0;saveActive(p);}
       if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
       if(p.burstRemaining>0&&this.time>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
-      if(p.input.fire&&!p.action&&(p.weapon==='knife'||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
+      if(p.input.fire&&!p.action&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
+      this.updateGrenade(p,!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS);
       // Reload an empty active firearm even after the trigger is released.
       if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
     }
@@ -266,7 +286,7 @@ export class Game {
   }
   snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(({input,lastInput,lastInputSeq,pendingMoney,...p})=>{
-        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,defuseKit,nightvision,nightvisionOn,...visible}=p;return visible;}
+        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return visible;}
         return {...p,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}
 }

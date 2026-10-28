@@ -50,7 +50,7 @@ const worldEffects=createWorldEffects(THREE,scene);
 const shotEffects=createShotEffects(THREE,scene),remote=new Map();
 
 let state=null,myId=null,joined=false,connected=false,locked=false,yaw=0,pitch=0,local=null,lastRound=-1,shotKick=0,hitAt=0,damageAt=0,noticeUntil=0,lag=0,recoilYaw=0,recoilPitch=0,preview=false,view='overview',renderY=null,sceneDirty=true,renderedView=null;
-let stateReceivedAt=performance.now(),lastWeapon=null,activeWeapon=null,wheelAt=0,flashUntil=0,flashAmount=0,flashOpacity=0,smokeOpacity=0,visualSignature='';
+let stateReceivedAt=performance.now(),lastWeapon=null,activeWeapon=null,wheelAt=0,flashUntil=0,flashAmount=0,flashFade=1.4,flashOpacity=0,smokeOpacity=0,visualSignature='';
 const qualityControls=[...document.querySelectorAll('[data-quality]')];
 for(const control of qualityControls){control.value=resolution.quality;control.onchange=()=>{
   if(!resolution.setQuality(control.value))return;
@@ -101,9 +101,9 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){local={...me};pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};}
       else {const result=reconcileMovement(me,pendingCommands,m.round);lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction);local=result.player;pendingCommands=result.pending;}
       if(activeWeapon!==me.weapon){if(activeWeapon&&ownedWeapons(me,m.bomb).includes(activeWeapon))lastWeapon=activeWeapon;activeWeapon=me.weapon;sceneDirty=true;}
-      if(me.flashUntil!==undefined){flashUntil=Number(me.flashUntil)||0;flashAmount=clamp(Number(me.flashAmount)||0,0,1);}
+      if(me.flashUntil!==undefined){flashUntil=Number(me.flashUntil)||0;flashAmount=clamp(Number(me.flashAmount)||0,0,1);flashFade=Number(me.flashFade)||1.4;}
       if(!me.alive){flashUntil=0;flashAmount=0;}
-      const signature=JSON.stringify([me.alive,me.weapon,me.zoom,me.shieldRaised,me.reloadAt,me.armour,me.flashUntil,me.flashAmount,m.bomb]);
+      const signature=JSON.stringify([me.alive,me.weapon,me.zoom,me.shieldRaised,me.reloadAt,me.armour,me.flashUntil,me.flashAmount,me.flashFade,me.grenadePhase,me.grenadeStartedAt,me.grenadeThrownAt,m.bomb]);
       if(signature!==visualSignature){sceneDirty=true;visualSignature=signature;}
     }
     if(worldEffects.sync(m)&&joined)sceneDirty=true;
@@ -120,7 +120,7 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
     if(e.type==='buy'&&(e.id===myId||e.target===myId))shop.reportResult(e.message||`已购买 ${weaponName(e.item)}`,e.ok!==false);
     if(e.type==='flash'&&(e.target??e.id)===myId&&player()?.alive){
       flashUntil=Number(e.flashUntil??e.until)||((Number(e.time)||serverTime())+(Number(e.duration)||3));
-      flashAmount=clamp(Number(e.flashAmount??e.amount??1),0,1);sceneDirty=true;
+      flashAmount=clamp(Number(e.flashAmount??e.amount??1),0,1);flashFade=Number(e.fade)||1.4;sceneDirty=true;
     }
     if(e.type==='kill'){const div=document.createElement('div');div.textContent=`${e.attacker} → ${e.victim}`;$('feed').prepend(div);setTimeout(()=>div.remove(),5500);}
     if(e.type==='damage'&&e.id===myId){damageAt=performance.now();sound(65,.1,.025);}
@@ -255,7 +255,7 @@ let previous=performance.now(),frameCount=0,lastMinimap=-Infinity,lastHud=-Infin
 function frame(now){requestAnimationFrame(frame);const started=performance.now(),interval=now-previous,dt=Math.min(.05,interval/1000);previous=now;frameCount++;
   networkDiagnostics.frame(interval,joined&&locked&&!document.hidden);
   const me=player(),time=serverTime();
-  const opacity=me?.alive?calculateFlashOpacity(flashUntil,flashAmount,time):0;
+  const opacity=me?.alive?calculateFlashOpacity(flashUntil,flashAmount,time,flashFade):0;
   if(opacity!==flashOpacity){flashOpacity=opacity;$('flashOverlay').style.opacity=String(flashOpacity);}
   style('hitmarker','opacity',now-hitAt<120?'1':'0');style('damageFlash','opacity',now-damageAt<160?'0.65':'0');
   if(now>noticeUntil&&$('notice').textContent)$('notice').textContent='';
@@ -264,7 +264,7 @@ function frame(now){requestAnimationFrame(frame);const started=performance.now()
   if(!locked&&!sceneDirty&&!(joined&&worldEffects.active(time)))return;
   scene.fog=preview?null:gameplayFog;const desiredFov=preview?(view==='overview'?55:75):me?clamp(Number(me.zoom)||90,10,90):80;if(camera.fov!==desiredFov){camera.fov=desiredFov;camera.updateProjectionMatrix();}
   const scoped=Boolean(!preview&&me?.alive&&desiredFov<=40);
-  $('scopeOverlay').hidden=!scoped;$('crosshair').hidden=scoped||!me?.alive||shop.isOpen||['knife','c4'].includes(me?.weapon);
+  $('scopeOverlay').hidden=!scoped;$('crosshair').hidden=scoped||!me?.alive||shop.isOpen||['knife','c4'].includes(me?.weapon)||GUNS[me?.weapon]?.category==='sniper';
   if(local&&me){if(allowsPlayerActions(state.phase)&&me.alive&&locked){physicsAccumulator=Math.min(.1,physicsAccumulator+dt);while(physicsAccumulator>=PREDICTION_DT&&pendingCommands.length<MAX_PENDING_COMMANDS){const edge=inputEdges.shift(),command={seq:++inputSeq,round:state.round,input:edge||input()};movePlayer(local,command.input,PREDICTION_DT);pendingCommands.push(command);if(edge)send({type:'inputCritical',commands:[{seq:command.seq,round:command.round,...command.input}]});const feedback=shotFeedback.sample({player:me,input:command.input,seq:command.seq,round:state.round,time:serverTime(),nowMs:now,allowed:true});if(feedback){shotKick=1;sound(130,.07,.035);recoilYaw=feedback.recoilYaw||0;recoilPitch=feedback.recoilPitch||0;}physicsAccumulator-=PREDICTION_DT;}if(now-lastInputPacket>=1000/60&&pendingCommands.length){const batch=buildInputBatch(pendingCommands,state.round,me.ackInputSeq||0);batch.viewTime=snapshotBuffer.diagnostics().playbackTimeMs/1000;batch.interpDelayMs=snapshotBuffer.diagnostics().delayMs;send(batch);lastInputPacket=now;}}
     correction=decayCorrection(correction,dt);
     const targetY=local.y+eyeHeight(local)+correction.y;renderY=renderY===null?targetY:renderY+(targetY-renderY)*Math.min(1,dt*22);
@@ -280,7 +280,7 @@ function frame(now){requestAnimationFrame(frame);const started=performance.now()
   if(weaponView){
     const visibleWeapon=me?.shieldRaised?'shield':me?.weapon;
     if(me&&modelWeapon!==visibleWeapon){modelWeapon=visibleWeapon;Promise.resolve(weaponView.setWeapon(visibleWeapon)).then(()=>{sceneDirty=true;}).catch(error=>{weaponModelError=String(error.message||error);});}
-    if(me)weaponView.update(dt,me);
+    if(me)weaponView.update(dt,me,time);
     weaponView.group.position.set(.25+Math.sin(now*.007)*(me?.moving?.006:0),-.24-shotKick*.015,-.42+shotKick*.045);weaponView.group.rotation.x=shotKick*.07;
     weaponView.group.visible=Boolean(me?.alive&&!preview&&!scoped);
     if(weaponView.muzzle)weaponView.muzzle.visible=Boolean(me?.alive&&GUNS[me.weapon]&&shotKick>.75);

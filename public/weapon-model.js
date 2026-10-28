@@ -253,7 +253,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
       if (ticket !== generation) return info();
       removeCurrent(); active = model; group.add(model.root);
       idle = find(/^idle/i) || model.data.sequences.find(s => s.tracks) || null;
-      start(find(/^draw/i) || idle);
+      start(find(/^(draw|deploy)/i) || idle);
       active.pose(sequence, 0); active.muzzlePosition(muzzle.position);
       pending = null;
       return info();
@@ -263,11 +263,14 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
     });
     return pending;
   }
-  function update(dt, state = {}) {
+  function update(dt, state = {}, time = null) {
     if (!active || disposed) return;
     state ||= {};
-    const specified = state.weaponSequence;
-    const key = specified == null ? null : `${specified}:${state.animationToken ?? ''}`;
+    const grenadeSequence=state.weaponSequence==null&&['hegrenade','flashbang','smokegrenade'].includes(id)
+      ? ['pin','hold'].includes(state.grenadePhase)?'pullpin':state.grenadePhase==='throw'?'throw':null : null;
+    const specified = state.weaponSequence ?? grenadeSequence;
+    const grenadeAt=grenadeSequence==='throw'?state.grenadeThrownAt:state.grenadeStartedAt;
+    const key = specified == null ? null : `${specified}:${grenadeSequence?grenadeAt:state.animationToken ?? ''}`;
     if (key !== null) {
       const selected = typeof specified === 'number' ? active.data.sequences[specified] : active.data.sequences.find(s => s.name === specified);
       if (selected?.tracks && key !== explicitKey) start(selected);
@@ -279,7 +282,8 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
       previous = {reloading, ammo: state.ammo, lastShot: state.lastShot};
     }
     explicitKey = key;
-    elapsed += Number.isFinite(dt) ? Math.max(0, dt) : 0;
+    if(grenadeSequence&&Number.isFinite(time)&&Number.isFinite(grenadeAt))elapsed=Math.max(0,time-grenadeAt);
+    else elapsed += Number.isFinite(dt) ? Math.max(0, dt) : 0;
     if (sequence) {
       const span = Math.max(1, sequence.frames - 1);
       frame = elapsed * sequence.fps;

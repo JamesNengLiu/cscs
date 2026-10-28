@@ -1,7 +1,10 @@
 // Bounded, reusable geometry. Smoke is an approximate occlusion volume, not original CS rendering.
 export const FX_LIMITS=Object.freeze({projectiles:64,smokes:32});
 const clamp01=n=>Math.max(0,Math.min(1,Number(n)||0));
-export function flashOpacity(until,amount,time){return clamp01(amount)*clamp01((Number(until)-time)/1.4);}
+export function flashOpacity(until,amount,time,fade=1.4){
+  const duration=Number.isFinite(fade)&&fade>0?fade:1.4;
+  return clamp01(amount)*clamp01((Number(until)-time)/duration);
+}
 export function smokeOpacity(smokes,position,time){
   if(!position)return 0;let opacity=0;
   for(const s of smokes.slice(0,FX_LIMITS.smokes)){

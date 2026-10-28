@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGrenade, stepGrenades, GRENADE_LIMITS} from '../grenades.mjs';
 import {trace, supportHeight, collides, eyeHeight, bodyHeight} from '../public/shared.js';
+import {flashOpacity} from '../public/effects.js';
 
 // Fixtures are in the shipped BSP's B courtyard, not a mocked infinite floor.
 function player(id, team='CT', x=-38, z=-56, extra={}) {
@@ -126,9 +127,15 @@ test('flash: front/back facing and distance affect exposure, using server expiry
   assert.ok(front.event.duration>far.event.duration);
   assert.ok(front.event.fade>far.event.fade);
   assert.equal(front.g.players.get('front').flashUntil,10+front.event.duration);
+  assert.ok(front.event.duration<=4);assert.ok(back.event.duration<=1.5);
+  assert.ok(front.event.duration-front.event.fade<=1);
+  assert.equal(front.g.players.get('front').flashFade,front.event.fade);
+  const until=10+front.event.duration;
+  assert.equal(flashOpacity(until,1,10+.4,front.event.fade),1);
+  assert.ok(flashOpacity(until,1,12,front.event.fade)<.8);
   const p=front.g.players.get('front');
   front.g.time=p.flashUntil; stepGrenades(front.g,0);
-  assert.equal(p.flashAmount,0); assert.equal(p.flashUntil,0);
+  assert.equal(p.flashAmount,0); assert.equal(p.flashUntil,0);assert.equal(p.flashFade,0);
 });
 
 test('flash: full pitch determines facing and outside radius has no effect', () => {

@@ -182,6 +182,25 @@ test('runtime loads all canonical weapons, samples real skeletal motion, preserv
   assert.equal(view.info().sourceSHA256, null);
 });
 
+test('grenade viewmodels play pullpin, hold the final pose, and play throw from authoritative timing', {skip: !hasAssets && 'Private fixtures absent'}, async t => {
+  const old=globalThis.fetch;globalThis.fetch=localFetch;t.after(()=>{globalThis.fetch=old;});
+  const view=await createWeaponView(three,new THREE.PerspectiveCamera(),{skinning:'cpu'});t.after(()=>view.dispose());
+  for(const weapon of ['hegrenade','flashbang','smokegrenade']){
+    await view.setWeapon(weapon);assert.equal(view.info().sequence,'deploy');
+    view.update(0,{grenadePhase:'pin',grenadeStartedAt:2},2.2);
+    assert.equal(view.info().sequence,'pullpin');assert.ok(view.info().frame>0&&view.info().frame<40);
+    const object=view.group.getObjectByName(`original-mdl:${weapon}`);
+    const positions=()=>object.children.flatMap(o=>[...o.geometry.attributes.position.array]);
+    const before=positions();
+    view.update(0,{grenadePhase:'hold',grenadeStartedAt:2},4);
+    assert.equal(view.info().sequence,'pullpin');assert.equal(view.info().frame,40);
+    assert.notDeepEqual(positions(),before);
+    view.update(0,{grenadePhase:'hold',grenadeStartedAt:2},5);assert.equal(view.info().frame,40);
+    view.update(0,{grenadePhase:'throw',grenadeThrownAt:5},5.2);
+    assert.equal(view.info().sequence,'throw');assert.ok(Math.abs(view.info().frame-6)<1e-6);
+  }
+});
+
 test('missing assets and rejected texture loads report honest playable fallbacks', async t => {
   const old = globalThis.fetch;
   globalThis.fetch = async () => new Response('missing', {status: 404});

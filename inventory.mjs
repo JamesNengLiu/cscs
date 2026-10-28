@@ -1,5 +1,6 @@
 import {GUNS} from './public/arsenal.js';
 import {resetWeapon} from './public/weapons.js';
+import {resetGrenadeThrow} from './public/grenade-state.js';
 export const GRENADE_IDS=['hegrenade','flashbang','smokegrenade'];
 export function freshLoadout(p){
   const pistol=p.team==='T'?'glock18':'usp',w=GUNS[pistol];
@@ -27,6 +28,7 @@ export function activate(p,key,now=0){
   saveActive(p);p.previousWeapon=p.weapon;p.weapon=key;p.reloadAt=0;p.burstRemaining=0;p.fireHeld=false;p.zoom=90;p.shieldRaised=false;
   // Switching weapons cancels the previous sniper shot's pending scope recovery.
   p.resumeZoom=0;p.resumeZoomAt=0;
+  resetGrenadeThrow(p);
   const w=GUNS[key],entry=p.inventory[key];p.ammo=w?(entry?.ammo||0):0;p.reserve=w?(p.ammoPool[w.ammoType]||0):0;
   p.silenced=!!entry?.silenced;p.burstMode=!!entry?.burstMode;p.lastShot=-100;p.nextAttackAt=now+.5;resetWeapon(p);
 }

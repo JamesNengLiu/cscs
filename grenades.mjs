@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {trace, direction, eyeHeight, bodyHeight, RULES, MAP_BOUNDS} from './public/shared.js';
+import {FLASH_TIMING} from './public/grenade-state.js';
 
 // Independently implemented from the references and deviations in docs/grenades-fidelity.md.
 export const GRENADE_LIMITS = Object.freeze({active:64, smokes:32, ttl:10, smokeSeconds:20,
@@ -25,7 +26,7 @@ function capVelocity(p) {
   }
 }
 
-/** Called only after the server accepts a throw and consumes inventory. Invalid throws return null. */
+/** Authoritative throw commit; consume inventory only after successful creation. Invalid throws return null. */
 export function createGrenade(owner, kind, now, secondary=false) {
   if (!validPlayer(owner) || !['T','CT'].includes(owner.team) || !KINDS.has(kind) ||
       !Number.isFinite(now) || now < 0 || now > Number.MAX_SAFE_INTEGER-FUSE) return null;
@@ -154,15 +155,19 @@ function explode(game, p, players) {
     if (players.some(other => other !== player && validPlayer(other) && sweepBody(source,eye,other))) continue;
     const facing = direction(finite(player.yaw),clamp(finite(player.pitch),-Math.PI/2,Math.PI/2));
     const front = dx*facing.x+dy*facing.y+dz*facing.z >= 0;
-    const strength = 4*(1-distance/FLASH_RADIUS);
-    const fade = strength*(front ? 3 : 1.75), hold = strength/(front ? 1.5 : 3.5);
+    const strength = 1-distance/FLASH_RADIUS;
+    const fade = strength*(front ? FLASH_TIMING.frontFade : FLASH_TIMING.backFade);
+    const hold = strength*(front ? FLASH_TIMING.frontHold : FLASH_TIMING.backHold);
     const previous = finite(player.flashUntil) > game.time;
     const amount = Math.max(front ? 1 : 200/255, previous ? clamp(finite(player.flashAmount),0,1) : 0);
     const duration = Math.max(hold+fade, previous ? player.flashUntil-game.time : 0);
+    const previousHold = previous ? Math.max(0,player.flashUntil-finite(player.flashFade)-game.time) : 0;
+    const mergedHold = Math.min(duration,Math.max(hold,previousHold));
     player.flashAmount = amount;
     player.flashUntil = game.time+duration;
+    player.flashFade = duration-mergedHold;
     // emit() is a queue API: transport MUST route this private event only to its target id.
-    game.emit({type:'flash',private:true,id:player.id,amount,duration,fade:Math.min(fade,duration)});
+    game.emit({type:'flash',private:true,id:player.id,amount,duration,fade:player.flashFade});
   }
 }
 
@@ -178,7 +183,7 @@ export function stepGrenades(game, dt) {
   const now = game.time, elapsed = Math.min(dt,GRENADE_LIMITS.maxDelta);
   const players = [...game.players.values()].filter(validPlayer);
   for (const p of players) if (!Number.isFinite(p.flashUntil) || p.flashUntil <= now) {
-    p.flashUntil=0; p.flashAmount=0;
+    p.flashUntil=0; p.flashAmount=0;p.flashFade=0;
   }
   // Slice before processing to bound work even if an integrating caller overfills a queue.
   game.smokes = (Array.isArray(game.smokes) ? game.smokes : []).slice(0,GRENADE_LIMITS.smokes)

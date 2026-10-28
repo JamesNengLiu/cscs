@@ -7,6 +7,14 @@ export function blankInput(){return {f:0,s:0,yaw:0,pitch:0,fire:false,jump:false
 export function sanitizedInput(raw={}){raw=raw&&typeof raw==='object'?raw:{};return {
   f:clamp(Number(raw.f)||0,-1,1),s:clamp(Number(raw.s)||0,-1,1),yaw:clamp(Number(raw.yaw)||0,-10000,10000),pitch:clamp(Number(raw.pitch)||0,-1.45,1.45),
   fire:raw.fire===true,jump:raw.jump===true,crouch:raw.crouch===true,walk:raw.walk===true,use:raw.use===true};}
+function updateStance(p,crouch){
+  if(crouch===!!p.crouch)return;
+  const height=crouch?RULES.crouchHeight:RULES.bodyHeight;
+  // Feet stay planted on the ground; airborne hull changes preserve the center.
+  // Reversing this shift when standing prevents repeated ducking from adding height.
+  const y=isGrounded(p)?p.y:p.y+(bodyHeight(p)-height)/2;
+  if(!collides(p.x,p.z,RULES.radius,y,height)){p.y=y;p.crouch=crouch;}
+}
 function slide(start,velocity,dt,height){
   let pos={x:start.x,y:start.y,z:start.z},v=[...velocity],remaining=dt;const planes=[];
   for(let bump=0;bump<4&&remaining>1e-8;bump++){
@@ -43,14 +51,15 @@ function substep(p,input,dt){
   p.vx=horizontal.velocity[0];p.vz=horizontal.velocity[2];
   if(grounded&&p.vy<=0){const down=trace(p,{...p,y:p.y-RULES.stepHeight-.04},height);
     if(!down.startSolid&&down.fraction<1&&down.normal[1]>.7){p.y=down.end.y;p.vy=0;}else grounded=false;}
-  if(!grounded||p.vy>0){p.vy-=RULES.gravity*dt;const vertical=trace(p,{...p,y:p.y+p.vy*dt},height);
-    if(!vertical.startSolid)p.y=vertical.end.y;if(vertical.fraction<1)p.vy=0;}
+  if(!grounded||p.vy>0){const halfGravity=RULES.gravity*dt/2;p.vy-=halfGravity;
+    const vertical=trace(p,{...p,y:p.y+p.vy*dt},height);
+    if(!vertical.startSolid)p.y=vertical.end.y;p.vy=vertical.fraction<1?0:p.vy-halfGravity;}
   p.grounded=isGrounded(p);p.moving=Math.hypot(p.vx,p.vz)>.12;
 }
 export function movePlayer(p,input,dt){
   p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw||0;p.pitch=clamp(Number.isFinite(input.pitch)?input.pitch:p.pitch||0,-1.45,1.45);
   p.vx=Number.isFinite(p.vx)?p.vx:0;p.vz=Number.isFinite(p.vz)?p.vz:0;p.vy=Number.isFinite(p.vy)?p.vy:0;p.y=Number.isFinite(p.y)?p.y:groundHeight(p.x,p.z);
-  if(input.crouch)p.crouch=true;else if(!collides(p.x,p.z,RULES.radius,p.y,RULES.bodyHeight))p.crouch=false;
+  updateStance(p,!!input.crouch);
   const duration=clamp(dt,0,.1),count=Math.max(1,Math.ceil(duration*120));
   for(let i=0;i<count;i++)substep(p,input,duration/count);
 }

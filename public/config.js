@@ -1,10 +1,10 @@
 import {GUNS} from './arsenal.js';
 import {ECONOMY} from './economy.js';
-// Original movement/recoil tuning; catalogue and money reference CS1.6 separately.
+// Horizontal movement/recoil remain prototype tuning; jump/duck references: docs/cs16-sources.md.
 // Hull dimensions follow BSP's original 32x32x72 / 32x32x36 hulls at 40 units per browser unit.
 export const RULES=Object.freeze({tick:60,maxPlayers:10,teamSize:5,radius:.4,eye:1.6,
   speed:5,walkSpeed:2.8,crouchSpeed:2.1,groundAcceleration:38,brake:20,counterBrake:52,
-  airAcceleration:7,gravity:15,jumpSpeed:5.4,stepHeight:.45,bodyHeight:1.8,crouchHeight:.9,
+  airAcceleration:7,gravity:800/40,jumpSpeed:Math.sqrt(2*800*45)/40,stepHeight:.45,bodyHeight:1.8,crouchHeight:.9,
   freezeSeconds:ECONOMY.freezeSeconds,roundSeconds:ECONOMY.roundSeconds,bombSeconds:ECONOMY.bombSeconds,plantSeconds:3,defuseSeconds:ECONOMY.defuseSeconds,defuseKitSeconds:ECONOMY.defuseKitSeconds});
 export const WEAPONS=Object.freeze({
   rifle:{name:'步枪 · 原型调校',clip:30,reserve:90,interval:.11,damage:34,head:2.8,reload:2.2,spread:.0025,moveSpread:.034,airSpread:.075,heatSpread:.0014,recovery:.22},

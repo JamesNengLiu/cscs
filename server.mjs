@@ -9,13 +9,14 @@ import {Game} from './game.mjs';
 import {RULES,MAP_VERSION,MAP_DATA} from './public/shared.js';
 import {GUNS} from './public/arsenal.js';
 import {ECONOMY} from './public/economy.js';
+import {CHARACTER_PRESETS} from './public/characters-config.js';
 const root=path.dirname(fileURLToPath(import.meta.url)),port=Number(process.env.PORT||3000),host=process.env.HOST||'0.0.0.0';
 export const game=new Game();
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png'};
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.4.0',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase}));return;}
+    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.5.0',characterPresets:CHARACTER_PRESETS.length,playerModels:'mdl10-custom-face-v1',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase}));return;}
     if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
     const vendor={'/vendor/three.module.js':'three.module.js','/vendor/three.core.js':'three.core.js'};
     const relative=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
@@ -39,7 +40,7 @@ wss.on('connection',(ws,req)=>{
   ws.on('message',buffer=>{
     if(Date.now()-windowAt>1000){windowAt=Date.now();messages=0;}if(++messages>120){ws.close(1008,'Rate limit');return;}
     try{const m=JSON.parse(buffer.toString());
-      if(m.type==='join'&&!joined){game.add(id,m.name,m.team);joined=true;ws.playerId=id;clearTimeout(deadline);send(ws,{type:'joined',id});send(ws,game.snapshot(id));}
+      if(m.type==='join'&&!joined){game.add(id,m.name,m.team,m.character);joined=true;ws.playerId=id;clearTimeout(deadline);send(ws,{type:'joined',id});send(ws,game.snapshot(id));}
       else if(m.type==='input'&&joined)game.input(id,m.input);
       else if(m.type==='reload'&&joined)game.reload(id);
       else if(m.type==='equip'&&joined)game.equip(id,m.weapon);
@@ -59,7 +60,7 @@ const timer=setInterval(()=>{const now=performance.now();accumulator+=Math.min(.
 },1000/RULES.tick);
 server.listen(port,host,()=>{
   const actualPort=server.address().port;
-  console.log(`LAN Strike v0.4: http://localhost:${actualPort}`);
+  console.log(`LAN Strike v0.5: http://localhost:${actualPort}`);
   if(host==='0.0.0.0')for(const addresses of Object.values(os.networkInterfaces()))for(const a of addresses||[])if(a.family==='IPv4'&&!a.internal)console.log(`局域网候选地址: http://${a.address}:${actualPort}`);
   console.log('仅供可信局域网试玩；不要配置公网端口转发。Ctrl+C 停止。');
 });

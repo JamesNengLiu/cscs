@@ -1,6 +1,6 @@
-# 本地地图资源准备
+# 本地地图、武器、人物与定制面部资源准备
 
-本仓库保存 LAN STRIKE v0.4 的客户端、服务端、转换工具、测试和说明，不含 CS 原版素材或导出的地图/武器数据。因此这是一份代码备份，不是克隆即可玩的完整游戏发行包。
+本仓库保存 LAN STRIKE v0.5 的客户端、服务端、转换工具、测试和说明，不含 CS 原版素材或导出的地图/武器/人物数据、肖像和定制面部素材。因此这是一份代码工程，不是克隆即可玩的完整游戏发行包。
 
 ## 为什么没有地图文件
 
@@ -72,6 +72,37 @@ HOST=0.0.0.0 PORT=3001 npm start
 
 缺失武器资源时显示明确的紫红线框占位，不会声称加载了原版模型。地图资源缺失仍会阻止进入游戏。不要把占位视为一比一模型或将这些资产纳入公开仓库。
 
+## 原版人物与第三人称持枪模型
+
+详见 [人物资产来源与逐项校验](docs/player-asset-fidelity.md)。优先使用有权使用的本地原版MDL；需使用获取脚本时，先自行核实来源与用途的许可。脚本只下载数据并核对来源，不执行远程程序。以下命令在本地准备8个人物及24把第三人称枪械：
+
+```sh
+python3 -B tools/fetch-player-assets.py --compare-mirror
+python3 -B tools/import-players.py
+python3 -B tools/fetch-player-assets.py --weapons-only --compare-mirror
+python3 -B tools/import-players.py --weapons-only
+```
+
+`public/assets/players/raw/`、`sources.json`、`manifest.json`、模型JSON/PNG全部保持忽略。当前人物主来源是社区镜像，不是Valve官方认证；第二个人物来源全部404，不能称双源一致。24把第三人称枪械中18把获得第二来源字节一致证据，其他6把未完成独立比对。
+
+## 特朗普定制头部
+
+这是非官方的虚构娱乐外观，不暗示本人或政府参与、认同。先生成原版人物，再生成定制头部；不要在此后只重导原版而遗漏最后一步。身体、骨骼、动画和原版贴图保留，头部为新建网格与肖像投影，**不是三维扫描或精确侧脸重建**。
+
+仅面部生成需要Pillow，建议使用项目虚拟环境（`.venv/`已被忽略）：
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install Pillow
+.venv/bin/python tools/build-trump-face.py --fetch-portrait
+```
+
+`--fetch-portrait`只在缺失时下载固定White House官方2025肖像；按脚本固定散列核对，不覆盖现有源照片。也可自行将同一源照片放到 `public/assets/portraits/trump-official-2025.png` 后运行 `npm run build:trump-face`（此时npm调用的Python环境需已安装Pillow）。未知或变更后的照片会被拒绝，不能静默替换来源。
+
+肖像来源：[White House官方PNG](https://www.whitehouse.gov/wp-content/uploads/2025/06/President-Donald-Trump-Official-Presidential-Portrait.png)。肖像来源与CS人物版权分别记录；来源为官方不自动解决肖像权、商标或背书误导，也不赋予CS身体模型再分发许可。默认不上传原照片、派生纹理、定制模型或素材截图。
+
+启动后访问 `/characters.html?model=terror_trump&compare=1`，无需第二位玩家即可检查正/侧脸、原版对照和动画；游戏大厅的外观选择通过服务端验证阵营。缺失或校验失败会明确显示紫红线框，不能作为原版加载成功。
+
 ## 验证
 
 ```sh
@@ -79,6 +110,7 @@ npm test
 npm run test:map
 npm run test:downhill
 npm run test:browser
+npm run test:characters
 npm run test:downhill:browser
 ```
 

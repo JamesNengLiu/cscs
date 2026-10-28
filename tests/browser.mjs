@@ -20,6 +20,9 @@ try{
   assert.ok(await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().terrainTriangles>1000));const imported=await pages[0].evaluate(()=>window.lanStrike.getDiagnostics());assert.equal(imported.mapFaces,4002);assert.equal(imported.mapTextures,44);assert.equal(imported.terrainTriangles,9932);assert.match(imported.mapVersion,/bsp30/);check('seven original BSP map views, all imported faces, textures and triangles verified',imported.sourceSHA256);
   await pages[0].click('#backButton');await pages[0].waitForFunction(()=>!document.getElementById('lobby').hidden);
   for(let i=0;i<pages.length;i++){const p=pages[i];await p.fill('#name',i===0?'测试进攻':'测试防守');await p.selectOption('#team',i===0?'T':'CT');await p.click('#joinButton');await p.waitForFunction(()=>!document.getElementById('hud').hidden);}
+  await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().remoteModels.some(m=>m.id==='urban'&&m.source==='original-mdl'&&!m.loading&&m.error===null));
+  await pages[1].waitForFunction(()=>window.lanStrike.getDiagnostics().remoteModels.some(m=>m.id==='terror_trump'&&m.source==='custom-trump-face'&&!m.loading&&m.error===null));
+  assert.equal(await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().character),'terror_trump');assert.equal(await pages[1].evaluate(()=>window.lanStrike.getDiagnostics().character),'urban');check('two real clients replicate selected T custom / CT original characters and load actual remote MDLs');
   await pages[0].click('#openBuyButton');await pages[0].locator('button[data-category="rifle"]').click();await pages[0].locator('[data-item="ak47"]').click();
   await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='ak47'&&window.lanStrike.getDiagnostics().money===7500);
   await pages[0].locator('button[data-category="ammo"]').click();await pages[0].locator('[data-item="primaryammo"]').click();

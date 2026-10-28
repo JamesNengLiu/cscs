@@ -8,7 +8,7 @@ try{
   base=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Server startup timeout')),10000);
     server.stdout.on('data',chunk=>{output+=chunk;const m=output.match(/http:\/\/localhost:(\d+)/);if(m){clearTimeout(timer);resolve(`http://127.0.0.1:${m[1]}`);}});
     server.stderr.on('data',chunk=>process.stderr.write(chunk));server.once('exit',code=>{clearTimeout(timer);reject(Error(`Server exited before ready: ${code}`));});});
-  assert.equal((await (await fetch(base+'/health')).json()).version,'0.4.0');report.base=base;
+  assert.equal((await (await fetch(base+'/health')).json()).version,'0.5.0');report.base=base;
   const child=spawn(process.execPath,['tests/browser.mjs'],{stdio:'inherit',env:{...process.env,TEST_URL:base,LOCAL_ONLY:'1'}});
   const [code]=await once(child,'exit');report.browserExitCode=code;assert.equal(code,0,'Browser checks failed');
 }finally{

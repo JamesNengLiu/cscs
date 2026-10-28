@@ -1,5 +1,6 @@
 import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,shotProfile,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
+import {selectCharacter} from './public/characters-config.js';
 import {ECONOMY,clampMoney,equipmentPrice} from './public/economy.js';
 import {armourDamage} from './public/armour.js';
 import {freshLoadout,saveActive,activate,ownedWeapons,GRENADE_IDS} from './inventory.mjs';
@@ -9,11 +10,11 @@ const opponent=team=>team==='T'?'CT':'T';
 export class Game {
   constructor({random=Math.random,friendlyFire=false}={}){this.random=random;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待双方玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
   emit(e){this.events.push({...e,time:this.time});if(this.events.length>1024)this.events.splice(0,this.events.length-1024);}
-  add(id,name,team){
+  add(id,name,team,character){
     if(!['T','CT'].includes(team))throw Error('请选择阵营');if(this.players.has(id))throw Error('已加入房间');
     if(this.players.size>=RULES.maxPlayers)throw Error('房间已满（最多10人）');
     if([...this.players.values()].filter(p=>p.team===team).length>=RULES.teamSize)throw Error('该阵营已满（最多5人）');
-    const p={id,name:String(name||'玩家').replace(/[\x00-\x1f]/g,'').slice(0,16),team,kills:0,deaths:0,money:ECONOMY.startMoney,input:blankInput(),lastInput:this.time,lastShot:-100,reloadAt:0,progress:0,alive:false,pendingMoney:0};
+    const p={id,name:String(name||'玩家').replace(/[\x00-\x1f]/g,'').slice(0,16),team,character:selectCharacter(team,character),kills:0,deaths:0,money:ECONOMY.startMoney,input:blankInput(),lastInput:this.time,lastShot:-100,reloadAt:0,progress:0,alive:false,pendingMoney:0};
     this.players.set(id,p);this.spawn(p);p.alive=false;p.playedRound=0;
     this.emit({type:'notice',text:`${p.name} 加入 ${team}`});return p;
   }
@@ -183,8 +184,8 @@ export class Game {
     if(this.bomb.state==='planted'&&this.time>=this.bomb.endAt){this.bomb.state='exploded';this.finish('T','炸弹爆炸','bomb');return;}
     const alive=team=>all.some(p=>p.alive&&p.team===team);if(!alive('CT'))this.finish('T','对方全灭');else if(!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'0.4.0',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
-      players:[...this.players.values()].map(({input,lastInput,lastShot,lastInputSeq,pendingMoney,...p})=>{
+  snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
+      players:[...this.players.values()].map(({input,lastInput,lastInputSeq,pendingMoney,...p})=>{
         if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,defuseKit,nightvision,nightvisionOn,...visible}=p;return visible;}
         return {...p,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}

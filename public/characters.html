@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Character inspection · LAN Strike</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root{--bg:#111715;--panel:#1a211e;--line:#35423a;--ink:#e9efdf;--muted:#a6b5a7;--accent:#d7ff69;--error:#ff7dd8;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;color:var(--ink);background:var(--bg)}
+    *{box-sizing:border-box}body{margin:0}button,select,input{font:inherit}button,select{min-height:44px;color:var(--ink);border:1px solid var(--line);background:var(--panel);padding:10px 12px;border-radius:3px}button{cursor:pointer}button:hover,button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}button:disabled{opacity:.45;cursor:wait}:focus-visible{outline:2px solid var(--accent);outline-offset:3px}a{color:var(--accent)}
+    header{min-height:106px;padding:23px 30px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:24px}.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--accent);text-transform:uppercase}h1{font-family:Georgia,"Times New Roman",serif;font-size:32px;font-weight:normal;letter-spacing:-.03em;margin:7px 0 0}.disclaimer{max-width:470px;color:var(--muted);font-size:11px;line-height:1.7;margin:0}
+    main{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:calc(100vh - 106px)}.stage{position:relative;min-height:650px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#29382e,#111715 75%)}#viewport{width:100%;height:100%;position:absolute;inset:0;touch-action:none}canvas{display:block;width:100%;height:100%}.stage-top{position:absolute;left:25px;top:24px;right:25px;display:flex;justify-content:space-between;gap:20px;pointer-events:none}.stage-index{font-size:11px;color:var(--muted)}#status{max-width:65%;text-align:right;font-size:12px;line-height:1.6;color:var(--accent)}#status[data-error="true"]{color:var(--error)}.stage-bottom{position:absolute;bottom:22px;left:25px;right:25px;pointer-events:none}.captions{display:flex;justify-content:space-around;gap:20px}.caption{text-align:center;max-width:46%;overflow-wrap:anywhere}.caption strong{display:block;font-size:16px;font-weight:normal}.caption small{display:block;color:var(--muted);font-size:10px;margin-top:7px;line-height:1.6}.caption.error small{color:var(--error)}.hint{text-align:center;color:var(--muted);font-size:10px;margin:22px 0 0}.reticle{position:absolute;top:50%;left:50%;width:12px;height:12px;border:1px solid #d7ff6926;border-radius:50%;pointer-events:none}
+    aside{padding:24px;border-left:1px solid var(--line);background:#151c18}fieldset{border:0;padding:0;margin:0 0 27px;min-width:0}legend,.field-label{display:block;color:var(--muted);font-size:10px;letter-spacing:.13em;text-transform:uppercase;margin-bottom:11px}select{width:100%;max-width:100%}.row{display:flex;gap:7px;margin-top:9px}.row>*{flex:1;min-width:0}.compact{font-size:11px}.control{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:11px;margin-top:13px}.control input{width:135px;min-height:30px;accent-color:var(--accent)}.control input[type=checkbox]{width:18px}.note{font-size:10px;line-height:1.7;color:var(--muted);margin:10px 0 0}details{border-top:1px solid var(--line);padding-top:17px}summary{cursor:pointer;font-size:11px;color:var(--accent);min-height:32px}#diagnostics{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;line-height:1.8;max-height:350px;overflow:auto}.badge{display:inline-block;background:var(--accent);color:#192110;padding:4px 7px;font-size:10px;letter-spacing:.08em;margin-bottom:12px}
+    @media(max-width:900px){header{padding:18px 20px;align-items:flex-start}h1{font-size:26px}.disclaimer{max-width:350px}main{grid-template-columns:minmax(0,1fr) 290px}aside{padding:20px}.stage{min-height:650px}}
+    @media(max-width:650px){header{display:block}.disclaimer{margin-top:13px;max-width:none}main{display:flex;flex-direction:column}.stage{height:65vh;min-height:430px}aside{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:22px}fieldset{margin:0}details{grid-column:1/-1}.stage-top{left:15px;right:15px}.control{flex-wrap:wrap}.control input{width:100%}}
+    @media(min-width:651px){body{height:100dvh;overflow:hidden}main{height:calc(100dvh - 106px);min-height:0}.stage{min-height:0}aside{overflow:auto}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <div><div class="eyebrow">LAN Strike / 人物与面部预览</div><h1>CS 原版人物 / 自定义面部</h1></div>
+    <p class="disclaimer">特朗普面部为虚构娱乐外观，不代表本人或官方参与、认同。原版身体与自定义头部的来源分别记录。<a href="/">返回游戏大厅</a></p>
+  </header>
+  <main>
+    <section class="stage" aria-label="Interactive 3D character preview">
+      <div id="viewport"></div><div class="reticle" aria-hidden="true"></div>
+      <div class="stage-top"><span class="stage-index">WORLD SPACE · 1:40</span><span id="status" role="status" aria-live="polite">Loading renderer…</span></div>
+      <div class="stage-bottom"><div id="captions" class="captions"></div><p class="hint">Drag to orbit · scroll to zoom · no game connection required</p></div>
+    </section>
+    <aside aria-label="Review controls">
+      <fieldset><legend>01 / Character</legend><label for="model" class="field-label">Asset identifier</label><select id="model"></select>
+        <label class="control" for="compare"><span>Compare original / custom</span><input id="compare" type="checkbox"></label>
+        <p class="note">Eight original models. Four T-side custom faces. Missing assets remain clearly marked.</p>
+      </fieldset>
+      <fieldset><legend>02 / Camera</legend>
+        <div class="row compact"><button id="front" type="button">正面</button><button id="side" type="button">侧面</button><button id="rotate" type="button" aria-pressed="false">旋转</button></div>
+        <div class="row compact"><button id="portrait" type="button" aria-pressed="true">面部 / 半身</button><button id="full" type="button" aria-pressed="false">全身</button></div>
+      </fieldset>
+      <fieldset><legend>03 / Source animation</legend><label for="action" class="field-label">State</label><select id="action"><option value="idle">Idle / weapon aim</option><option value="walk">Walk</option><option value="run">Run</option><option value="crouch">Crouch</option><option value="jump">Jump</option><option value="death">Death</option><option value="aim">Aim</option><option value="shoot">Shoot</option><option value="reload">Reload</option></select>
+        <label for="sequence" class="field-label" style="margin-top:14px">Exact imported sequence</label><select id="sequence"><option value="">Automatic state selection</option></select>
+        <div class="row compact"><button id="pause" type="button" aria-pressed="false">Pause</button><button id="restart" type="button">Restart</button></div>
+        <label for="pitch" class="control"><span>Aim pitch</span><input id="pitch" type="range" min="-80" max="80" step="1" value="0"></label>
+        <label for="speed" class="control"><span>Playback speed</span><input id="speed" type="range" min="0.1" max="2" step="0.1" value="1"></label>
+        <p id="animation-note" class="note">Animation uses imported source tracks.</p>
+      </fieldset>
+      <fieldset><legend>04 / Equipment</legend><label for="weapon" class="field-label">Third-person asset</label><select id="weapon"><option value="ak47">AK-47</option><option value="m4a1">M4A1</option><option value="usp">USP</option><option value="glock18">Glock 18</option><option value="awp">AWP</option><option value="knife">Knife</option><option value="">No weapon</option></select><p id="weapon-note" class="note">Only imported p_weapon geometry is displayed.</p></fieldset>
+      <details open><summary>Source & runtime diagnostics</summary><pre id="diagnostics">Awaiting assets…</pre><p class="note">Read-only diagnostics: <code>window.characterReview</code></p></details>
+    </aside>
+  </main>
+  <noscript>JavaScript is required to inspect the converted character assets.</noscript>
+  <script type="module" src="/characters.js"></script>
+</body>
+</html>

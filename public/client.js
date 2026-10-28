@@ -6,6 +6,8 @@ import {GUNS,EQUIPMENT} from './arsenal.js';
 import {ECONOMY} from './economy.js';
 import {createShop,ownedWeapons,GRENADE_IDS} from './shop.js';
 import {createWorldEffects,flashOpacity as calculateFlashOpacity} from './effects.js';
+import {createPlayerActor} from './player-model.js';
+import {CHARACTER_PRESETS,DEFAULT_CHARACTER,selectCharacter} from './characters-config.js';
 const $=id=>document.getElementById(id),canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.setSize(innerWidth,innerHeight);
@@ -26,11 +28,7 @@ try{const {createWeaponView}=await import('./weapon-model.js');weaponView=await 
 catch(error){weaponModelError=String(error.message||error);}
 const worldEffects=createWorldEffects(THREE,scene);
 const remote=new Map(),effects=[],impacts=[];
-function playerMesh(p){const g=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:p.team==='T'?'#a77e4d':'#477b9b',roughness:.9}),dark=new THREE.MeshStandardMaterial({color:'#26313c',roughness:.9});
-  box(0,1.02,0,.48,.65,.3,mat,g);box(-.14,.35,0,.17,.7,.21,dark,g);box(.14,.35,0,.17,.7,.21,dark,g);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.21,12,10),new THREE.MeshStandardMaterial({color:p.team==='T'?'#d1ad82':'#5a7584',roughness:1}));head.position.y=1.56;head.castShadow=true;g.add(head);
-  box(.28,1.14,-.22,.1,.12,.53,dark,g);scene.add(g);return g;
-}
+
 let state=null,myId=null,joined=false,connected=false,locked=false,yaw=0,pitch=0,local=null,lastRound=-1,shotKick=0,hitAt=0,damageAt=0,noticeUntil=0,lag=0,recoilYaw=0,recoilPitch=0,preview=false,view='overview',renderY=null,sceneDirty=true,renderedView=null;
 let stateReceivedAt=performance.now(),lastWeapon=null,activeWeapon=null,wheelAt=0,flashUntil=0,flashAmount=0,flashOpacity=0,smokeOpacity=0,visualSignature='';
 const player=()=>state?.players.find(p=>p.id===myId);
@@ -78,8 +76,11 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       if(signature!==visualSignature){sceneDirty=true;visualSignature=signature;}
     }
     if(worldEffects.sync(m)&&joined)sceneDirty=true;
-    for(const p of m.players)if(p.id!==myId){if(!remote.has(p.id))remote.set(p.id,{mesh:playerMesh(p),p});else remote.get(p.id).p=p;}
-    for(const [id,r] of remote)if(!m.players.some(p=>p.id===id)){scene.remove(r.mesh);r.mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});remote.delete(id);}
+    for(const p of m.players)if(p.id!==myId){
+      let r=remote.get(p.id);if(!r){const actor=createPlayerActor(THREE,{onChange:()=>{sceneDirty=true;}});scene.add(actor.group);r={actor,mesh:actor.group,p,character:null};remote.set(p.id,r);}r.p=p;
+      const character=selectCharacter(p.team,p.character);if(r.character!==character){r.character=character;Promise.resolve(r.actor.setCharacter(character)).then(()=>{sceneDirty=true;});}
+    }
+    for(const [id,r] of remote)if(!m.players.some(p=>p.id===id)){scene.remove(r.mesh);r.actor.dispose();remote.delete(id);}
     updateUI();
   }
   if(m.type==='events')for(const e of m.events){
@@ -103,7 +104,10 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
     }
   }
 };
-$('joinForm').addEventListener('submit',e=>{e.preventDefault();$('joinButton').disabled=true;send({type:'join',name:$('name').value,team:$('team').value});});
+function updateCharacterOptions(){const team=$('team').value,previous=$('character').value;$('character').replaceChildren();for(const preset of CHARACTER_PRESETS.filter(p=>p.team===team)){const o=document.createElement('option');o.value=preset.id;o.textContent=preset.label;$('character').append(o);}$('character').value=selectCharacter(team,previous)||DEFAULT_CHARACTER[team];}
+$('team').addEventListener('change',updateCharacterOptions);updateCharacterOptions();
+$('characterPreview').onclick=()=>{location.href='/characters.html?model='+encodeURIComponent($('character').value);};
+$('joinForm').addEventListener('submit',e=>{e.preventDefault();$('joinButton').disabled=true;send({type:'join',name:$('name').value,team:$('team').value,character:$('character').value});});
 function resumeGame(){
   if(!connected){location.reload();return;}
   shop.setOpen(false);
@@ -202,7 +206,7 @@ let previous=performance.now(),frameCount=0;function frame(now){requestAnimation
     const gap=6+Math.min(24,(me.spread||0)*550);$('crosshair').style.setProperty('--gap',`${gap}px`);
     const speed=Math.hypot(me.vx||0,me.vz||0);$('tuning').textContent=`速度 ${speed.toFixed(1)} m/s · ${!me.grounded?'空中散布':speed>.25?'移动散布':me.burstCount?'连射扩散':'静止精度'} · 连射 ${me.burstCount||0}`;
   }else{const preset=VIEWS[preview?view:'overview'];camera.position.set(...preset.eye);camera.lookAt(...preset.target);}
-  for(const r of remote.values()){const p=r.p;r.mesh.visible=p.alive;r.mesh.position.lerp(new THREE.Vector3(p.x,p.y,p.z),Math.min(1,dt*15));r.mesh.rotation.y=p.yaw;r.mesh.scale.y=p.crouch?.5:1;}
+  for(const r of remote.values()){const p=r.p;r.display??={x:p.x,y:p.y,z:p.z};const f=Math.hypot(p.x-r.display.x,p.y-r.display.y,p.z-r.display.z)>3?1:Math.min(1,dt*15);for(const key of ['x','y','z'])r.display[key]+=(p[key]-r.display[key])*f;r.actor.update(dt,{...p,...r.display});}
   shotKick=Math.max(0,shotKick-dt*8);
   if(weaponView){
     const visibleWeapon=me?.shieldRaised?'shield':me?.weapon;
@@ -223,4 +227,4 @@ let previous=performance.now(),frameCount=0;function frame(now){requestAnimation
 }
 requestAnimationFrame(frame);window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);sceneDirty=true;});
 // Read-only diagnostic hook for automated browser smoke tests.
-window.lanStrike={getState:()=>state,getId:()=>myId,getRenderInfo:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,frame:renderer.info.render.frame}),getDiagnostics:()=>({mapVersion:MAP_VERSION,mapFaces:mapRender.faces,terrainTriangles:mapRender.triangles,mapTextures:mapRender.textures,sourceSHA256:mapRender.sourceSHA256,preview,view,renderedView,locked,visibility:document.visibilityState,frameCount,lastFrameAge:performance.now()-previous,input:input(),localPosition:local?{x:local.x,y:local.y,z:local.z}:null,unackedInputs:pendingCommands.length,inputSeq,ackInputSeq:player()?.ackInputSeq,lastCorrection,visualCorrection:{...correction},impacts:impacts.length,recoilYaw,recoilPitch,maxBurst,maxRecoilPitch,cameraY:camera.position.y,money:player()?.money??null,armour:player()?.armour??0,buyMenuOpen:shop.isOpen,weapon:player()?.weapon??null,weaponModel:{...(weaponView?.info()||{source:'unavailable',fallback:true}),...(weaponModelError?{error:weaponModelError}:{})},flashOpacity,smokeOpacity,grenadeCount:GRENADE_IDS.reduce((sum,id)=>sum+(player()?.grenades?.[id]||0),0),worldEffects:worldEffects.info(),fov:camera.fov,lastWeapon})};
+window.lanStrike={getState:()=>state,getId:()=>myId,getRenderInfo:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,frame:renderer.info.render.frame}),getDiagnostics:()=>({mapVersion:MAP_VERSION,mapFaces:mapRender.faces,terrainTriangles:mapRender.triangles,mapTextures:mapRender.textures,sourceSHA256:mapRender.sourceSHA256,preview,view,renderedView,locked,visibility:document.visibilityState,frameCount,lastFrameAge:performance.now()-previous,input:input(),localPosition:local?{x:local.x,y:local.y,z:local.z}:null,unackedInputs:pendingCommands.length,inputSeq,ackInputSeq:player()?.ackInputSeq,lastCorrection,visualCorrection:{...correction},impacts:impacts.length,recoilYaw,recoilPitch,maxBurst,maxRecoilPitch,cameraY:camera.position.y,money:player()?.money??null,character:player()?.character??null,armour:player()?.armour??0,buyMenuOpen:shop.isOpen,weapon:player()?.weapon??null,weaponModel:{...(weaponView?.info()||{source:'unavailable',fallback:true}),...(weaponModelError?{error:weaponModelError}:{})},flashOpacity,smokeOpacity,grenadeCount:GRENADE_IDS.reduce((sum,id)=>sum+(player()?.grenades?.[id]||0),0),worldEffects:worldEffects.info(),remoteModels:[...remote].map(([id,r])=>({...r.actor.info(),playerId:id,character:r.p.character,team:r.p.team,position:r.actor.group.position.toArray()})),fov:camera.fov,lastWeapon})};

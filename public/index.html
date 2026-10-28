@@ -3,12 +3,14 @@
 <body>
 <canvas id="game"></canvas>
 <div id="lobby" class="overlay"><section class="card">
-  <div class="eyebrow">LOCAL NETWORK / BROWSER FPS / V0.4</div><h1>LAN<span>STRIKE</span></h1>
+  <div class="eyebrow">LOCAL NETWORK / BROWSER FPS / V0.5</div><h1>LAN<span>STRIKE</span></h1>
   <p class="subtitle">局域网战术射击 · de_dust2 BSP 地图</p>
   <div class="tags"><span>无需插件</span><span>最多 5 对 5</span><span>爆破回合</span><span>资源本地加载</span></div>
   <form id="joinForm"><label>玩家昵称<input id="name" maxlength="16" placeholder="输入昵称" value="玩家" autocomplete="off" required></label>
   <label>加入阵营<select id="team"><option value="T">T · 进攻方 / 安放炸弹</option><option value="CT">CT · 防守方 / 拆除炸弹</option></select></label>
+  <label>人物外观<select id="character"></select></label>
   <button type="submit" id="joinButton" disabled>正在连接服务器…</button></form>
+  <button id="characterPreview" class="secondary" type="button">人物预览 · CS原版 / 自定义面部</button>
   <button id="previewButton" class="secondary" type="button">先看地图 · 高差与路线预览</button><p class="quality">已启用原图贴图与 BSP 静态光照</p>
   <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标 · 自定义开局 $10,000</b><br>WASD 移动 · 左键射击 / 投掷 · 右键武器副功能<br>空格跳跃 · Shift 慢走 · C 蹲下 · 按住 E 安放 / 拆除<br>B 购买 · 1 主武器 / 2 手枪 / 3 匕首 / 4 手雷 / 5 C4<br>Q 上一武器 · 滚轮切换 · G 丢弃 · R 换弹 · Tab 战绩<br>Esc 释放鼠标；购买后点击“继续游戏”恢复操作</div>
   <p class="disclaimer">CS 1.6 武器目录与自定义经济；地图由社区镜像 BSP 数据转换。此项目不是完整原版引擎移植，武器动画与烟雾效果为浏览器近似实现。双方各至少一人开始；地图预览无需开局。</p>

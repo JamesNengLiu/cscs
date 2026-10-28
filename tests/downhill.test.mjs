@@ -23,8 +23,9 @@ function liveGame(){const g=new Game();g.add('t','T','T');g.add('ct','CT','CT');
 test('prediction: ACK is published only after the authoritative movement step',()=>{
   const g=liveGame(),p=g.players.get('t');g.input('t',{...blankInput(),seq:1,round:g.round,f:1,yaw:p.yaw});assert.equal(g.snapshot().players.find(p=>p.id==='t').ackInputSeq,0);g.step();assert.equal(g.snapshot().players.find(p=>p.id==='t').ackInputSeq,1);
 });
-test('prediction: duplicate, out-of-order, invalid and old-round commands do not overwrite input',()=>{
-  const g=liveGame(),p=g.players.get('t');g.input('t',{seq:5,round:g.round,f:1});for(const raw of [{seq:4,round:g.round},{seq:5,round:g.round},{seq:-1,round:g.round},{seq:Infinity,round:g.round},{seq:6,round:g.round-1},{seq:6.1,round:g.round}])g.input('t',{...raw,f:-1});assert.equal(p.input.f,1);assert.equal(p.lastInputSeq,5);
+test('prediction: queue accepts reordered commands but duplicate, invalid and old-round copies cannot overwrite them',()=>{
+  const g=liveGame(),p=g.players.get('t');g.input('t',{seq:5,round:g.round,f:1});for(const raw of [{seq:4,round:g.round},{seq:5,round:g.round},{seq:-1,round:g.round},{seq:Infinity,round:g.round},{seq:6,round:g.round-1},{seq:6.1,round:g.round}])g.input('t',{...raw,f:-1});assert.equal(p.input.f,0);assert.equal(p.lastInputSeq,5);assert.equal(p.ackInputSeq,0);
+  g.step();g.step();g.step();assert.equal(p.ackInputSeq,4);assert.equal(p.input.f,-1);g.step();assert.equal(p.ackInputSeq,5);assert.equal(p.input.f,1);assert.equal(p.skippedInputCommands,3);
 });
 test('prediction: reset ACK on respawn, and keep jump-held state for exact replay',()=>{
   const g=liveGame(),p=g.players.get('t');p.lastInputSeq=30;p.ackInputSeq=29;p.jumpHeld=true;assert.equal(g.snapshot().players.find(p=>p.id==='t').jumpHeld,true);g.begin();assert.equal(p.ackInputSeq,0);assert.equal(p.lastInputSeq,0);
@@ -43,5 +44,5 @@ test('prediction: visual smoothing preserves the displayed pose then decays, tel
   const previous={x:1,y:2,z:3},next={x:1.1,y:1.95,z:3},offset=visualCorrection(previous,next);assert.ok(Math.abs(next.y+offset.y-previous.y)<1e-12);assert.ok(Math.abs(decayCorrection(offset,1).y)<Math.abs(offset.y));assert.deepEqual(visualCorrection(previous,{x:10,y:10,z:10}),{x:0,y:0,z:0});
 });
 test('prediction: a burst of client commands cannot add authoritative simulation time or position',()=>{
-  const g=liveGame(),p=g.players.get('t'),before={...p};for(let seq=1;seq<=100;seq++)g.input('t',{seq,round:g.round,f:1,yaw:p.yaw,x:1000,y:1000,z:1000,dt:10});g.step();assert.ok(Math.hypot(p.x-before.x,p.z-before.z)<=RULES.speed/RULES.tick+.001);assert.equal(p.ackInputSeq,100);
+  const g=liveGame(),p=g.players.get('t'),before={...p};for(let seq=1;seq<=100;seq++)g.input('t',{seq,round:g.round,f:1,yaw:p.yaw,x:1000,y:1000,z:1000,dt:10});g.step();assert.ok(Math.hypot(p.x-before.x,p.z-before.z)<=RULES.speed/RULES.tick+.001);assert.equal(p.ackInputSeq,1);assert.equal(p.appliedInputCommands,1);
 });

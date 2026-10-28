@@ -6,10 +6,12 @@ import {ECONOMY,clampMoney,equipmentPrice} from './public/economy.js';
 import {armourDamage} from './public/armour.js';
 import {freshLoadout,saveActive,refillAmmo,activate,ownedWeapons,GRENADE_IDS} from './inventory.mjs';
 import {createGrenade,stepGrenades,GRENADE_LIMITS} from './grenades.mjs';
+import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/input-protocol.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
-  constructor({random=Math.random,friendlyFire=false}={}){this.random=random;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
+  #inputs=new Map();
+  constructor({random=Math.random,friendlyFire=false}={}){this.random=random;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
   emit(e){this.events.push({...e,time:this.time});if(this.events.length>1024)this.events.splice(0,this.events.length-1024);}
   hasBothTeams(){return new Set([...this.players.values()].map(p=>p.team)).size===2;}
   waitForPlayers(){this.phase='waiting';this.endAt=0;this.buyEndAt=0;this.bomb={state:'none'};this.message='等待玩家加入';this.projectiles=[];this.smokes=[];this.drops=[];}
@@ -30,14 +32,74 @@ export class Game {
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
+    this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0});
+    p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
     activate(p,p.primary||p.pistol||'knife',this.time);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
   credit(p,amount,reason){if(!Number.isFinite(amount)||!amount)return;p.money=clampMoney(p.money,amount);this.emit({type:'money',id:p.id,amount,money:p.money,reason});}
-  remove(id){const p=this.players.get(id);if(!p)return;this.dropBomb(p);this.players.delete(id);this.emit({type:'notice',text:`${p.name} 离开`});if(!this.players.size)this.waitForPlayers();}
+  remove(id){const p=this.players.get(id);if(!p)return;this.dropBomb(p);this.players.delete(id);this.#inputs.delete(id);this.emit({type:'notice',text:`${p.name} 离开`});if(!this.players.size)this.waitForPlayers();}
   dropBomb(p){if(this.bomb.state==='carried'&&this.bomb.holder===p.id)this.bomb={state:'dropped',x:p.x,z:p.z,y:supportHeight(p.x,p.z,p.y)};}
-  input(id,raw){const p=this.players.get(id);if(!p)return;if(raw?.round!==undefined&&raw.round!==this.round)return;
-    if(raw?.seq!==undefined){if(!Number.isSafeInteger(raw.seq)||raw.seq<=p.lastInputSeq||raw.seq>2147483647)return;p.lastInputSeq=raw.seq;}
-    p.input=sanitizedInput(raw);p.lastInput=this.time;
+  input(id,raw){
+    const p=this.players.get(id),state=this.#inputs.get(id);if(!p||!state||!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+    const source=raw.input===undefined?raw:raw.input;
+    if(!source||typeof source!=='object'||Array.isArray(source))return false;
+    const round=raw.round===undefined?source.round:raw.round;
+    if(round!==undefined&&round!==this.round)return false;
+    if(raw.seq!==undefined||source.seq!==undefined){
+      // Legacy single-input transport permits omitted round; batches never do.
+      return this.inputBatch(id,[{...raw,round:round===undefined?this.round:round}])>0;
+    }
+    const input=sanitizedInput(source);
+    if(isNeutralInput(input)){
+      // Menu/blur is an immediate cancellation barrier. ACK advances at the next
+      // simulation tick, not on receipt; late redundant copies cannot revive it.
+      // Optional sender watermark also cancels datagrams still in flight.
+      const cancel=raw.cancelThroughSeq===undefined?source.cancelThroughSeq:raw.cancelThroughSeq;
+      const watermark=validInputSequence(cancel)&&cancel<=p.ackInputSeq+MAX_INPUT_QUEUE?cancel:0;
+      state.skipThrough=Math.max(state.skipThrough,p.lastInputSeq,watermark);
+      state.queue.clear();state.gapSince=null;
+      p.input=input;p.jumpHeld=false;p.fireHeld=false;
+      // Ordinary legacy trigger release must finish an already-started burst.
+      // Sequenced menu/blur cancellation or an explicit watermark cancels it.
+      if(state.sequenced||cancel!==undefined)p.burstRemaining=0;
+    }else if(state.sequenced){return false;}
+    else p.input=input;
+    p.lastInput=this.time;return true;
+  }
+  inputBatch(id,commands){
+    const p=this.players.get(id),state=this.#inputs.get(id);if(!p||!state||!Array.isArray(commands))return 0;
+    let accepted=0;
+    for(const raw of commands.slice(0,MAX_INPUT_BATCH)){
+      const c=normalizeInputCommand(raw,this.round);
+      if(!c||c.seq<=Math.max(p.ackInputSeq,state.skipThrough)||c.seq>p.ackInputSeq+MAX_INPUT_QUEUE||state.queue.has(c.seq)||state.queue.size>=MAX_INPUT_QUEUE)continue;
+      state.queue.set(c.seq,{...c,receivedTick:this.serverTick});state.sequenced=true;
+      p.lastInputSeq=Math.max(p.lastInputSeq,c.seq);p.lastInput=this.time;accepted++;
+    }
+    return accepted;
+  }
+  #skipInput(p,through){
+    if(through>p.ackInputSeq){p.skippedInputCommands+=through-p.ackInputSeq;p.ackInputSeq=through;}
+  }
+  #nextInput(p){
+    const state=this.#inputs.get(p.id),neutral=()=>({...blankInput(),yaw:p.yaw,pitch:p.pitch});
+    if(state.skipThrough){this.#skipInput(p,state.skipThrough);state.skipThrough=0;}
+    if(!state.sequenced)return this.time-p.lastInput>LEGACY_INPUT_GRACE_SECONDS?neutral():p.input;
+    // Stale prefix is explicitly skipped. Never fast-forward movement to drain
+    // backlog: at most ONE non-stale command receives this tick's simulation.
+    const queued=[...state.queue.values()].sort((a,b)=>a.seq-b.seq);
+    for(const c of queued){
+      if(this.serverTick-c.receivedTick<=MAX_INPUT_AGE_TICKS)break;
+      state.queue.delete(c.seq);this.#skipInput(p,c.seq);state.gapSince=null;
+    }
+    const next=[...state.queue.values()].sort((a,b)=>a.seq-b.seq)[0];
+    if(!next){state.gapSince=null;return neutral();}
+    if(next.seq>p.ackInputSeq+1){
+      state.gapSince??=this.serverTick;
+      if(this.serverTick-state.gapSince<INPUT_REORDER_TICKS)return neutral();
+      this.#skipInput(p,next.seq-1);
+    }
+    state.queue.delete(next.seq);state.gapSince=null;
+    return next;
   }
   canBuy(p){return !!p?.alive&&['countdown','live'].includes(this.phase)&&this.time<=this.buyEndAt&&buyZoneAt(p);}
   buy(id,item){const p=this.players.get(id);if(!this.canBuy(p))throw Error('只能在购买时间内、己方购买区存活时购买');
@@ -119,12 +181,12 @@ export class Game {
       this.emit({type:'kill',attacker:killer?.name||'环境',victim:p.name,team:killer?.team,weapon:options.kind||killer?.weapon});
     }return result.healthDamage;
   }
-  targetRay(p,d,range,expand=0){const o={x:p.x,y:p.y+eyeHeight(p),z:p.z};let distance=Math.min(range,wallDistance(o,d)),target=null,hitgroup='chest';
-    for(const q of this.players.values())if(q.alive&&q.id!==p.id){const h=eyeHeight(q)+.2,box={x1:q.x-.3-expand,x2:q.x+.3+expand,y1:q.y,y2:q.y+h,z1:q.z-.3-expand,z2:q.z+.3+expand},hit=rayBox(o,d,box);
-      if(hit<distance){distance=hit;target=q;const y=o.y+d.y*hit-q.y;hitgroup=y>h-.38?'head':y<h*.35?'legs':y<h*.58?'stomach':'chest';}}
-    return {o,d,distance,target,hitgroup,to:{x:o.x+d.x*distance,y:o.y+d.y*distance,z:o.z+d.z*distance}};
+  targetRay(p,d,range,expand=0,rewindTime=null){const o={x:p.x,y:p.y+eyeHeight(p),z:p.z};let distance=Math.min(range,wallDistance(o,d)),target=null,targetPose=null,hitgroup='chest';
+    for(const q of this.players.values())if(q.alive&&q.id!==p.id){const pose=rewindTime===null?q:(this.lagComp?.pose(q.id,rewindTime,this.round)||q);const h=eyeHeight(pose)+.2,box={x1:pose.x-.3-expand,x2:pose.x+.3+expand,y1:pose.y,y2:pose.y+h,z1:pose.z-.3-expand,z2:pose.z+.3+expand},hit=rayBox(o,d,box);
+      if(hit<distance){distance=hit;target=q;targetPose=pose;const y=o.y+d.y*hit-pose.y;hitgroup=y>h-.38?'head':y<h*.35?'legs':y<h*.58?'stomach':'chest';}}
+    return {o,d,distance,target,targetPose,hitgroup,to:{x:o.x+d.x*distance,y:o.y+d.y*distance,z:o.z+d.z*distance}};
   }
-  shieldBlocks(p,ray){return p.shield&&p.shieldRaised&&ray.hitgroup!=='legs'&&((-Math.sin(p.yaw))*(-ray.d.x)+(-Math.cos(p.yaw))*(-ray.d.z))>.4;}
+  shieldBlocks(p,ray){const pose=ray.targetPose||p;return pose.shield&&pose.shieldRaised&&ray.hitgroup!=='legs'&&((-Math.sin(pose.yaw))*(-ray.d.x)+(-Math.cos(pose.yaw))*(-ray.d.z))>.4;}
   knife(p,secondary=false){if(!p.alive||!allowsPlayerActions(this.phase)||p.weapon!=='knife'||p.shieldRaised||this.time<(p.nextAttackAt||0))return false;
     const ray=this.targetRay(p,direction(p.yaw,p.pitch),(secondary?32:48)/40,.12),hit=!!ray.target;
     const base=secondary?65:this.time-p.lastShot>.8?20:15;p.nextAttackAt=this.time+(secondary?(hit?1.1:1):(hit?.4:.35));p.nextSecondaryAt=this.time+(secondary?1:.5);p.lastShot=this.time;
@@ -144,12 +206,13 @@ export class Game {
     if(!burstFollowup&&this.time-p.lastShot<interval-1e-8)return false;
     if(p.reloadAt){if(w.reloadStyle==='per-shell'&&p.ammo>0)p.reloadAt=0;else return false;}
     p.lastShot=this.time;p.ammo--;const profile=shotProfile(p,this.random),damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
+    const shotId=`${this.round}:${p.id}:${p.lastAppliedInputSeq||0}:${this.time}`,rewindTime=this.lagComp?.targetTime(p.id,p.lastAppliedInputSeq,this.time,this.round)??null;
     for(let pellet=0;pellet<w.pellets;pellet++){
       const d=pellet?direction(p.yaw+(p.recoilYaw||0)+(this.random()*2-1)*profile.spread,p.pitch+(p.recoilPitch||0)+(this.random()*2-1)*profile.spread):profile.direction;
-      const ray=this.targetRay(p,d,(w.range||8192)/40),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
+      const ray=this.targetRay(p,d,(w.range||8192)/40,0,rewindTime),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
       if(ray.target&&!blocked){const rangeModifier=p.silenced&&p.weapon==='m4a1'?.95:w.rangeModifier;const falloff=w.rangeModel==='linear'?Math.max(0,1-ray.distance*40/(w.range||3000)):Math.pow(rangeModifier,ray.distance*40/500);
         this.damage(ray.target,damage*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
-      this.emit({type:'shot',id:p.id,weapon:p.weapon,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+      this.emit({type:'shot',id:p.id,weapon:p.weapon,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
     }
     if(p.burstMode&&!burstFollowup&&['glock18','famas'].includes(p.weapon)){p.burstRemaining=Math.min(2,p.ammo);p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
     if(['awp','scout'].includes(p.weapon)&&p.zoom!==90){p.resumeZoom=p.zoom;p.zoom=90;p.resumeZoomAt=this.time+w.interval;}
@@ -169,20 +232,27 @@ export class Game {
     if(action==='plant'&&p.progress>=RULES.plantSeconds){this.bomb={state:'planted',x:p.x,z:p.z,y:p.y,endAt:this.time+RULES.bombSeconds,site:siteAt(p).name,planter:p.id};p.progress=0;p.action='';if(p.weapon==='c4')activate(p,p.primary||p.pistol||'knife',this.time);this.emit({type:'notice',text:`炸弹已安放在 ${this.bomb.site} 点`});}
     if(action==='defuse'&&p.progress>=(p.defuseKit?RULES.defuseKitSeconds:RULES.defuseSeconds)){this.bomb.state='defused';this.finish('CT','成功拆除炸弹','defuse');}
   }
-  step(dt=1/RULES.tick){dt=Math.max(0,Math.min(.1,Number.isFinite(dt)?dt:0));this.time+=dt;const all=[...this.players.values()];
+  // One call is one authoritative 60Hz tick; transport/client dt is never used.
+  step(){const dt=INPUT_DT;this.time+=dt;this.serverTick++;const all=[...this.players.values()];
     if(!all.length){this.waitForPlayers();return;}
     if(this.phase==='waiting'){this.begin();return;}
     if(this.phase==='ended'&&this.time>=this.endAt){this.begin();return;}
     if(this.phase==='countdown'){if(this.time>=this.endAt){this.phase='live';this.endAt=this.time+RULES.roundSeconds;this.buyEndAt=this.time+ECONOMY.buySeconds;this.message='回合进行中 · B 购买 / 1—5 切换装备';}return;}
     for(const p of all)if(p.alive){
-      if(this.time-p.lastInput>.5)p.input={...blankInput(),yaw:p.yaw,pitch:p.pitch};
-      movePlayer(p,p.input,dt);p.ackInputSeq=p.lastInputSeq;updateWeapon(p,dt,this.time);this.pickup(p);
+      const command=this.#nextInput(p);p.input=command.input||command;
+      const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld,heldFire=p.fireHeld;
+      movePlayer(p,p.input,dt);
+      // Synthetic idle is not a real button release. Preserve the edge latches
+      // without firing/jumping, so loss cannot manufacture another press.
+      if(preserveEdges)p.jumpHeld=heldJump;
+      if(command.seq){p.ackInputSeq=command.seq;p.lastAppliedInputSeq=command.seq;p.appliedInputCommands++;}
+      updateWeapon(p,dt,this.time);this.pickup(p);
       const w=GUNS[p.weapon];
       if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
       if(p.reloadAt&&this.time>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?this.time+w.reload:0;saveActive(p);}
       if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
       if(p.burstRemaining>0&&this.time>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
-      if(p.input.fire&&!p.action&&(p.weapon==='knife'||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=p.input.fire;
+      if(p.input.fire&&!p.action&&(p.weapon==='knife'||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
       // Reload an empty active firearm even after the trigger is released.
       if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
     }
@@ -192,7 +262,7 @@ export class Game {
     const present=team=>all.some(p=>p.team===team),alive=team=>all.some(p=>p.alive&&p.team===team);
     if(present('CT')&&!alive('CT'))this.finish('T','对方全灭');else if(present('T')&&!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
+  snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(({input,lastInput,lastInputSeq,pendingMoney,...p})=>{
         if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,defuseKit,nightvision,nightvisionOn,...visible}=p;return visible;}
         return {...p,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};

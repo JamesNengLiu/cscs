@@ -5,7 +5,10 @@
   "type": "module",
   "description": "LAN browser FPS graybox prototype. Not a Counter-Strike port.",
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node tools/start-secure.mjs",
+    "start:ws": "node server.mjs",
+    "cert:local": "node tools/local-certificate.mjs",
+    "test:webtransport": "node tests/run-webtransport.mjs",
     "test": "node --test --test-reporter=tap tests/*.test.mjs",
     "test:browser": "node tests/run-browser.mjs",
     "test:shop": "node tests/shop-browser.mjs --client",
@@ -28,6 +31,8 @@
     "test:map": "python3 tools/verify-map.py && node tools/verify-routes.mjs"
   },
   "dependencies": {
+    "@fails-components/webtransport": "1.6.11",
+    "@fails-components/webtransport-transport-http3-quiche": "1.6.11",
     "three": "0.186.1",
     "ws": "8.22.0"
   },

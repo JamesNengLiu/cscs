@@ -10,7 +10,7 @@ const server=fork('tests/downhill-browser-server.mjs',[],{env:{...process.env,HO
 let browser,peer,base,output='';
 try{
   base=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Server start timeout')),10000);server.stdout.on('data',chunk=>{output+=chunk;const m=output.match(/http:\/\/localhost:(\d+)/);if(m){clearTimeout(timer);resolve(`http://127.0.0.1:${m[1]}`);}});server.stderr.on('data',chunk=>process.stderr.write(chunk));});
-  const health=await (await fetch(base+'/health')).json();assert.equal(health.movementSync,'ack-replay-v1');
+  const health=await (await fetch(base+'/health')).json();assert.equal(health.movementSync,'command-queue-v2');
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
   const page=await browser.newPage({viewport:{width:960,height:600}});page.on('pageerror',error=>report.errors.push(error.message));
   await page.goto(base,{waitUntil:'networkidle'});await page.fill('#name','下坡回归测试');await page.selectOption('#team','T');await page.click('#joinButton');await page.waitForFunction(()=>window.lanStrike?.getId()&&!document.getElementById('hud').hidden);

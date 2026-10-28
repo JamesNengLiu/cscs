@@ -1,11 +1,12 @@
-import {RULES} from './config.js';
 import {movePlayer} from './movement.js';
-export const PREDICTION_DT=1/RULES.tick;
-export const MAX_PENDING_COMMANDS=128;
-// Replay only simulation commands newer than the server's actually applied input.
+import {INPUT_DT,MAX_INPUT_QUEUE,orderedInputCommands} from './input-protocol.js';
+export const PREDICTION_DT=INPUT_DT;
+export const MAX_PENDING_COMMANDS=MAX_INPUT_QUEUE;
+// ACK covers applied commands AND explicitly skipped stale/gap/cancelled slots.
 // Replacing Y alone while retaining future X/Z creates an invalid slope pose.
 export function reconcileMovement(authoritative,commands,round){
-  const pending=commands.filter(c=>c.round===round&&c.seq>(authoritative.ackInputSeq||0));
+  const pending=authoritative.playedRound!==undefined&&authoritative.playedRound!==round?[]:
+    orderedInputCommands(commands,round,authoritative.ackInputSeq||0,MAX_PENDING_COMMANDS);
   const player={...authoritative};
   for(const command of pending)movePlayer(player,command.input,PREDICTION_DT);
   return {player,pending};

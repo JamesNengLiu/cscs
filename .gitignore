@@ -1,5 +1,6 @@
 # Local dependencies and generated output
 node_modules/
+.local/
 .venv/
 artifacts/
 backups/

@@ -21,8 +21,9 @@ try{
   await page.fill('#mouseSensitivityNumber','999');await page.locator('#mouseSensitivityNumber').blur();assert.equal(await page.inputValue('#mouseSensitivityNumber'),'5.00');
   await page.fill('#mouseSensitivityNumber','');await page.locator('#mouseSensitivityNumber').blur();assert.equal(await page.inputValue('#mouseSensitivityNumber'),'5.00');
   await page.fill('#mouseSensitivityNumber','0.5');await page.locator('#mouseSensitivityNumber').blur();check('slider, exact number, empty/over-range inputs stay synchronized and bounded');
-  await page.reload({waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#mouseSensitivityNumber'),'0.50');check('sensitivity persists across a real reload');
-  await page.selectOption('#resume [data-quality]','sharp');await page.click('#resetMouseSettings');assert.equal(await page.inputValue('#mouseSensitivityNumber'),'1.00');assert.equal(await page.inputValue('#resume [data-quality]'),'sharp');check('restore default affects mouse sensitivity only');
+  await page.fill('#scopedSensitivityNumber','0.35');await page.locator('#scopedSensitivityNumber').blur();assert.equal(await page.inputValue('#scopedSensitivity'),'0.35');
+  await page.reload({waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#mouseSensitivityNumber'),'0.50');assert.equal(await page.inputValue('#scopedSensitivityNumber'),'0.35');check('normal and scoped sensitivity persist independently across a real reload');
+  await page.selectOption('#resume [data-quality]','sharp');await page.click('#resetMouseSettings');assert.equal(await page.inputValue('#mouseSensitivityNumber'),'1.00');assert.equal(await page.inputValue('#scopedSensitivityNumber'),'1.00');assert.equal(await page.inputValue('#resume [data-quality]'),'sharp');check('restore default resets both mouse sensitivities and preserves quality');
   // Assert tab wrapping at the last visible control, then reverse wrap.
   await page.locator('#resumeButton').focus();await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.id),'mouseSensitivity');
   await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.id),'resumeButton');check('modal traps keyboard focus and does not expose the inert lobby');
@@ -37,6 +38,19 @@ try{
   await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen&&!window.lanStrike.getDiagnostics().locked&&document.pointerLockElement===null);
   await page.fill('#mouseSensitivityNumber','1');await page.locator('#mouseSensitivityNumber').blur();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);const normal=await move();assert.ok(Math.abs(normal.yawDelta-low.yawDelta*2)<1e-8);assert.ok(Math.abs(normal.pitchDelta-low.pitchDelta*2)<1e-8);check('real pointer lock and actual yaw/pitch use the selected multiplier immediately',{low,normal});
   await page.waitForFunction(()=>{const s=window.lanStrike.getState();return s?.phase==='live'&&s.players.find(p=>p.id===window.lanStrike.getId())?.alive;});
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);
+  await page.fill('#scopedSensitivityNumber','0.5');await page.locator('#scopedSensitivityNumber').blur();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);
+  await page.keyboard.press('KeyB');await page.locator('button[data-category="sniper"]').click();await page.locator('[data-item="awp"]').click();await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='awp');await page.click('#buyResume');
+  await page.waitForFunction(()=>{const s=window.lanStrike.getState(),p=s.players.find(p=>p.id===window.lanStrike.getId());return window.lanStrike.getDiagnostics().locked&&s.time>=p.nextAttackAt;});
+  const unscoped=await move();assert.ok(Math.abs(unscoped.yawDelta-normal.yawDelta)<1e-8);
+  const secondary=()=>page.evaluate(()=>document.dispatchEvent(new MouseEvent('mousedown',{button:2,bubbles:true})));
+  for(const zoom of [40,10,90]){
+    await secondary();await page.waitForFunction(z=>window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId())?.zoom===z,zoom);
+    const aimed=await move(),scale=zoom===90?1:.5;
+    assert.ok(Math.abs(aimed.yawDelta-normal.yawDelta*scale)<1e-8);assert.ok(Math.abs(aimed.pitchDelta-normal.pitchDelta*scale)<1e-8);
+    await page.waitForTimeout(350);
+  }
+  await page.keyboard.press('Digit2');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='glock18');const pistol=await move();assert.ok(Math.abs(pistol.yawDelta-normal.yawDelta)<1e-8);check('actual client applies scoped multiplier at both authoritative AWP zoom levels and restores normal aim after unscoping or switching');
   await page.keyboard.down('KeyW');await page.mouse.down();await page.waitForFunction(()=>window.lanStrike.getDiagnostics().input.f===1&&window.lanStrike.getDiagnostics().input.fire);
   await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);await page.keyboard.up('KeyW');await page.mouse.up();
   const baseline=await page.evaluate(()=>{const s=window.lanStrike.getState(),p=s.players.find(p=>p.id===window.lanStrike.getId());return {weapon:p.weapon,time:s.time};});

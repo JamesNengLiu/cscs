@@ -9,19 +9,37 @@ function tick(g,seconds,inputs={}){for(let i=0;i<Math.ceil(seconds*RULES.tick);i
 function place(p,x=-18.4,z=22){Object.assign(p,{x,y:3.2,z,vx:0,vz:0,vy:0,yaw:0,pitch:-.15,grounded:true});p.y=supportHeight(x,z,3.3);}
 for(const [id,w] of Object.entries(GUNS))test(`arsenal integration: buy, equip and fire ${id}`,()=>{
   const {g,t,ct}=match(),p=w.teams[0]==='T'?t:ct,q=p===t?ct:t;
-  if(p.inventory[id])g.drop(p.id);const before=p.money;g.buy(p.id,id);assert.equal(p.money,before-w.price);assert.equal(p.weapon,id);assert.equal(p.ammo,w.clip);assert.ok(p.inventory[id]);
+  if(p.inventory[id])g.drop(p.id);const before=p.money;g.buy(p.id,id);assert.equal(p.money,before-w.price);assert.equal(p.weapon,id);assert.equal(p.ammo,w.clip);assert.equal(p.reserve,w.reserve);assert.ok(p.inventory[id]);
   assert.equal(g.equip(p.id,3),true);assert.equal(p.weapon,'knife');g.equip(p.id,id);place(p);place(q,-18.4,19);q.hp=1000;g.time+=.6;
   assert.equal(g.shoot(p),true);assert.equal(p.ammo,w.clip-1);assert.ok(q.hp<1000);const ammo=p.ammo;g.shoot(p);assert.equal(p.ammo,ammo);
 });
-test('economy: first join gets 10000, no free primary and no per-round cash reset',()=>{const {g,t,ct}=match();assert.equal(t.money,10000);assert.equal(ct.money,10000);assert.equal(t.primary,null);assert.equal(t.weapon,'glock18');assert.equal(ct.weapon,'usp');assert.equal(t.ammo,20);assert.equal(t.reserve,40);assert.equal(ct.ammo,12);assert.equal(ct.reserve,24);assert.equal(g.equip('t','awp'),false);g.buy('t','ak47');g.begin();assert.equal(t.money,7500);assert.equal(t.weapon,'ak47');});
+test('economy: first join gets 10000, full pistol ammo, no free primary and no per-round cash reset',()=>{const {g,t,ct}=match();assert.equal(t.money,10000);assert.equal(ct.money,10000);assert.equal(t.primary,null);assert.equal(t.weapon,'glock18');assert.equal(ct.weapon,'usp');assert.equal(t.ammo,20);assert.equal(t.reserve,GUNS.glock18.reserve);assert.equal(ct.ammo,12);assert.equal(ct.reserve,GUNS.usp.reserve);assert.equal(g.equip('t','awp'),false);g.buy('t','ak47');g.begin();assert.equal(t.money,7500);assert.equal(t.weapon,'ak47');});
 test('buying: source BSP team buy zones and time, dead players, and phase checked server-side',()=>{
   const {g,t,ct}=match();assert.ok(buyZoneAt(t));assert.ok(buyZoneAt(ct));const initial=t.money;const saved={x:t.x,y:t.y,z:t.z};Object.assign(t,{x:ct.x,y:ct.y,z:ct.z});assert.equal(buyZoneAt(t),false);assert.throws(()=>g.buy('t','ak47'));Object.assign(t,saved);g.time=g.buyEndAt+.01;assert.throws(()=>g.buy('t','ak47'));g.time=0;t.alive=false;assert.throws(()=>g.buy('t','ak47'));t.alive=true;g.phase='ended';assert.throws(()=>g.buy('t','ak47'));assert.equal(t.money,initial);
 });
 test('buying: team restrictions, insufficient cash, inherited ids and duplicates are atomic',()=>{
   const {g,t}=match();for(const id of ['m4a1','fiveseven','tmp','defusekit','shield','constructor','__proto__',{},null]){const money=t.money;assert.throws(()=>g.buy('t',id));assert.equal(t.money,money);}t.money=100;assert.throws(()=>g.buy('t','ak47'));assert.equal(t.money,100);t.money=10000;g.buy('t','ak47');assert.throws(()=>g.buy('t','ak47'));assert.equal(t.money,7500);
 });
-test('ammo: purchases are paid packs, capped and shared between weapons of same calibre',()=>{
-  const {g,t}=match();g.buy('t','mp5navy');assert.equal(t.reserve,40);const before=t.money;g.buy('t','primaryammo');assert.equal(t.money,before-GUNS.mp5navy.ammoCost);assert.equal(t.reserve,70);g.equip('t',2);assert.equal(t.reserve,70);g.buy('t','secondaryammo');assert.equal(t.reserve,100);g.buy('t','secondaryammo');assert.equal(t.reserve,120);const money=t.money;assert.throws(()=>g.buy('t','secondaryammo'));assert.equal(t.money,money);
+test('ammo: gun purchases include full shared reserve, switching preserves consumption and legacy ammo orders are rejected',()=>{
+  const {g,t}=match();t.ammo=3;t.reserve=2;g.buy('t','mp5navy');assert.equal(t.ammo,30);assert.equal(t.reserve,120);assert.equal(t.money,8500);
+  g.equip('t',2);assert.equal(t.ammo,3);assert.equal(t.reserve,120);t.reserve=7;g.equip('t',1);assert.equal(t.reserve,7);
+  const before=JSON.stringify({money:t.money,inventory:t.inventory,ammoPool:t.ammoPool,ammo:t.ammo,reserve:t.reserve});
+  for(const item of ['primaryammo','secondaryammo'])assert.throws(()=>g.buy('t',item),/未知商品/);
+  assert.equal(JSON.stringify({money:t.money,inventory:t.inventory,ammoPool:t.ammoPool,ammo:t.ammo,reserve:t.reserve}),before);
+});
+test('ammo: every purchasable firearm includes a full magazine and reserve at only its listed price',()=>{
+  for(const w of Object.values(GUNS)){const {g,t,ct}=match(),p=w.teams.includes('T')?t:ct;
+    if(p.inventory[w.id])g.drop(p.id);p.ammo=1;p.reserve=0;const before=p.money;g.buy(p.id,w.id);
+    assert.equal(p.ammo,w.clip,w.id);assert.equal(p.reserve,w.reserve,w.id);assert.equal(p.money,before-w.price,w.id);
+    g.equip(p.id,3);g.equip(p.id,w.id);assert.equal(p.reserve,w.reserve,w.id);
+  }
+});
+test('ammo: new round fills both carried guns and shared pools without granting weapons or refilling equipment',()=>{
+  const {g,t}=match();g.buy('t','mp5navy');g.buy('t','flashbang');t.ammo=4;t.reserve=7;g.equip('t',2);t.ammo=2;t.reserve=1;g.equip('t',3);const before=t.money;
+  g.begin();assert.equal(t.ammo,GUNS.mp5navy.clip);assert.equal(t.reserve,120);assert.equal(t.inventory.glock18.ammo,20);assert.equal(t.money,before);assert.equal(t.grenades.flashbang,1);
+  g.phase='live';g.equip('t',2);assert.equal(t.ammo,20);assert.equal(t.reserve,120);t.ammo=1;t.reserve=2;
+  g.finish('CT','round over');assert.equal(t.ammo,1);assert.equal(t.reserve,2);tick(g,6.1);
+  assert.equal(t.ammo,30);assert.equal(t.reserve,120);assert.equal(t.inventory.glock18.ammo,20);
 });
 test('replacement: buying drops the old gun without refund, E/touch pickup observes empty slots',()=>{
   const {g,t,ct}=match();g.buy('t','ak47');t.ammo=17;g.buy('t','galil');assert.equal(t.primary,'galil');assert.equal(t.money,5500);assert.ok(g.drops.some(d=>d.weapon==='ak47'&&d.ammo===17));place(t);const d=g.drops.find(d=>d.weapon==='ak47');place(ct,d.x,d.z);ct.y=d.y;g.time+=.6;g.pickup(ct);assert.equal(ct.primary,'ak47');assert.equal(ct.ammo,17);
@@ -58,8 +76,8 @@ test('round money: bomb objective win3500 and defused-T extra800; no invented pl
   {const {g,t,ct}=match();t.money=ct.money=0;g.finish('T','bomb','bomb');g.begin();assert.equal(t.money,3500);assert.equal(ct.money,1400);}
   {const {g,t,ct}=match();t.money=ct.money=0;g.finish('CT','defuse','defuse');g.begin();assert.equal(t.money,2200);assert.equal(ct.money,3250);assert.equal(ECONOMY.plantReward,0);assert.equal(ECONOMY.defuseReward,0);}
 });
-test('carryover: survivors keep ammo, armour, equipment, grenades; death resets gear but not account',()=>{
-  const {g,t,ct}=match();g.buy('t','ak47');g.buy('t','assaultsuit');g.buy('t','hegrenade');t.ammo=4;t.reserve=7;t.armour=45;const before=t.money;g.begin();assert.equal(t.ammo,4);assert.equal(t.reserve,7);assert.equal(t.armour,45);assert.equal(t.grenades.hegrenade,1);assert.equal(t.money,before);g.phase='live';g.damage(t,1000,ct);g.begin();assert.equal(t.primary,null);assert.equal(t.weapon,'glock18');assert.equal(t.armour,0);assert.equal(t.helmet,false);assert.equal(t.grenades.hegrenade,0);assert.equal(t.money,before);
+test('carryover: survivors refill ammo and keep armour/equipment; death resets gear but not account',()=>{
+  const {g,t,ct}=match();g.buy('t','ak47');g.buy('t','assaultsuit');g.buy('t','hegrenade');t.ammo=4;t.reserve=7;t.armour=45;const before=t.money;g.begin();assert.equal(t.ammo,30);assert.equal(t.reserve,90);assert.equal(t.armour,45);assert.equal(t.grenades.hegrenade,1);assert.equal(t.money,before);g.phase='live';g.damage(t,1000,ct);g.begin();assert.equal(t.primary,null);assert.equal(t.weapon,'glock18');assert.equal(t.ammo,20);assert.equal(t.reserve,120);assert.equal(t.armour,0);assert.equal(t.helmet,false);assert.equal(t.grenades.hegrenade,0);assert.equal(t.money,before);
 });
 test('knife: equip anytime owned, primary and backstab hit, no ammo or free sniper',()=>{
   const {g,t,ct}=match();g.equip('t',3);g.time+=1;place(t);place(ct,-18.4,21.3);t.pitch=-.4;ct.hp=1000;const hp=ct.hp;g.shoot(t);assert.ok(ct.hp<hp);assert.equal(t.ammo,0);g.time+=2;ct.yaw=0;const before=ct.hp;g.secondary('t');assert.ok(before-ct.hp>65);assert.equal(g.equip('t','awp'),false);
@@ -72,8 +90,8 @@ test('gun modes: silencer, burst, zoom, reload and equipment ownership are autho
   {const {g,t}=match();g.time+=1;g.secondary('t');assert.equal(t.burstMode,true);g.time+=1;g.input('t',{fire:true,yaw:t.yaw,pitch:-.5});tick(g,.4,{t:{fire:true,yaw:t.yaw,pitch:-.5}});assert.equal(t.ammo,17);}
   {const {g,t}=match();g.buy('t','awp');g.time+=1;g.secondary('t');assert.equal(t.zoom,40);g.time+=.31;g.secondary('t');assert.equal(t.zoom,10);}
 });
-test('reload: per-shell shotgun can be interrupted, magazines use paid reserve and switching does not refill',()=>{
-  const {g,t}=match();g.buy('t','m3');g.buy('t','primaryammo');t.ammo=0;g.reload('t');tick(g,.6);assert.equal(t.ammo,1);assert.ok(t.reloadAt>0);g.time+=1;g.shoot(t);assert.equal(t.reloadAt,0);const reserve=t.reserve;g.equip('t',2);g.equip('t',1);assert.equal(t.reserve,reserve);assert.equal(t.ammo,0);
+test('reload: per-shell shotgun can be interrupted, magazines consume reserve and switching does not refill',()=>{
+  const {g,t}=match();g.buy('t','m3');t.ammo=0;g.reload('t');tick(g,.6);assert.equal(t.ammo,1);assert.ok(t.reloadAt>0);g.time+=1;g.shoot(t);assert.equal(t.reloadAt,0);const reserve=t.reserve;g.equip('t',2);g.equip('t',1);assert.equal(t.reserve,reserve);assert.equal(t.ammo,0);
 });
 test('defuse: kit halves the source10 seconds to5, dropping input interrupts',()=>{
   for(const kit of [false,true]){const {g,t,ct}=match();const site=SITES[0];Object.assign(ct,{x:site.x+.5,y:supportHeight(site.x+.5,site.z,site.y+1),z:site.z,defuseKit:kit,vx:0,vz:0,vy:0});g.bomb={state:'planted',x:ct.x,y:ct.y,z:ct.z,endAt:g.time+45,site:'A'};tick(g,4.5,{ct:{use:true}});assert.equal(g.bomb.state,'planted');tick(g,kit?.6:5.6,{ct:{use:true}});assert.equal(g.bomb.state,'defused');}

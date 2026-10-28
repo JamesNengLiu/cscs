@@ -25,11 +25,11 @@ try{
   assert.equal(await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().character),'terror_trump');assert.equal(await pages[1].evaluate(()=>window.lanStrike.getDiagnostics().character),'urban');check('two real clients replicate selected T custom / CT original characters and load actual remote MDLs');
   await pages[0].click('#openBuyButton');await pages[0].locator('button[data-category="rifle"]').click();await pages[0].locator('[data-item="ak47"]').click();
   await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='ak47'&&window.lanStrike.getDiagnostics().money===7500);
-  await pages[0].locator('button[data-category="ammo"]').click();await pages[0].locator('[data-item="primaryammo"]').click();
-  await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().money===7420);
+  assert.equal(await pages[0].locator('button[data-category="ammo"]').count(),0);
+  await pages[0].waitForFunction(()=>{const p=window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId());return p?.ammo===30&&p.reserve===90;});
   await pages[0].waitForFunction(()=>{const m=window.lanStrike.getDiagnostics().weaponModel;return m.id==='ak47'&&m.source==='original-mdl'&&!m.loading;});check('actual converted MDL viewmodel loaded, not fallback',await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().weaponModel.sourceSHA256));
   await pages[0].screenshot({path:'artifacts/purchase-live.png'});report.screenshots.push('artifacts/purchase-live.png');
-  await pages[0].click('#buyClose');check('real server purchase: AK47 plus paid ammunition, authoritative cash and inventory');
+  await pages[0].click('#buyClose');check('real server purchase: AK47 with full complimentary ammunition, authoritative cash and inventory');
   await pages[0].waitForFunction(()=>window.lanStrike.getState()?.phase==='live',null,{timeout:18000});
   for(const p of pages)assert.equal(await p.evaluate(()=>window.lanStrike.getState().players.length),2);check('two isolated browser sessions join opposing teams and start a round');
   const p=pages[0];await p.bringToFront();await p.click('#resumeButton');

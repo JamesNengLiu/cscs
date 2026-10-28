@@ -5,7 +5,7 @@ import {readFile,mkdir} from 'node:fs/promises';
 import * as THREE from 'three';
 import {GUNS,EQUIPMENT} from '../public/arsenal.js';
 import {ECONOMY} from '../public/economy.js';
-import {ownedWeapons,equipmentCount,purchaseStatus,ammoOffer} from '../public/shop.js';
+import {ownedWeapons,equipmentCount,purchaseStatus} from '../public/shop.js';
 import {createWorldEffects,FX_LIMITS,flashOpacity,smokeOpacity} from '../public/effects.js';
 
 const p={id:'local',name:'Shop test',team:'T',alive:true,canBuy:true,money:10000,armour:0,helmet:false,
@@ -18,8 +18,6 @@ assert.match(purchaseStatus({...GUNS.m4a1,id:'m4a1'},p,GUNS),/CT/);
 assert.match(purchaseStatus({...GUNS.ak47,id:'ak47'},{...p,money:0},GUNS),/资金不足/);
 assert.match(purchaseStatus({...GUNS.ak47,id:'ak47'},{...p,canBuy:false},GUNS),/购买区/);
 assert.match(purchaseStatus({...GUNS.ak47,id:'ak47'},{...p,alive:false},GUNS),/阵亡/);
-assert.equal(ammoOffer('secondaryammo',p,GUNS,ECONOMY).price,GUNS.glock18.ammoCost);
-assert.equal(ammoOffer('primaryammo',{...p,primary:'awp'},GUNS,ECONOMY).pack,GUNS.awp.ammoPack);
 assert.equal(equipmentCount({...p,grenades:{flashbang:2}},'flashbang'),2);
 assert.equal(purchaseStatus({...EQUIPMENT.assaultsuit,id:'assaultsuit'},{...p,money:400,armour:100,helmet:false},GUNS),'');
 assert.match(purchaseStatus({...EQUIPMENT.flashbang,id:'flashbang'},{...p,grenades:{flashbang:2}},GUNS),/上限/);
@@ -36,7 +34,7 @@ assert.equal(fx.info().projectilePool,FX_LIMITS.projectiles);assert.equal(fx.inf
 assert.equal(scene.children.length,FX_LIMITS.projectiles+FX_LIMITS.smokes);
 const geometry=new Set();scene.traverse(o=>{if(o.isMesh)geometry.add(o.geometry);});assert.equal(geometry.size,2);
 fx.sync({});fx.update(30,null);assert.ok(scene.children.every(o=>!o.visible));fx.dispose();assert.equal(scene.children.length,0);
-console.log('PASS catalog, restrictions, owned-only cycling, ammo pricing, flash/smoke opacity, bounded reusable FX');
+console.log('PASS catalog, restrictions, owned-only cycling, flash/smoke opacity, bounded reusable FX');
 
 if(!process.argv.includes('--unit-only')){
   const {chromium}=await import('playwright');
@@ -64,7 +62,7 @@ if(!process.argv.includes('--unit-only')){
     const categories=await page.locator('[data-category]').evaluateAll(nodes=>nodes.filter(n=>n.tagName==='BUTTON').map(n=>n.dataset.category));
     const ids=[];
     for(const category of categories){await page.locator(`button[data-category="${category}"]`).click();ids.push(...await page.locator('[data-item]').evaluateAll(nodes=>nodes.map(n=>n.dataset.item)));}
-    assert.deepEqual(ids.sort(),[...Object.keys(GUNS),...Object.keys(EQUIPMENT),'primaryammo','secondaryammo'].sort());
+    assert.deepEqual(ids.sort(),[...Object.keys(GUNS),...Object.keys(EQUIPMENT)].sort());
     assert.ok(!ids.some(id=>['rifle','pistol','sniper'].includes(id)));
     await page.locator('button[data-category="rifle"]').click();
     assert.equal(await page.locator('[data-item="m4a1"]').isDisabled(),true);
@@ -76,8 +74,9 @@ if(!process.argv.includes('--unit-only')){
     await page.evaluate(()=>{const t=window.testShop;t.player.money=7500;t.player.primary='ak47';t.player.weapon='ak47';t.player.inventory.ak47={ammo:30,reserve:0};t.update();});
     assert.equal(await page.locator('#buyBalance').textContent(),'$7,500');
     assert.equal(await page.locator('[data-item="ak47"]').getAttribute('data-equipped'),'true');
-    await page.locator('button[data-category="ammo"]').click();
-    assert.match(await page.locator('[data-item="primaryammo"]').textContent(),new RegExp(`\\$${GUNS.ak47.ammoCost}`));
+    assert.equal(await page.locator('button[data-category="ammo"]').count(),0);
+    assert.match(await page.locator('[data-item="ak47"]').textContent(),/赠满备弹/);
+    assert.match(await page.locator('#buyStartMoney').textContent(),/每回合自动补满/);
     await page.locator('button[data-category="equipment"]').click();
     await page.evaluate(()=>{const t=window.testShop;t.player.grenades.flashbang=2;t.update();});
     assert.equal(await page.locator('[data-item="flashbang"]').isDisabled(),true);
@@ -90,7 +89,7 @@ if(!process.argv.includes('--unit-only')){
     assert.equal(await page.evaluate(()=>document.querySelector('.buy-panel').scrollWidth<=innerWidth),true);
     await page.locator('#buyClose').click();assert.equal(await page.locator('#buyMenu').isVisible(),false);
     assert.deepEqual(errors,[]);
-    console.log('PASS isolated browser: all 34 purchase intents accessible, server-only money, restrictions, owned/equipped, safe error text, compact layout');
+    console.log('PASS isolated browser: all 32 purchase intents accessible, no ammunition sales, server-only money, restrictions, owned/equipped, safe error text, compact layout');
     await page.close();
     if(process.argv.includes('--client'))await checkClient(browser);
   }finally{await browser.close();}

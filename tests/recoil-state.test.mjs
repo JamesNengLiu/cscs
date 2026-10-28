@@ -13,6 +13,8 @@ test('weapon selection: rejects inherited, invalid and unowned keys; cannot get 
   const g=new Game(),p=g.add('t','T','T');for(const key of ['toString','constructor','__proto__',{},null]){g.equip('t',key);assert.equal(p.weapon,'glock18');assert.equal(p.ammo,20);}
   g.equip('t','awp');assert.equal(p.weapon,'glock18');assert.equal(p.ammo,20);
 });
-test('shooting: no firing while dead or outside the live phase',()=>{
-  const g=new Game(),p=g.add('t','T','T');p.alive=true;g.shoot(p);assert.equal(p.ammo,20);g.phase='live';p.alive=false;g.shoot(p);assert.equal(p.ammo,20);
+test('shooting: no firing while waiting, preparing or dead',()=>{
+  const g=new Game(),p=g.add('t','T','T');p.alive=true;
+  for(const phase of ['waiting','countdown']){g.phase=phase;assert.equal(g.shoot(p),false);assert.equal(p.ammo,20);}
+  p.alive=false;for(const phase of ['live','ended']){g.phase=phase;assert.equal(g.shoot(p),false);assert.equal(p.ammo,20);}
 });

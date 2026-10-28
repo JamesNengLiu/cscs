@@ -5,7 +5,7 @@ import {RULES,SPAWNS,SITES,WEAPONS,collides,movePlayer,rayBox,direction,sanitize
 const place=(p,values)=>{Object.assign(p,values);p.y=supportHeight(p.x,p.z,(values.y??p.y)+.1);p.vx=p.vz=p.vy=0;p.crouch=false;};
 const atSite=(p,name)=>{const s=SITES.find(s=>s.name===name);place(p,{x:s.x,y:s.y,z:s.z});};
 const tick=(g,seconds,inputs={})=>{for(let i=0;i<Math.ceil(seconds*RULES.tick);i++){for(const [id,input]of Object.entries(inputs))g.input(id,input);g.step();}};
-function duel(){const g=new Game({random:()=>.5});const t=g.add('t','进攻','T'),ct=g.add('ct','防守','CT');g.step();g.buy('t','ak47');g.buy('t','primaryammo');g.buy('ct','defusekit');tick(g,RULES.freezeSeconds+.1);assert.equal(g.phase,'live');return {g,t,ct};}
+function duel(){const g=new Game({random:()=>.5});const t=g.add('t','进攻','T'),ct=g.add('ct','防守','CT');g.step();g.buy('t','ak47');g.buy('ct','defusekit');tick(g,RULES.freezeSeconds+.1);assert.equal(g.phase,'live');return {g,t,ct};}
 test('movement: normalized diagonals and bounded hostile inputs',()=>{
   const p={...SPAWNS.T,y:supportHeight(SPAWNS.T.x,SPAWNS.T.z,SPAWNS.T.y+.1),vy:0,pitch:0};const a={...p};movePlayer(p,{f:1,s:1,yaw:0},.1);assert.ok(Math.hypot(p.x-a.x,p.z-a.z)<=RULES.speed*.1+.00001);
   const v=sanitizedInput({f:Infinity,s:-999,yaw:'nan',pitch:999,fire:'yes'});assert.equal(v.f,1);assert.equal(v.s,-1);assert.equal(v.yaw,0);assert.equal(v.pitch,1.45);assert.equal(v.fire,false);

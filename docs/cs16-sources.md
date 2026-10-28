@@ -140,14 +140,40 @@ charges a full pack price even when the last pack is clipped by the reserve cap;
 there is no prorated partial-pack price. The catalogue does not enforce any of
 these transaction/state rules.
 
+## Movement: jump and airborne duck
+
+Player vertical movement uses the conventional gravity 800 source units/s²
+([engine default](https://github.com/rehlds/ReHLDS/blob/master/rehlds/engine/sv_phys.cpp#L47))
+and jump velocity `sqrt(2 * 800 * 45)` source units/s
+([PM_JumpHeight](https://github.com/rehlds/ReGameDLL_CS/blob/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/pm_shared/pm_shared.cpp#L2474-L2489)).
+Divide accelerations and velocities by the map's 40-unit scale. Gravity is
+applied in two half steps around vertical collision tracing, preserving an
+approximately 45-unit ordinary jump across supported simulation frame rates.
+
+[PM_Duck / PM_UnDuck](https://github.com/rehlds/ReGameDLL_CS/blob/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/pm_shared/pm_shared.cpp#L1926-L2096)
+keep the hull center fixed when changing stance in air. With the imported
+72/36-unit standing/crouched movement hulls, this raises the feet by 18 units
+when crouching after takeoff and lowers them by 18 when standing in air.
+Grounded stance changes preserve feet position. Standing requires clearance
+for the complete new hull, including below the feet and above the head.
+
+This retains instantaneous stance changes and the project's horizontal
+movement tuning; it does not port the full original movement engine or the
+0.4-second grounded duck transition. `tests/jump-crouch.test.mjs` covers
+vertical reach, collision clearance, repeated stance changes, the CT-spawn
+stacked crates, and authoritative snapshot/input replay. These are local
+simulation checks, not original-client or physical multi-machine comparisons.
+
 ## Economy: exact reference distinctions
 
 The [cvar definitions](https://github.com/rehlds/ReGameDLL_CS/blob/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/dlls/game.cpp#L28-L47)
 are `mp_buytime=1.5` minutes, `mp_freezetime=6` seconds, `mp_roundtime=5` minutes,
-`mp_c4timer=45` seconds, `mp_startmoney=800`. Consequently the exports use
-90/6/300/45 seconds. Suggested 1.75-minute rounds and 35-second bombs are not
-the defaults in this checkout. **Starting money 10,000 is an explicit project
-override of the original 800.** No server cvars or services are changed here.
+`mp_c4timer=45` seconds, `mp_startmoney=800`. The current project exports use
+90/6/150/45 seconds. **Round duration 150 seconds (2 minutes 30 seconds) is an
+explicit project override of the reference 300 seconds. Starting money 10,000
+is an explicit project override of the original 800.** Suggested 1.75-minute
+rounds and 35-second bombs are not the defaults in this checkout. No server
+cvars or services are changed here.
 
 | Export | Dollars | Meaning |
 | --- | ---: | --- |

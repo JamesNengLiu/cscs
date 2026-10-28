@@ -17,7 +17,7 @@ export const ECONOMY = Object.freeze(Object.assign(Object.create(null), {
   plantedLossBonus: 800, // T team account when the bomb is defused.
   buySeconds: 90,
   freezeSeconds: 6,
-  roundSeconds: 300, // mp_roundtime = 5 minutes in the reference, not 1.75.
+  roundSeconds: 150, // Explicit project override: 2.5 minutes; reference mp_roundtime is 5.
   bombSeconds: 45, // mp_c4timer = 45 in the reference, not 35.
   defuseSeconds: 10,
   defuseKitSeconds: 5,

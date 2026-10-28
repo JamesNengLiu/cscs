@@ -158,12 +158,12 @@ test('provenance pins the commit and unverified tuning remains machine-readable'
   assert.ok(ARSENAL_SOURCE.exceptions.eliteInterval.includes('0.122'));
 });
 
-test('economy uses source bomb-map rewards and cvar defaults except the requested starting balance', () => {
+test('economy uses source bomb-map rewards and cvar defaults except the requested starting balance and round duration', () => {
   const facts = { startMoney: 10000, maxMoney: 16000, killReward: 300, teamKillPenalty: -3300,
     winElimination: 3250, winBomb: 3500, winDefuse: 3250, plantReward: 0, defuseReward: 0,
     plantedLossBonus: 800, lossBase: 1400, lossIncrement: 500, lossMax: 3400,
     lossReset: 1500, lossThreshold: 3000, buySeconds: 90, freezeSeconds: 6,
-    roundSeconds: 300, bombSeconds: 45, defuseSeconds: 10, defuseKitSeconds: 5,
+    roundSeconds: 150, bombSeconds: 45, defuseSeconds: 10, defuseKitSeconds: 5,
     winEliminationOtherMaps: 3000, winTimeout: 3250 };
   for (const [key, value] of Object.entries(facts)) assert.equal(ECONOMY[key], value, key);
 });

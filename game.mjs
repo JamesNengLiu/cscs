@@ -140,9 +140,9 @@ export class Game {
       if(!p.grenades[kind])activate(p,p.primary||p.pistol||'knife',this.time);return true;
     }
     const w=GUNS[p.weapon];if(!w||this.time<(p.nextAttackAt||0)||p.ammo<=0)return false;
-    if(p.reloadAt){if(w.reloadStyle==='per-shell'&&p.ammo>0)p.reloadAt=0;else return false;}
     const interval=p.burstMode&&p.weapon==='glock18'?.5:p.burstMode&&p.weapon==='famas'?.55:w.interval;
     if(!burstFollowup&&this.time-p.lastShot<interval-1e-8)return false;
+    if(p.reloadAt){if(w.reloadStyle==='per-shell'&&p.ammo>0)p.reloadAt=0;else return false;}
     p.lastShot=this.time;p.ammo--;const profile=shotProfile(p,this.random),damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
     for(let pellet=0;pellet<w.pellets;pellet++){
       const d=pellet?direction(p.yaw+(p.recoilYaw||0)+(this.random()*2-1)*profile.spread,p.pitch+(p.recoilPitch||0)+(this.random()*2-1)*profile.spread):profile.direction;
@@ -183,6 +183,8 @@ export class Game {
       if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
       if(p.burstRemaining>0&&this.time>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
       if(p.input.fire&&!p.action&&(p.weapon==='knife'||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=p.input.fire;
+      // Reload an empty active firearm even after the trigger is released.
+      if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
     }
     stepGrenades(this,dt);this.drops=this.drops.filter(d=>d.endAt>this.time);
     if(this.phase==='ended')return;

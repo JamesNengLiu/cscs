@@ -1,4 +1,4 @@
-import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,shotProfile,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
+import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,shotProfile,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
 import {allowsPlayerActions} from './public/round-state.js';
 import {selectCharacter} from './public/characters-config.js';
@@ -119,10 +119,12 @@ export class Game {
       this.emit({type:'kill',attacker:killer?.name||'环境',victim:p.name,team:killer?.team,weapon:options.kind||killer?.weapon});
     }return result.healthDamage;
   }
-  targetRay(p,d,range,expand=0){const o={x:p.x,y:p.y+eyeHeight(p),z:p.z};let distance=Math.min(range,wallDistance(o,d)),target=null,hitgroup='chest';
+  targetRay(p,d,range,expand=0){const o={x:p.x,y:p.y+eyeHeight(p),z:p.z},wall=trace(o,{x:o.x+d.x*range,y:o.y+d.y*range,z:o.z+d.z*range});let distance=range*wall.fraction,target=null,hitgroup='chest';
     for(const q of this.players.values())if(q.alive&&q.id!==p.id){const h=eyeHeight(q)+.2,box={x1:q.x-.3-expand,x2:q.x+.3+expand,y1:q.y,y2:q.y+h,z1:q.z-.3-expand,z2:q.z+.3+expand},hit=rayBox(o,d,box);
       if(hit<distance){distance=hit;target=q;const y=o.y+d.y*hit-q.y;hitgroup=y>h-.38?'head':y<h*.35?'legs':y<h*.58?'stomach':'chest';}}
-    return {o,d,distance,target,hitgroup,to:{x:o.x+d.x*distance,y:o.y+d.y*distance,z:o.z+d.z*distance}};
+    const to={x:o.x+d.x*distance,y:o.y+d.y*distance,z:o.z+d.z*distance};
+    const impact=!target&&!wall.startSolid&&wall.fraction<1?{position:{...to},normal:{x:wall.normal[0],y:wall.normal[1],z:wall.normal[2]}}:null;
+    return {o,d,distance,target,hitgroup,to,impact};
   }
   shieldBlocks(p,ray){return p.shield&&p.shieldRaised&&ray.hitgroup!=='legs'&&((-Math.sin(p.yaw))*(-ray.d.x)+(-Math.cos(p.yaw))*(-ray.d.z))>.4;}
   knife(p,secondary=false){if(!p.alive||!allowsPlayerActions(this.phase)||p.weapon!=='knife'||p.shieldRaised||this.time<(p.nextAttackAt||0))return false;
@@ -149,7 +151,7 @@ export class Game {
       const ray=this.targetRay(p,d,(w.range||8192)/40),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
       if(ray.target&&!blocked){const rangeModifier=p.silenced&&p.weapon==='m4a1'?.95:w.rangeModifier;const falloff=w.rangeModel==='linear'?Math.max(0,1-ray.distance*40/(w.range||3000)):Math.pow(rangeModifier,ray.distance*40/500);
         this.damage(ray.target,damage*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
-      this.emit({type:'shot',id:p.id,weapon:p.weapon,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+      this.emit({type:'shot',id:p.id,weapon:p.weapon,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
     }
     if(p.burstMode&&!burstFollowup&&['glock18','famas'].includes(p.weapon)){p.burstRemaining=Math.min(2,p.ammo);p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
     if(['awp','scout'].includes(p.weapon)&&p.zoom!==90){p.resumeZoom=p.zoom;p.zoom=90;p.resumeZoomAt=this.time+w.interval;}

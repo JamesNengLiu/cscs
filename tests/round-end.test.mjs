@@ -14,11 +14,11 @@ function advance(g,seconds,inputs={}){
   for(let i=0;i<Math.ceil(seconds*RULES.tick);i++){for(const [id,input] of Object.entries(inputs))g.input(id,input);g.step();}
 }
 
-test('post-round: held movement and automatic fire continue with authoritative input acknowledgements',()=>{
-  const {g,t}=match();g.input('t',{f:1,fire:true,yaw:0,pitch:-.5,round:g.round,seq:1});
+test('post-round: queued movement and automatic fire continue with per-command authoritative acknowledgements',()=>{
+  const {g,t}=match();g.inputBatch('t',Array.from({length:15},(_,i)=>({f:1,fire:true,yaw:0,pitch:-.5,round:g.round,seq:i+1})));
   const start={...t};g.finish('CT','timeout','timeout');const deadline=g.endAt,score={...g.score};
-  assert.equal(t.input.f,1);assert.equal(t.input.fire,true);advance(g,.25);
-  assert.ok(Math.hypot(t.x-start.x,t.z-start.z)>.1);assert.ok(t.ammo<start.ammo);assert.equal(t.ackInputSeq,1);
+  assert.equal(t.input.f,0);assert.equal(t.input.fire,false);advance(g,.25);
+  assert.ok(Math.hypot(t.x-start.x,t.z-start.z)>.1);assert.ok(t.ammo<start.ammo);assert.equal(t.ackInputSeq,15);
   assert.ok(g.events.some(e=>e.type==='shot'&&e.id==='t'));assert.equal(g.phase,'ended');assert.equal(g.endAt,deadline);assert.deepEqual(g.score,score);
 });
 test('post-round: new movement, jumping and crouching inputs are simulated normally',()=>{
@@ -57,8 +57,8 @@ test('post-round: dead players and late joiners wait for the next round',()=>{
 });
 test('post-round: countdown expiry starts exactly one new round, resets inputs and refills surviving guns',()=>{
   const {g,t}=match();g.finish('CT','win');const deadline=g.endAt,money=t.money+t.pendingMoney;t.ammo=4;t.reserve=2;
-  g.time=deadline-.02;g.input('t',{fire:true,yaw:Math.PI/2,pitch:-.5,seq:10,round:g.round});g.step(.01);
-  assert.equal(g.phase,'ended');assert.equal(g.round,1);assert.equal(t.ammo,3);g.step(.02);
+  g.time=deadline-.02;g.input('t',{fire:true,yaw:Math.PI/2,pitch:-.5,seq:1,round:g.round});g.step();
+  assert.equal(g.phase,'ended');assert.equal(g.round,1);assert.equal(t.ammo,3);g.step();
   assert.equal(g.phase,'countdown');assert.equal(g.round,2);assert.equal(t.ammo,30);assert.equal(t.reserve,90);assert.equal(t.money,money);assert.equal(t.ackInputSeq,0);assert.equal(t.input.fire,false);
   g.input('t',{f:1,fire:true,seq:999,round:1});g.step();assert.equal(g.round,2);assert.equal(t.lastInputSeq,0);assert.equal(t.input.fire,false);assert.deepEqual(g.score,{T:0,CT:1});
 });

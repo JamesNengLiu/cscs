@@ -46,6 +46,21 @@ test('shot impacts: every shotgun pellet reports its own surface hit',()=>{
   for(const e of shots){assert.ok(e.impact);assert.deepEqual(e.impact.position,e.to);assert.equal(e.hit,false);}
 });
 
+test('shot impacts: lag-compensated targets suppress wall decals while shot identity and wall normals survive',()=>{
+  const {g,p}=match(),ct=g.add('ct','CT','CT');g.phase='live';place(p);place(ct,19);
+  const historical={...ct};ct.x+=5;
+  g.lagComp={targetTime:()=>g.time-.1,pose:()=>historical};
+  assert.equal(g.shoot(p),true);
+  const hit=g.events.findLast(e=>e.type==='shot');
+  assert.equal(hit.hit,true);assert.equal(hit.impact,null);assert.ok(hit.shotId);
+  assert.equal(hit.round,g.round);assert.ok(Math.abs(hit.rewindMs-100)<1e-6);
+  g.lagComp.pose=()=>ct;g.time+=.3;
+  assert.equal(g.shoot(p),true);
+  const wall=g.events.findLast(e=>e.type==='shot');
+  assert.equal(wall.hit,false);assert.ok(wall.impact);assert.ok(wall.impact.normal.z>.9);
+  assert.notEqual(wall.shotId,hit.shotId);assert.ok(Math.abs(wall.rewindMs-100)<1e-6);
+});
+
 test('shot effects: decals follow arbitrary surface normals and stay fixed as the camera moves',()=>{
   for(const n of [{x:0,y:0,z:1},{x:0,y:1,z:0},{x:1,y:0,z:0},{x:0,y:Math.SQRT1_2,z:Math.SQRT1_2}]){
     const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(),fx=createShotEffects(THREE,scene,{random:()=>0});

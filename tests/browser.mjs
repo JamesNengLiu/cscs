@@ -52,7 +52,7 @@ try{
   await p.keyboard.down('Tab');assert.equal(await p.locator('#board').isVisible(),true);await p.keyboard.up('Tab');check('scoreboard keyboard UI');
   await p.screenshot({path:'artifacts/gameplay.png'});report.screenshots.push('artifacts/gameplay.png');
   await p.keyboard.press('Escape');await p.waitForFunction(()=>document.pointerLockElement===null);check('Escape releases pointer lock');
-  await contexts[1].close();await p.waitForFunction(()=>window.lanStrike.getState()?.phase==='waiting',null,{timeout:5000});check('disconnect returns to waiting without phantom opponents');
+  const roundBeforeDisconnect=await p.evaluate(()=>window.lanStrike.getState().round);await contexts[1].close();await p.waitForFunction(()=>window.lanStrike.getState()?.players.length===1,null,{timeout:5000});assert.equal(await p.evaluate(()=>window.lanStrike.getState().round),roundBeforeDisconnect);assert.notEqual(await p.evaluate(()=>window.lanStrike.getState().phase),'waiting');check('disconnect preserves the remaining player and current round without phantom opponents');
   const addresses=process.env.LOCAL_ONLY==='1'?[]:Object.values(os.networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal&&/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address));
   report.lanAddresses=[];
   for(const a of addresses){const url=`http://${a.address}:${new URL(base).port||80}`;try{const r=await fetch(url+'/health',{signal:AbortSignal.timeout(2500)});assert.equal(r.status,200);report.lanAddresses.push(url);check('private LAN interface HTTP reachable from this host',url);}catch(e){report.lanAddresses.push({url,error:e.message});}}

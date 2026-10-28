@@ -1,8 +1,8 @@
 # LAN STRIKE v0.5 — 原版人物与匪徒定制面部开发版
 
-版本日期：2026-10-28。用于可信局域网和本地开发验证。武器与经济、人物、流畅度优化及游戏菜单已统一纳入 `main`。按用户要求，后续直接在 `main` 修改、测试和提交，不再单独创建功能分支；既有分支仅保留历史，不自动删除。开发约定见 [AGENTS.md](AGENTS.md)。部署已统一为最新v0.5单实例、3001端口；旧v0.3源码目录保留，但旧服务已关闭。
+版本日期：2026-10-28。用于可信局域网和本地开发验证。本次按用户最新要求，WebTransport与同步优化在独立分支 `feat/webtransport-netcode` 开发，未合并main、未替换原3001服务。其余常规开发仍遵循 [AGENTS.md](AGENTS.md) 的main约定。实现、证书、验收边界见 [WebTransport联机改造](docs/webtransport-netcode-2026-10-28.md)。
 
-> **代码仓库不包含原版地图/武器/人物、肖像及派生资源。** 克隆后不能直接玩；先按 [ASSETS.md](ASSETS.md) 准备有权使用的本地素材。下文“本机已有资源”不代表仓库附带素材。
+> **素材许可限制仍然适用。** 当前基线已有 `5dfcaaf add assets` 跟踪的资源，本次不新增或修改这些素材；既有Git记录不代表获得再分发许可。使用前按 [ASSETS.md](ASSETS.md) 确认资源可用及使用权，不得将仓库包含资源等同于权利已解决。
 
 ## 这次接入了什么
 
@@ -53,14 +53,15 @@
 
 ```sh
 npm ci
-HOST=0.0.0.0 PORT=3001 npm start
+HOST=0.0.0.0 PORT=3002 npm start
 ```
 
-- 部署统一使用3001单实例。启动前检查现有监听，不重复开多个版本；服务是否正在运行以实时health检查为准。
-- 主机用 `http://localhost:3001`；其他电脑用主机当前局域网IP与3001端口，不能用另一台电脑自己的localhost；IP变化后重新查询。
+- 此分支使用独立3002测试实例，原main 3001不动。先检查端口，勿重复启动；`npm start`同时监听同端口HTTPS/WSS（TCP）与WebTransport HTTP/3（UDP）。
+- 主机用 `https://localhost:3002`；其他电脑用 `https://主机当前局域网IP:3002`，不是另一台电脑自己的localhost。首次访问需确认主机后处理本地自签证书提示；不要全局关闭证书校验。默认优先原生WebTransport，加入前失败才回退WSS，菜单显示实际协议与回退原因。
+- URL加 `?transport=webtransport` 强制QUIC并禁止静默回退；加 `?transport=websocket` 强制WSS用于同一新版同步逻辑的协议对照。只想运行旧HTTP入口时执行 `HOST=0.0.0.0 PORT=3002 npm run start:ws`，此入口不提供WebTransport。
 - 仅限可信局域网；不自动开放防火墙，不配置公网转发。仅本机测试用 `HOST=127.0.0.1`。
 - 桌面Chrome/Edge、WebGL、键盘鼠标。双方各至少一人开始；无机器人，单人可看静态地图。
-- Windows PowerShell先设置 `$env:HOST="0.0.0.0"; $env:PORT=3001`，再 `npm start`。
+- Windows PowerShell作为服务器启动时先设置 `$env:HOST="0.0.0.0"; $env:PORT=3002`，再 `npm start`；HTTP/3服务原生依赖须适配服务器系统，Windows客户端只需浏览器、不需要Node。
 - 服务重启会断开连接；更新后所有窗口刷新重连。Ctrl+C停止对应进程，不停止其他版本。
 
 ## 操作
@@ -90,7 +91,7 @@ python3 tools/fetch-sky.py
 
 ## 跨设备卡顿诊断
 
-在出现问题的电脑上进入对局，按Esc → “联机诊断” → “重置诊断采样”，继续游戏30–60秒，卡顿后立即再次按Esc并“导出诊断JSON”。报告仅在本地下载，不自动上传；保留真实RTT峰值、状态到达间隔、前台帧间隔、长任务、输入积压、位置纠正和服务器调度信息。详见[诊断说明与口径](docs/network-diagnostics-2026-10-28.md)。这次只增加采样，不更换WebTransport、不改变同步频率或玩法。专项复验：`npm run test:diagnostics`。
+在出现问题的电脑上进入对局，按Esc → “联机诊断” → “重置诊断采样”，继续游戏30–60秒，卡顿后立即再次按Esc并“导出诊断JSON”。报告仅在本地下载，不自动上传；保留真实RTT峰值、状态到达间隔、前台帧间隔、长任务、输入积压、位置纠正和服务器调度信息，并新增实际协议、回退原因、插值及命中回溯信息。基础口径见[诊断说明](docs/network-diagnostics-2026-10-28.md)，本分支参数与边界以[联机改造说明](docs/webtransport-netcode-2026-10-28.md)为准。专项复验：`npm run test:diagnostics`、`npm run test:webtransport`。
 
 ## 验证
 

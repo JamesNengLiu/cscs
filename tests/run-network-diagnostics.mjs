@@ -34,7 +34,7 @@ try{
   const downloadEvent=page.waitForEvent('download');await page.click('#exportDiagnosticsButton');const download=await downloadEvent;
   assert.match(download.suggestedFilename(),/^lan-strike-diagnostics-.*\.json$/);await download.saveAs('artifacts/diagnostics-browser-export.json');
   const exported=JSON.parse(await readFile('artifacts/diagnostics-browser-export.json','utf8'));
-  assert.equal(exported.schema,'lan-strike-diagnostic-report-v1');assert.equal(exported.network.server.diagnosticsVersion,'netdiag-v1');assert.equal(exported.network.server.snapshotHz,15);assert.equal(exported.network.server.tickHz,60);
+  assert.equal(exported.schema,'lan-strike-diagnostic-report-v1');assert.equal(exported.network.server.diagnosticsVersion,'netdiag-v1');assert.equal(exported.network.server.snapshotHz,30);assert.equal(exported.network.server.tickHz,60);
   assert.ok(exported.network.metrics.applicationRttMs.samples>=2);assert.ok(exported.network.metrics.stateArrivalIntervalMs.max>=100);assert.ok(exported.network.metrics.foregroundFrameIntervalMs.max>=100);
   assert.ok(exported.network.metrics.pendingInputs.samples>0);assert.ok(exported.performance.samples>0,'Esc export must preserve prior foreground performance');
   if(exported.longTaskSupported)assert.ok(exported.network.metrics.longTaskMs.max>=100);

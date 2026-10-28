@@ -19,7 +19,7 @@ async function control(action){
   });server.send({action});return received;
 }
 try{
-  for(const name of ['server.mjs','game.mjs','inventory.mjs','grenades.mjs','package.json','public'])await cp(path.join(root,name),path.join(temporary,name),{recursive:true,filter:source=>!source.startsWith(path.join(root,'public/assets'))&&source!==path.join(root,'public/map-data.js')});
+  for(const name of ['server.mjs','server-telemetry.mjs','lag-compensation.mjs','game.mjs','inventory.mjs','grenades.mjs','package.json','public'])await cp(path.join(root,name),path.join(temporary,name),{recursive:true,filter:source=>!source.startsWith(path.join(root,'public/assets'))&&source!==path.join(root,'public/map-data.js')});
   await symlink(path.join(root,'node_modules'),path.join(temporary,'node_modules'),'dir');
   await writeFile(path.join(temporary,'public/map-data.js'),'export const MAP_DATA='+JSON.stringify(FLAT_MAP)+';\n');
   await writeFile(path.join(temporary,'fixture-server.mjs'),`import {game} from './server.mjs';

@@ -43,6 +43,12 @@
       <div class="sensitivity-footer"><small id="mouseSettingsStatus" role="status" aria-live="polite"></small><button id="resetMouseSettings" class="secondary" type="button">恢复默认灵敏度</button></div>
     </fieldset>
     <fieldset class="menu-section"><legend>图形与性能</legend><label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label></fieldset>
+    <fieldset class="menu-section"><legend>联机诊断</legend>
+      <p class="menu-help">自动保留最近采样。复现卡顿后按 Esc 导出 JSON 发给开发者。仅本地下载，不自动上传；包含浏览器、显卡与连接地址，不包含昵称或完整对局。</p>
+      <small id="networkDiagnosticsStatus" role="status" aria-live="polite">正在采样…</small>
+      <details id="networkDiagnosticsDetails"><summary>查看实时指标</summary><pre id="networkDiagnosticsText"></pre></details>
+      <div class="diagnostics-actions"><button id="resetDiagnosticsButton" class="secondary" type="button">重置诊断采样</button><button id="exportDiagnosticsButton" class="secondary" type="button">导出诊断 JSON</button></div>
+    </fieldset>
     <div class="menu-actions"><button id="resumeButton" type="button">继续游戏</button><button id="openBuyButton" class="secondary" type="button">购买武器 / 装备 · B</button></div>
     <p class="menu-help">Esc 打开菜单并释放鼠标；点击“继续游戏”重新捕获鼠标。菜单内不会移动、开火或切换装备。</p>
   </section>

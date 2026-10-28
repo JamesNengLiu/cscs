@@ -13,6 +13,8 @@
     "test:performance": "node tests/run-performance.mjs",
     "test:load": "node tests/run-load-browser.mjs",
     "test:menu": "node tests/run-menu.mjs",
+    "test:diagnostics": "node tests/run-network-diagnostics.mjs",
+    "probe:network": "node tools/probe-network.mjs",
     "test:round-end": "node tests/run-round-end.mjs",
     "test:round-end:browser": "node tests/round-end-browser.mjs",
     "benchmark:animation": "node tools/benchmark-animation.mjs --gpu",

@@ -10,13 +10,15 @@ import {RULES,MAP_VERSION,MAP_DATA} from './public/shared.js';
 import {GUNS} from './public/arsenal.js';
 import {ECONOMY} from './public/economy.js';
 import {CHARACTER_PRESETS} from './public/characters-config.js';
+import {createServerTelemetry} from './server-telemetry.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url)),port=Number(process.env.PORT||3000),host=process.env.HOST||'0.0.0.0';
 export const game=new Game();
+const telemetry=createServerTelemetry({tickHz:RULES.tick,snapshotHz:RULES.tick/4});
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png'};
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.5.0',characterPresets:CHARACTER_PRESETS.length,playerModels:'mdl10-custom-face-v1',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase}));return;}
+    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.5.0',characterPresets:CHARACTER_PRESETS.length,playerModels:'mdl10-custom-face-v1',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',movementSync:'ack-replay-v1',mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase,network:telemetry.snapshot()}));return;}
     if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
     const vendor={'/vendor/three.module.js':'three.module.js','/vendor/three.core.js':'three.core.js'};
     const relative=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
@@ -27,13 +29,22 @@ const server=http.createServer(async(req,res)=>{
   }catch{res.writeHead(404);res.end('Not found');}
 });
 const wss=new WebSocketServer({server,maxPayload:2048});
-const send=(ws,obj)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<128000)ws.send(JSON.stringify(obj));};
+const send=(ws,obj)=>{
+  if(ws.readyState!==WebSocket.OPEN)return;
+  const counters=ws.netCounters; // Diagnostic counters only; preserve the existing send/drop policy.
+  counters.maxBufferedBytes=Math.max(counters.maxBufferedBytes,ws.bufferedAmount);
+  if(obj.type==='state')counters.stateSequence++;
+  if(ws.bufferedAmount>=128000){counters.skippedMessages++;if(obj.type==='state')counters.skippedStates++;return;}
+  if(obj.type==='state')obj={...obj,net:{seq:counters.stateSequence,emittedAtMs:performance.now(),serverLoopMaxMs:telemetry.snapshot().serverLoopMaxMs,skippedStates:counters.skippedStates}};
+  const payload=JSON.stringify(obj);counters.sentBytes+=Buffer.byteLength(payload);counters.sentMessages++;ws.send(payload);
+};
 function broadcast(obj){for(const c of wss.clients)send(c,obj);}
 function broadcastState(){for(const c of wss.clients)if(c.playerId)send(c,game.snapshot(c.playerId));}
 function broadcastEvents(events){for(const c of wss.clients){const visible=events.filter(e=>!['money','purchase','flash','damage'].includes(e.type)||e.id===c.playerId);if(visible.length)send(c,{type:'events',events:visible});}}
 wss.on('connection',(ws,req)=>{
   const host=req.headers.host,origin=req.headers.origin;
   if(origin&&origin!==`http://${host}`&&origin!==`https://${host}`){ws.close(1008,'Origin rejected');return;}
+  ws.netCounters={sentMessages:0,sentBytes:0,skippedMessages:0,skippedStates:0,maxBufferedBytes:0,stateSequence:0};
   const id=randomUUID();let joined=false,windowAt=Date.now(),messages=0;
   send(ws,{type:'hello',id});
   const deadline=setTimeout(()=>{if(!joined)ws.close(1008,'Join timeout');},30000);
@@ -48,15 +59,16 @@ wss.on('connection',(ws,req)=>{
       else if(m.type==='drop'&&joined)game.drop(id);
       else if(m.type==='secondary'&&joined)game.secondary(id);
       else if(m.type==='nightvision'&&joined)game.toggleNightvision(id);
-      else if(m.type==='ping')send(ws,{type:'pong',sent:m.sent});
+      else if(m.type==='ping')send(ws,{type:'pong',sent:m.sent,net:{...telemetry.snapshot(),connection:{...ws.netCounters},bufferedBytes:ws.bufferedAmount}});
     }catch(e){send(ws,{type:'error',message:e.message||'无效消息'});}
   });
   ws.on('close',()=>{clearTimeout(deadline);game.remove(id);});ws.on('error',()=>{});
 });
 let tick=0,previous=performance.now(),accumulator=0;
-const timer=setInterval(()=>{const now=performance.now();accumulator+=Math.min(.15,(now-previous)/1000);previous=now;
+const timer=setInterval(()=>{const now=performance.now(),gap=now-previous;let steps=0;accumulator+=Math.min(.15,gap/1000);previous=now;
   while(accumulator>=1/RULES.tick){game.step();accumulator-=1/RULES.tick;
-    if(game.events.length)broadcastEvents(game.events.splice(0));if(++tick%4===0)broadcastState();}
+    steps++;if(game.events.length)broadcastEvents(game.events.splice(0));if(++tick%4===0)broadcastState();}
+  telemetry.record(gap,performance.now()-now,steps);
 },1000/RULES.tick);
 server.listen(port,host,()=>{
   const actualPort=server.address().port;
@@ -65,5 +77,5 @@ server.listen(port,host,()=>{
   console.log('仅供可信局域网试玩；不要配置公网端口转发。Ctrl+C 停止。');
 });
 let stopping=false;
-function shutdown(){if(stopping)return;stopping=true;clearInterval(timer);for(const c of wss.clients)c.terminate();wss.close();server.close(()=>process.exit(0));server.closeAllConnections();setTimeout(()=>process.exit(0),1000).unref();}
+function shutdown(){if(stopping)return;stopping=true;clearInterval(timer);telemetry.dispose();for(const c of wss.clients)c.terminate();wss.close();server.close(()=>process.exit(0));server.closeAllConnections();setTimeout(()=>process.exit(0),1000).unref();}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

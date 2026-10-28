@@ -8,18 +8,6 @@ __pycache__/
 .DS_Store
 *.log
 
-# Original game assets / derived map data: local only, rights not established
-/public/assets/
-/public/map-data.js
-*.bsp
-*.wad
-*.mdl
-*.tga
-*.spr
-*.rmf
-*.zip
-*.tar
-*.tar.gz
 
 # Local configuration and credentials
 .env

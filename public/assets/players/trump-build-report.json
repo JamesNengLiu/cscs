@@ -1,0 +1,234 @@
+[
+  {
+    "id": "terror_trump",
+    "baseModel": "terror",
+    "sha256": "365041ade5d57c0cdc830a9ad065114219a422404b981754605f1d0c0cf91601",
+    "headBone": 7,
+    "headBones": [
+      7,
+      8
+    ],
+    "sourceHeadBounds": {
+      "min": [
+        -2.6861208442296816,
+        -5.587868999496925,
+        60.12651786479742
+      ],
+      "max": [
+        3.3138790363295674,
+        3.0124798890092768,
+        69.34604528094178
+      ]
+    },
+    "customCenter": [
+      0.12304356902131719,
+      -1.160793700206756,
+      64.87893953863137
+    ],
+    "halfSize": [
+      3.9,
+      3.55,
+      5.35
+    ],
+    "bindFaceAxes": [
+      [
+        0.03196259124820898,
+        -0.9623760728982743,
+        0.2698345550028674
+      ],
+      [
+        0.9876593529591892,
+        -0.011002167649197323,
+        -0.15623045419909265
+      ],
+      [
+        0.15332121599092458,
+        0.27149815214825046,
+        0.9501480716746994
+      ]
+    ],
+    "removedSourceHeadTriangles": 126,
+    "newMeshes": [
+      2,
+      3
+    ],
+    "headTemplate": "authored skull, nose, jaw, ears and neck; not a facial scan",
+    "headTriangles": 1881,
+    "hasEarGeometry": true,
+    "textureMapping": "continuous latitude-correct portrait-to-scalp cylindrical atlas with duplicated seam tile"
+  },
+  {
+    "id": "leet_trump",
+    "baseModel": "leet",
+    "sha256": "d86e35afff1241afd2ba38f27cbcc1a62a2350f5df6faf2c762eb8a979862a0e",
+    "headBone": 7,
+    "headBones": [
+      7,
+      8
+    ],
+    "sourceHeadBounds": {
+      "min": [
+        -2.646116761927986,
+        -6.702088111357388,
+        58.03594003438406
+      ],
+      "max": [
+        3.1938832712196152,
+        1.7525837830788698,
+        67.34760964042759
+      ]
+    },
+    "customCenter": [
+      0.003757099765442473,
+      -2.5510464070044216,
+      62.78795168466054
+    ],
+    "halfSize": [
+      3.9,
+      3.55,
+      5.35
+    ],
+    "bindFaceAxes": [
+      [
+        0.03196259124820898,
+        -0.9623760728982743,
+        0.2698345550028674
+      ],
+      [
+        0.9876593529591892,
+        -0.011002167649197323,
+        -0.15623045419909265
+      ],
+      [
+        0.15332121599092458,
+        0.27149815214825046,
+        0.9501480716746994
+      ]
+    ],
+    "removedSourceHeadTriangles": 174,
+    "newMeshes": [
+      2,
+      3
+    ],
+    "headTemplate": "authored skull, nose, jaw, ears and neck; not a facial scan",
+    "headTriangles": 1881,
+    "hasEarGeometry": true,
+    "textureMapping": "continuous latitude-correct portrait-to-scalp cylindrical atlas with duplicated seam tile"
+  },
+  {
+    "id": "arctic_trump",
+    "baseModel": "arctic",
+    "sha256": "b07860762f1f837bbe12d282894697b33db218145d41bfc0bea3b7f4d740e131",
+    "headBone": 7,
+    "headBones": [
+      7,
+      8
+    ],
+    "sourceHeadBounds": {
+      "min": [
+        -2.676122010085141,
+        -5.6608603011621,
+        59.41419164669688
+      ],
+      "max": [
+        3.2438779629914114,
+        3.00841042521678,
+        68.55257061545528
+      ]
+    },
+    "customCenter": [
+      0.18561161866434617,
+      -1.2238260383295425,
+      64.18462605386071
+    ],
+    "halfSize": [
+      3.9,
+      3.55,
+      5.35
+    ],
+    "bindFaceAxes": [
+      [
+        0.03196259124820898,
+        -0.9623760728982743,
+        0.2698345550028674
+      ],
+      [
+        0.9876593529591892,
+        -0.011002167649197323,
+        -0.15623045419909265
+      ],
+      [
+        0.15332121599092458,
+        0.27149815214825046,
+        0.9501480716746994
+      ]
+    ],
+    "removedSourceHeadTriangles": 110,
+    "newMeshes": [
+      2,
+      3
+    ],
+    "headTemplate": "authored skull, nose, jaw, ears and neck; not a facial scan",
+    "headTriangles": 1881,
+    "hasEarGeometry": true,
+    "textureMapping": "continuous latitude-correct portrait-to-scalp cylindrical atlas with duplicated seam tile"
+  },
+  {
+    "id": "guerilla_trump",
+    "baseModel": "guerilla",
+    "sha256": "396f57e1e047a195a563636ff5ae3c74c593d5dbfadffd965f0d2ef036d64082",
+    "headBone": 7,
+    "headBones": [
+      7,
+      8
+    ],
+    "sourceHeadBounds": {
+      "min": [
+        -3.2861218160428822,
+        -6.277962944537823,
+        58.45633446936717
+      ],
+      "max": [
+        3.683878266101919,
+        2.6547229998219652,
+        68.60540095884707
+      ]
+    },
+    "customCenter": [
+      0.14490223117136558,
+      -1.6370219494618194,
+      63.29674246141507
+    ],
+    "halfSize": [
+      3.9,
+      3.55,
+      5.4188486246062055
+    ],
+    "bindFaceAxes": [
+      [
+        0.03196259124820898,
+        -0.9623760728982743,
+        0.2698345550028674
+      ],
+      [
+        0.9876593529591892,
+        -0.011002167649197323,
+        -0.15623045419909265
+      ],
+      [
+        0.15332121599092458,
+        0.27149815214825046,
+        0.9501480716746994
+      ]
+    ],
+    "removedSourceHeadTriangles": 146,
+    "newMeshes": [
+      2,
+      3
+    ],
+    "headTemplate": "authored skull, nose, jaw, ears and neck; not a facial scan",
+    "headTriangles": 1881,
+    "hasEarGeometry": true,
+    "textureMapping": "continuous latitude-correct portrait-to-scalp cylindrical atlas with duplicated seam tile"
+  }
+]

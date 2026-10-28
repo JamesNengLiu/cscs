@@ -1,0 +1,515 @@
+{
+  "assets": {
+    "glock18": {
+      "id": "glock18",
+      "file": "raw/v_glock18.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_glock18.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_glock18.mdl",
+      "sha256": "da789a2e3e892b3ad8fab86e272e5866e4b50e31b353a5ceb10be03daccae90c",
+      "bytes": 249084,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:03.664820+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_glock18.mdl",
+        "sha256": "da789a2e3e892b3ad8fab86e272e5866e4b50e31b353a5ceb10be03daccae90c",
+        "identical": true
+      }
+    },
+    "usp": {
+      "id": "usp",
+      "file": "raw/v_usp.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_usp.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_usp.mdl",
+      "sha256": "401b52af40a1026f5e5241911af4429da6f84291f755ba2e6013cc4246fd2bf0",
+      "bytes": 323336,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:00.353729+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_usp.mdl",
+        "sha256": "401b52af40a1026f5e5241911af4429da6f84291f755ba2e6013cc4246fd2bf0",
+        "identical": true
+      }
+    },
+    "p228": {
+      "id": "p228",
+      "file": "raw/v_p228.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_p228.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_p228.mdl",
+      "sha256": "57f29c3069dee35be509c18e901f94449944a64b72830cf02215012738fba87b",
+      "bytes": 234624,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:00.709636+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_p228.mdl",
+        "sha256": "57f29c3069dee35be509c18e901f94449944a64b72830cf02215012738fba87b",
+        "identical": true
+      }
+    },
+    "deagle": {
+      "id": "deagle",
+      "file": "raw/v_deagle.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_deagle.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_deagle.mdl",
+      "sha256": "5817158952d306c0fbee4d3ef12026078922d1cd4120363e102369a6fdeecec1",
+      "bytes": 238528,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:02.599422+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_deagle.mdl",
+        "sha256": "5817158952d306c0fbee4d3ef12026078922d1cd4120363e102369a6fdeecec1",
+        "identical": true
+      }
+    },
+    "elite": {
+      "id": "elite",
+      "file": "raw/v_elite.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_elite.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_elite.mdl",
+      "sha256": "b3ea70b76c6a227e2b2f064d03130d3c999c7aeb367508bd87b35737d61b8e09",
+      "bytes": 282524,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:13.588869+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_elite.mdl",
+        "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)>"
+      }
+    },
+    "fiveseven": {
+      "id": "fiveseven",
+      "file": "raw/v_fiveseven.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_fiveseven.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_fiveseven.mdl",
+      "sha256": "66611a04dd0c779d703aa3e5a752358959550d72f394bbcef656150a24e63276",
+      "bytes": 247348,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:11.382526+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_fiveseven.mdl",
+        "sha256": "66611a04dd0c779d703aa3e5a752358959550d72f394bbcef656150a24e63276",
+        "identical": true
+      }
+    },
+    "m3": {
+      "id": "m3",
+      "file": "raw/v_m3.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m3.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m3.mdl",
+      "sha256": "85855d19382afd3820f74a39ec46c9b7d5e90f2969b965a0c4d6636c5a880824",
+      "bytes": 260208,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:21.945041+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_m3.mdl",
+        "sha256": "85855d19382afd3820f74a39ec46c9b7d5e90f2969b965a0c4d6636c5a880824",
+        "identical": true
+      }
+    },
+    "xm1014": {
+      "id": "xm1014",
+      "file": "raw/v_xm1014.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_xm1014.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_xm1014.mdl",
+      "sha256": "512fff0de8530bb26847660e429715b2946d55ae719183626252a4950c9cb609",
+      "bytes": 248212,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:30.176203+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_xm1014.mdl",
+        "sha256": "512fff0de8530bb26847660e429715b2946d55ae719183626252a4950c9cb609",
+        "identical": true
+      }
+    },
+    "mac10": {
+      "id": "mac10",
+      "file": "raw/v_mac10.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_mac10.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_mac10.mdl",
+      "sha256": "a65101e776983eccd64788118fa121e93649e0908a5db1aeaa5ccad3402517b1",
+      "bytes": 242784,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:20.589832+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_mac10.mdl",
+        "sha256": "a65101e776983eccd64788118fa121e93649e0908a5db1aeaa5ccad3402517b1",
+        "identical": true
+      }
+    },
+    "tmp": {
+      "id": "tmp",
+      "file": "raw/v_tmp.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_tmp.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_tmp.mdl",
+      "sha256": "e654bd1c4dc504a9be348fea6a318f5cb67ad40cab2ffd41395e17300e0aee6a",
+      "bytes": 235904,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:30.607894+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_tmp.mdl",
+        "sha256": "e654bd1c4dc504a9be348fea6a318f5cb67ad40cab2ffd41395e17300e0aee6a",
+        "identical": true
+      }
+    },
+    "mp5navy": {
+      "id": "mp5navy",
+      "file": "raw/v_mp5.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_mp5.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_mp5.mdl",
+      "sha256": "33ebb8669a4dfbcba6de9903ed2998c652f7b3f96003380a8900dfd52fdf5316",
+      "bytes": 277576,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:36.456197+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_mp5.mdl",
+        "sha256": "33ebb8669a4dfbcba6de9903ed2998c652f7b3f96003380a8900dfd52fdf5316",
+        "identical": true
+      }
+    },
+    "ump45": {
+      "id": "ump45",
+      "file": "raw/v_ump45.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_ump45.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_ump45.mdl",
+      "sha256": "e20bd60f6068228c4aab1c2769ca81ae989b41d7228e3b5299e96560df5fec4c",
+      "bytes": 320172,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:47.543982+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_ump45.mdl",
+        "sha256": "e20bd60f6068228c4aab1c2769ca81ae989b41d7228e3b5299e96560df5fec4c",
+        "identical": true
+      }
+    },
+    "p90": {
+      "id": "p90",
+      "file": "raw/v_p90.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_p90.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_p90.mdl",
+      "sha256": "6920ecbd5c6d67bd6afdb0ba5ee73fead1429ef9db0adfa8c1b5a24b013e7661",
+      "bytes": 276704,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:03.088272+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_p90.mdl",
+        "sha256": "6920ecbd5c6d67bd6afdb0ba5ee73fead1429ef9db0adfa8c1b5a24b013e7661",
+        "identical": true
+      }
+    },
+    "galil": {
+      "id": "galil",
+      "file": "raw/v_galil.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_galil.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_galil.mdl",
+      "sha256": "90738d783f37f297c868edcb3a3992f6eab4344af224d1ef0ae4b9300f5183c0",
+      "bytes": 244052,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:01.267770+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_galil.mdl",
+        "sha256": "90738d783f37f297c868edcb3a3992f6eab4344af224d1ef0ae4b9300f5183c0",
+        "identical": true
+      }
+    },
+    "famas": {
+      "id": "famas",
+      "file": "raw/v_famas.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_famas.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_famas.mdl",
+      "sha256": "a7000c905a6e90e9e31042773b730f5690a809b933f9af1d77f1ef6df15e4c5a",
+      "bytes": 237108,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:50:58.287184+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_famas.mdl",
+        "sha256": "a7000c905a6e90e9e31042773b730f5690a809b933f9af1d77f1ef6df15e4c5a",
+        "identical": true
+      }
+    },
+    "ak47": {
+      "id": "ak47",
+      "file": "raw/v_ak47.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_ak47.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_ak47.mdl",
+      "sha256": "6eb08a5e76210712ad787949e244fd57346b1836a7462f3a436976126e270fa3",
+      "bytes": 295128,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:05.897915+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_ak47.mdl",
+        "sha256": "6eb08a5e76210712ad787949e244fd57346b1836a7462f3a436976126e270fa3",
+        "identical": true
+      }
+    },
+    "m4a1": {
+      "id": "m4a1",
+      "file": "raw/v_m4a1.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m4a1.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m4a1.mdl",
+      "sha256": "9248c63dd811d85a062c0d4cdae7213f19a500b4bc73d225c78fa1e61e664033",
+      "bytes": 377212,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:15.520188+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_m4a1.mdl",
+        "sha256": "9248c63dd811d85a062c0d4cdae7213f19a500b4bc73d225c78fa1e61e664033",
+        "identical": true
+      }
+    },
+    "aug": {
+      "id": "aug",
+      "file": "raw/v_aug.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_aug.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_aug.mdl",
+      "sha256": "8578a1e5c006377f101efd97d55d7dcbff86a3042e87be39b3d37468bd766e23",
+      "bytes": 235288,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:18.988988+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_aug.mdl",
+        "sha256": "8578a1e5c006377f101efd97d55d7dcbff86a3042e87be39b3d37468bd766e23",
+        "identical": true
+      }
+    },
+    "sg552": {
+      "id": "sg552",
+      "file": "raw/v_sg552.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_sg552.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_sg552.mdl",
+      "sha256": "79f9d875bb1db81acb5841e8c69674994ca83aab99bcd66aad13b021e346fa74",
+      "bytes": 325240,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:26.452854+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_sg552.mdl",
+        "sha256": "79f9d875bb1db81acb5841e8c69674994ca83aab99bcd66aad13b021e346fa74",
+        "identical": true
+      }
+    },
+    "scout": {
+      "id": "scout",
+      "file": "raw/v_scout.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_scout.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_scout.mdl",
+      "sha256": "88d45c5a7ffa5e88443ffb23da350d52db4375049fb8f2946b8bfa48b0cc178b",
+      "bytes": 293688,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:26.763528+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_scout.mdl",
+        "sha256": "88d45c5a7ffa5e88443ffb23da350d52db4375049fb8f2946b8bfa48b0cc178b",
+        "identical": true
+      }
+    },
+    "awp": {
+      "id": "awp",
+      "file": "raw/v_awp.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_awp.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_awp.mdl",
+      "sha256": "8f27919e666c94af49e802dcdc8b796f0cdf89dcb8e0900371ceffcf44cd9349",
+      "bytes": 315856,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:26.309069+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_awp.mdl",
+        "sha256": "8f27919e666c94af49e802dcdc8b796f0cdf89dcb8e0900371ceffcf44cd9349",
+        "identical": true
+      }
+    },
+    "g3sg1": {
+      "id": "g3sg1",
+      "file": "raw/v_g3sg1.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_g3sg1.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_g3sg1.mdl",
+      "sha256": "d2adeb4082b1bcdd5d3224ec802e84d1ea9a88a517abc35d62747155c56f87f7",
+      "bytes": 312200,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:36.703087+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_g3sg1.mdl",
+        "sha256": "d2adeb4082b1bcdd5d3224ec802e84d1ea9a88a517abc35d62747155c56f87f7",
+        "identical": true
+      }
+    },
+    "sg550": {
+      "id": "sg550",
+      "file": "raw/v_sg550.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_sg550.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_sg550.mdl",
+      "sha256": "4171144ce78caaf006d412059baf1c1e8217f64a4102e007d98812b651e18ed8",
+      "bytes": 348444,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:45.006226+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_sg550.mdl",
+        "sha256": "4171144ce78caaf006d412059baf1c1e8217f64a4102e007d98812b651e18ed8",
+        "identical": true
+      }
+    },
+    "m249": {
+      "id": "m249",
+      "file": "raw/v_m249.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m249.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_m249.mdl",
+      "sha256": "4590dd20b4ca48357af1c179fcf690f3f4d761245d3efcd12492a0c04974c555",
+      "bytes": 257268,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:39.112999+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_m249.mdl",
+        "sha256": "4590dd20b4ca48357af1c179fcf690f3f4d761245d3efcd12492a0c04974c555",
+        "identical": true
+      }
+    },
+    "knife": {
+      "id": "knife",
+      "file": "raw/v_knife.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_knife.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_knife.mdl",
+      "sha256": "f9b753b4a60ad903927fad94644bbd5cd2b849526c7c6a000dd18373e1c08f43",
+      "bytes": 443472,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:50.074203+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_knife.mdl",
+        "sha256": "f9b753b4a60ad903927fad94644bbd5cd2b849526c7c6a000dd18373e1c08f43",
+        "identical": true
+      }
+    },
+    "hegrenade": {
+      "id": "hegrenade",
+      "file": "raw/v_hegrenade.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_hegrenade.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_hegrenade.mdl",
+      "sha256": "86f6a5ea2f4fa80b4ce86abb62007b69ea3c500ca0531498630bad1230b0ff41",
+      "bytes": 245788,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:57.119844+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_hegrenade.mdl",
+        "sha256": "86f6a5ea2f4fa80b4ce86abb62007b69ea3c500ca0531498630bad1230b0ff41",
+        "identical": true
+      }
+    },
+    "flashbang": {
+      "id": "flashbang",
+      "file": "raw/v_flashbang.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_flashbang.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_flashbang.mdl",
+      "sha256": "194259d9cf680506608628bc55f8d55a8dd29c4a644bbee185c05cb404444ddb",
+      "bytes": 245788,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:58.040915+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_flashbang.mdl",
+        "sha256": "194259d9cf680506608628bc55f8d55a8dd29c4a644bbee185c05cb404444ddb",
+        "identical": true
+      }
+    },
+    "smokegrenade": {
+      "id": "smokegrenade",
+      "file": "raw/v_smokegrenade.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_smokegrenade.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_smokegrenade.mdl",
+      "sha256": "1b863bc5dfe9fcbde92c6f22ac80e09d655b58b5348872d7ac78826debd8452a",
+      "bytes": 245788,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:51:58.645047+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_smokegrenade.mdl",
+        "sha256": "1b863bc5dfe9fcbde92c6f22ac80e09d655b58b5348872d7ac78826debd8452a",
+        "identical": true
+      }
+    },
+    "c4": {
+      "id": "c4",
+      "file": "raw/v_c4.mdl",
+      "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_c4.mdl",
+      "resolvedURL": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/v_c4.mdl",
+      "sha256": "149f4303dcfe7451beefe7517fe7d737b9d8ac9c7a4d04a4ac92fd992426428e",
+      "bytes": 193812,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:52:08.219510+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://www.vertigogaming.org/downloads/cstrike/models/v_c4.mdl",
+        "sha256": "149f4303dcfe7451beefe7517fe7d737b9d8ac9c7a4d04a4ac92fd992426428e",
+        "identical": true
+      }
+    },
+    "shield": {
+      "id": "shield",
+      "file": "raw/shield/v_shield_knife.mdl",
+      "url": "https://www.vertigogaming.org/downloads/cstrike/models/shield/v_shield_knife.mdl",
+      "resolvedURL": "https://www.vertigogaming.org/downloads/cstrike/models/shield/v_shield_knife.mdl",
+      "sha256": "275e6e98eb20be9739f2a676bbb95eccce32a8d9089646b1a9d7448ca663c12f",
+      "bytes": 493444,
+      "format": "GoldSrc MDLv10",
+      "retrievedUTC": "2026-10-27T13:52:12.159389+00:00",
+      "retailHashVerified": false,
+      "failedAttempts": [],
+      "mirrorComparison": {
+        "url": "https://raw.githubusercontent.com/professorDeveloper/CS-1.6/main/shield/v_shield_knife.mdl",
+        "error": "HTTP Error 404: Not Found"
+      }
+    }
+  },
+  "schemaVersion": 1,
+  "rights": "Private local validation only. Public availability does not establish a redistribution license.",
+  "authenticity": "Original-format source assets from public mirrors; not authenticated against a licensed retail installation."
+}

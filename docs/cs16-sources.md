@@ -144,10 +144,12 @@ these transaction/state rules.
 
 The [cvar definitions](https://github.com/rehlds/ReGameDLL_CS/blob/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/dlls/game.cpp#L28-L47)
 are `mp_buytime=1.5` minutes, `mp_freezetime=6` seconds, `mp_roundtime=5` minutes,
-`mp_c4timer=45` seconds, `mp_startmoney=800`. Consequently the exports use
-90/6/300/45 seconds. Suggested 1.75-minute rounds and 35-second bombs are not
-the defaults in this checkout. **Starting money 10,000 is an explicit project
-override of the original 800.** No server cvars or services are changed here.
+`mp_c4timer=45` seconds, `mp_startmoney=800`. The current project exports use
+90/6/150/45 seconds. **Round duration 150 seconds (2 minutes 30 seconds) is an
+explicit project override of the reference 300 seconds. Starting money 10,000
+is an explicit project override of the original 800.** Suggested 1.75-minute
+rounds and 35-second bombs are not the defaults in this checkout. No server
+cvars or services are changed here.
 
 | Export | Dollars | Meaning |
 | --- | ---: | --- |

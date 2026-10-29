@@ -57,3 +57,16 @@ test('death switches the authoritative original pose from aiming to a death sequ
   const {hitboxAnimation}=await import('../hitboxes.mjs');const p=pose();p.alive=false;p.diedAt=1;
   const animation=hitboxAnimation(p,1.1);assert.match(animation.playerSequence,/death|die|head/);assert.ok(animation.playerFrame>0);
 });
+test('a ten-viewer snapshot broadcast selects animations once per player without evaluating hitboxes',()=>{
+  const g=new Game();for(let i=0;i<10;i++)g.add('p'+i,'Snapshot '+i,i<5?'T':'CT');g.begin();g.time=10;
+  const before=hitboxDiagnostics();for(const viewer of g.players.keys())g.snapshot(viewer);
+  const after=hitboxDiagnostics();assert.equal(after.poseEvaluations,before.poseEvaluations);assert.equal(after.animationSelections-before.animationSelections,10);assert.ok(after.animationCacheHits-before.animationCacheHits>=90);
+});
+test('on-demand hitboxes reuse a pose but invalidate it when a player moves within the same tick',()=>{
+  const p=pose(),before=hitboxDiagnostics();const a=playerHitboxes(p,4);const b=playerHitboxes(p,4);assert.equal(a,b);assert.equal(hitboxDiagnostics().poseEvaluations-before.poseEvaluations,1);
+  p.x+=.1;assert.notDeepEqual(playerHitboxes(p,4),a);assert.equal(hitboxDiagnostics().poseEvaluations-before.poseEvaluations,2);
+});
+test('animation metadata remains current when stance or action changes in the same tick',async()=>{
+  const {hitboxAnimation}=await import('../hitboxes.mjs'),p=pose(),standing=hitboxAnimation(p,4);p.crouch=true;const duck=hitboxAnimation(p,4);assert.notEqual(duck.playerSequence,standing.playerSequence);
+  p.alive=false;p.diedAt=3.9;assert.match(hitboxAnimation(p,4).playerSequence,/death|die|head/);
+});

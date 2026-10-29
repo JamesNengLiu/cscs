@@ -1,6 +1,6 @@
 // Local presentation/input preference only; never changes authoritative rules.
 import {GUNS} from './arsenal.js';
-export const MOUSE_SENSITIVITY=Object.freeze({min:.1,max:5,step:.05,default:1,radiansPerPixel:.002,storageKey:'lan-strike-mouse-sensitivity'});
+export const MOUSE_SENSITIVITY=Object.freeze({min:.1,max:5,step:.05,default:1,radiansPerPixel:.001,storageKey:'lan-strike-mouse-sensitivity'});
 export const SCOPED_SENSITIVITY=Object.freeze({...MOUSE_SENSITIVITY,storageKey:'lan-strike-scoped-sensitivity'});
 export function normalizeSensitivity(value,fallback=MOUSE_SENSITIVITY.default){
   const number=typeof value==='number'?value:typeof value==='string'&&value.trim()!==''?Number(value):NaN;

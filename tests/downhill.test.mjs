@@ -16,6 +16,9 @@ for(const c of DOWNHILL_CASES)for(const hz of [30,60,120,144])for(const latency 
     const r=simulateDownhill(c,{hz,latency,jitter:true});assert.equal(r.solids,0);assert.equal(r.air,0);assert.equal(r.poseGaps,0);assert.ok(r.maxPending<20);assert.ok(r.travel>c.distance-.5);assert.ok(Number.isFinite(r.cameraVelocityVariation));
   });
 }
+for(const c of DOWNHILL_CASES)test(`downhill camera: 144Hz fractional movement stays smooth on ${c.name}`,()=>{
+  const r=simulateDownhill(c,{hz:144,latency:.02,jitter:true});assert.equal(r.poseGaps,0);assert.equal(r.upwardResets,0);assert.ok(r.cameraVelocityVariation<.5,`${r.cameraVelocityVariation} camera velocity variation`);
+});
 test('downhill reproducer: obsolete snapshot height resets reproduced and eliminated across the route set',()=>{
   let oldResets=0;for(const c of DOWNHILL_CASES){const old=simulateDownhill(c,{legacy:true}),fixed=simulateDownhill(c);oldResets+=old.upwardResets;assert.equal(fixed.upwardResets,0,c.name);}assert.ok(oldResets>0);
 });

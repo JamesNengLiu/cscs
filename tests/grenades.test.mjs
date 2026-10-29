@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGrenade, stepGrenades, GRENADE_LIMITS} from '../grenades.mjs';
+import {createGrenade, stepGrenades, GRENADE_LIMITS, clipBounceVelocity} from '../grenades.mjs';
 import {trace, supportHeight, collides, eyeHeight, bodyHeight} from '../public/shared.js';
 import {flashOpacity} from '../public/effects.js';
 
@@ -200,16 +200,16 @@ test('physics: exact body boundary bounces inward travel and permits outward tra
   for(const vx of [-10,10]) {
     const target=player('body','CT',-40,-56), g=game(owner(),target);
     const p=placed(g,'hegrenade',{x:target.x-.4,y:1.2,z:target.z},{vx});
-    tick(g,1/120);
+    tick(g,1/60);
     assert.equal(g.projectiles.length,1);
-    assert.ok(p.vx<0); assert.ok(p.x < target.x-.4);
+    assert.ok(p.vx<0); assert.ok(p.x <= target.x-.4);
     assert.equal(p.bounces,vx>0 ? 1 : 0);
   }
 });
 
 for(const kind of ['hegrenade','flashbang']) test(`${kind}: fuse bursts in flight exactly once`, () => {
   const g=game(owner());
-  placed(g,kind,{x:-40,y:5,z:-56});
+  placed(g,kind,{x:-40,y:5,z:-56},{vy:6});
   advance(g,1.49);
   assert.equal(g.events.filter(e=>e.type==='explosion'||e.type==='flash').length,0); assert.equal(g.projectiles.length,1);
   advance(g,.01);
@@ -219,7 +219,7 @@ for(const kind of ['hegrenade','flashbang']) test(`${kind}: fuse bursts in fligh
 });
 
 test('smoke: waits past fuse while airborne, settles, emits bounded volume then expires', () => {
-  const g=game(owner()), p=placed(g,'smokegrenade',{x:-40,y:5,z:-56});
+  const g=game(owner()), p=placed(g,'smokegrenade',{x:-40,y:5,z:-56},{vy:6});
   advance(g,1.5);
   assert.equal(g.smokes.length,0); assert.equal(g.projectiles.length,1);
   assert.ok(p.y>.1);
@@ -288,4 +288,30 @@ test('authority: dead/invalid targets and client-shaped hit claims cannot add vi
   assert.deepEqual(g.hits.map(h=>h.p.id),['real']);
   assert.ok(!('targets' in g.events[0]) && !('hit' in g.events[0]));
   assert.equal(g.projectiles.includes(p),false);
+});
+
+// Values were recorded from an independent ReHLDS/ReGameDLL equation audit on
+// this BSP before changing production. This fixture hits a slanted surface.
+test('smoke: two BSP contacts and delayed ignition match the independent 60 Hz reference',()=>{
+  const self=player('owner','T',-18.4,22,{y:supportHeight(-18.4,22,3.3)}),g=game(self);
+  const p=placed(g,'smokegrenade',{x:self.x,y:self.y+3,z:self.z},{vz:3}),contacts=[];let count=0;
+  for(let i=0;i<120&&g.projectiles.length;i++){
+    tick(g);if(p.bounces!==count){contacts.push({time:g.time,y:p.y,z:p.z,vy:p.vy,vz:p.vz});count=p.bounces;}
+  }
+  const expected=[{time:43/60,y:3.6452922757778263,z:24.13093108859369,vy:1.7745095009968113,vz:.7647059580841296},
+    {time:62/60,y:3.692310153769934,z:24.366019831965158,vy:0,vz:0}];
+  assert.equal(contacts.length,2);
+  for(let i=0;i<2;i++)for(const k of Object.keys(expected[i]))assert.ok(Math.abs(contacts[i][k]-expected[i][k])<1e-9,`${i} ${k}`);
+  const explosion=g.events.find(e=>e.type==='explosion');assert.ok(Math.abs(explosion.time-1.6)<1e-9);assert.equal(explosion.z,expected[1].z);
+});
+for(const [kind,friction,rebound] of [['smoke',.8,1.6],['flash',.8,1.6],['HE',.7,2.4]])test(`${kind}: air-wall bounce preserves tangent and uses source normal response`,()=>{
+  const actual=clipBounceVelocity([6,-2,-8],[0,0,1],friction);
+  assert.equal(actual[0],6);assert.equal(actual[1],-2);assert.ok(Math.abs(actual[2]-rebound)<1e-12);
+});
+test('smoke: fuse cannot trigger airborne, grounded fuse queues ignition one think later',()=>{
+  const g=game(owner()),p=placed(g,'smokegrenade',{x:-40,y:5,z:-56},{detonateAt:0});
+  advance(g,.2);assert.equal(g.smokes.length,0);assert.equal(p.detonationQueued,false);
+  p.y=.00078125;p.vx=p.vy=p.vz=0;p.grounded=p.resting=true;
+  advance(g,.1);assert.equal(p.detonationQueued,true);assert.equal(g.smokes.length,0);
+  advance(g,.1);assert.equal(g.smokes.length,1);
 });

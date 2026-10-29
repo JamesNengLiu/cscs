@@ -1,6 +1,7 @@
 import {loadWeaponManifest,loadConvertedWeapon} from './weapon-model.js';
 
 export const PROJECTILE_MODEL_LIMIT=64;
+export const PROJECTILE_DISPLAY_SCALE=2;
 const KINDS=['hegrenade','flashbang','smokegrenade'];
 const BASE='/assets/weapons/';
 const requireValue=(condition,message)=>{if(!condition)throw Error(message);};
@@ -77,7 +78,7 @@ export function createProjectileModels(THREE,scene,{onChange=()=>{},loadAssets=t
   for(const model of Object.values(models))for(const mesh of model.meshes)scene.add(mesh);
   let disposed=false,peak=0;
   const position=new THREE.Vector3(),rotation=new THREE.Quaternion(),euler=new THREE.Euler(),matrix=new THREE.Matrix4(),unit=new THREE.Vector3(1,1,1);
-  const info=()=>({peak,batches:Object.values(models).reduce((n,m)=>n+m.meshes.length,0),capacity:PROJECTILE_MODEL_LIMIT,
+  const info=()=>({peak,batches:Object.values(models).reduce((n,m)=>n+m.meshes.length,0),capacity:PROJECTILE_MODEL_LIMIT,displayScale:PROJECTILE_DISPLAY_SCALE,
     models:KINDS.map(kind=>({kind,source:models[kind].source,error:models[kind].error,verified:models[kind].verified,
       sourceSHA256:models[kind].sourceSHA256||null,bodypart:models[kind].bodypart||null,triangles:models[kind].triangles||0}))});
   const ready=loadAssets?(async()=>{
@@ -102,8 +103,8 @@ export function createProjectileModels(THREE,scene,{onChange=()=>{},loadAssets=t
         let seed=0;for(const c of String(p.id??`${p.kind}:${i}`))seed=(Math.imul(seed,31)+c.charCodeAt(0))>>>0;
         const angle=(seed%6283)/1000,age=!p.resting&&Number.isFinite(p.bornAt)?Math.max(0,time-p.bornAt):0;
         euler.set(p.resting?0:angle+age*6,angle+age*3,p.resting?Math.PI/2:angle*.7+age*4);
-        position.set(p.x,p.y+(p.resting?model.halfWidth:model.radius),p.z);
-        matrix.compose(position,rotation.setFromEuler(euler),unit);
+        position.set(p.x,p.y+(p.resting?model.halfWidth:model.radius)*PROJECTILE_DISPLAY_SCALE,p.z);
+        matrix.compose(position,rotation.setFromEuler(euler),unit.setScalar(PROJECTILE_DISPLAY_SCALE));
         for(const mesh of model.meshes)mesh.setMatrixAt(index,matrix);
       }
       peak=Math.max(peak,Object.values(counts).reduce((a,b)=>a+b,0));

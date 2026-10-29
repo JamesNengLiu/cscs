@@ -58,7 +58,7 @@ export function createShotEffects(THREE,scene,{random=Math.random}={}){
       normal.set(impact.normal.x,impact.normal.y,impact.normal.z);
       const length=normal.length();if(!Number.isFinite(length)||length<.5)return false;
       normal.divideScalar(length);position.set(impact.position.x,impact.position.y,impact.position.z).addScaledVector(normal,.0015);
-      const v=variants[Math.floor(unit()*variants.length)],index=v.next++%capacity,size=.12+unit()*.04;
+      const v=variants[Math.floor(unit()*variants.length)],index=v.next++%capacity,size=(.12+unit()*.04)*1.8;
       if(v.slots[index]===null)decals++;
       v.slots[index]=time+SHOT_FX_LIMITS.decalSeconds;
       orientation.setFromUnitVectors(front,normal);spin.setFromAxisAngle(front,unit()*Math.PI*2);orientation.multiply(spin);

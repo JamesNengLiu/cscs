@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {MOUSE_SENSITIVITY,SCOPED_SENSITIVITY,normalizeSensitivity,createMouseSettings,mouseTurnFactor} from '../public/mouse-settings.js';
 import {GUNS} from '../public/arsenal.js';
 const storage=initial=>{const values=new Map(initial==null?[]:[[MOUSE_SENSITIVITY.storageKey,initial]]);return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),values};};
-test('sensitivity defaults preserve the previous radians-per-pixel and both axes share a multiplier',()=>{
-  const settings=createMouseSettings(storage());assert.equal(settings.value,1);assert.equal(settings.radiansPerPixel,.002);
-  settings.set(.5);assert.equal(settings.radiansPerPixel,.001);settings.set(2);assert.equal(settings.radiansPerPixel,.004);
+test('sensitivity 1 halves the previous base turn rate and both axes share a multiplier',()=>{
+  const settings=createMouseSettings(storage());assert.equal(settings.value,1);assert.equal(settings.radiansPerPixel,.001);
+  settings.set(.5);assert.equal(settings.radiansPerPixel,.0005);settings.set(2);assert.equal(settings.radiansPerPixel,.002);
 });
 test('sensitivity clamps finite bounds, quantizes steps, and rejects malformed/nonfinite values',()=>{
   assert.equal(normalizeSensitivity(-10),.1);assert.equal(normalizeSensitivity(999),5);assert.equal(normalizeSensitivity(1.234),1.25);

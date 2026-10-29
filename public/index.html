@@ -12,9 +12,9 @@
   <label>画质 / 流畅度<select data-quality aria-label="画质 / 流畅度"><option value="auto">自动 · 显卡持续过载时调整分辨率</option><option value="performance">优先流畅 · 较低渲染分辨率</option><option value="sharp">优先清晰 · 固定高分辨率</option></select></label>
   <button type="submit" id="joinButton" disabled>正在连接服务器…</button></form>
   <button id="characterPreview" class="secondary" type="button">人物预览 · CS原版 / 自定义面部</button>
-  <button id="lobbySettingsButton" class="secondary" type="button">游戏菜单 · 鼠标 / 画质设置</button>
+  <button id="lobbySettingsButton" class="secondary" type="button">游戏菜单 · 鼠标 / 持枪 / 画质</button>
   <button id="previewButton" class="secondary" type="button">先看地图 · 高差与路线预览</button><p class="quality">已启用原图贴图与 BSP 静态光照</p>
-  <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标 · 自定义开局 $10,000</b><br>WASD 移动 · 左键射击 / 投掷 · 右键武器副功能<br>空格跳跃 · Shift 慢走 · C 蹲下 · 按住 E 安放 / 拆除<br>B 购买 · 1 主武器 / 2 手枪 / 3 匕首 / 4 手雷 / 5 C4<br>Q 上一武器 · 滚轮切换 · G 丢弃 · R 换弹 · Tab 战绩<br>Esc 释放鼠标；购买后点击“继续游戏”恢复操作</div>
+  <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标 · 自定义开局 $10,000</b><br>WASD 移动 · 左键射击 / 投掷 · 右键武器副功能<br>空格 / 滚轮下跳跃 · Shift 慢走 · C / Ctrl 蹲下 · 按住 E 安放 / 拆除<br>B 购买 · 1 主武器 / 2 手枪 / 3 匕首 / 4 手雷 / 5 C4<br>Q 上一武器 · 滚轮上切换 · G 丢弃 · R 换弹 · Tab 战绩<br>Esc 释放鼠标；购买后点击“继续游戏”恢复操作</div>
   <p class="disclaimer">CS 1.6 武器目录与自定义经济；地图由社区镜像 BSP 数据转换。此项目不是完整原版引擎移植，武器动画与烟雾效果为浏览器近似实现。单人即可开局、购买和自由行动；首个对立阵营玩家加入时重新开局，同队加入延续当前回合。</p>
 </section></div>
 <section id="previewPanel" hidden><div class="eyebrow">MAP REVIEW / ORIGINAL BSP GEOMETRY / V0.3</div><h2>沙漠 2 · BSP 地图</h2><p>源坐标等比例转换；贴图和光照来自地图数据</p><nav><button data-view="overview">全图</button><button data-view="short">A 小道 / 台阶</button><button data-view="long">A 大道 / 大坑</button><button data-view="tunnels">B 通道</button><button data-view="mid">中门</button><button data-view="b">B 区</button><button data-view="a">A 区</button><button id="backButton">返回大厅</button></nav></section>
@@ -36,11 +36,16 @@
     <fieldset class="menu-section"><legend>鼠标与瞄准</legend>
       <div class="sensitivity-heading"><label for="mouseSensitivity">鼠标灵敏度（倍率）</label><output id="mouseSensitivityValue" for="mouseSensitivity mouseSensitivityNumber">1.00×</output></div>
       <div class="sensitivity-controls"><input id="mouseSensitivity" type="range" min="0.1" max="5" step="0.05" value="1" aria-describedby="mouseSensitivityHelp"><label class="sensitivity-number-label" for="mouseSensitivityNumber">精确数值<input id="mouseSensitivityNumber" type="number" min="0.1" max="5" step="0.05" value="1.00" inputmode="decimal" aria-describedby="mouseSensitivityHelp"></label></div>
-      <p id="mouseSensitivityHelp" class="menu-help">0.10×–5.00×，默认 1.00× 与之前手感相同；同时调整水平和垂直转向，不改变后坐力规则。</p>
-      <div class="sensitivity-heading"><label for="scopedSensitivity">狙击枪开镜灵敏度（倍率）</label><output id="scopedSensitivityValue" for="scopedSensitivity scopedSensitivityNumber">1.00×</output></div>
+      <p id="mouseSensitivityHelp" class="menu-help">0.10×–5.00×，默认 1.00×；较低的基础速度方便精细瞄准，水平和垂直转向同步调整。</p>
+      <div class="sensitivity-heading"><label for="scopedSensitivity">开镜灵敏度（倍率）</label><output id="scopedSensitivityValue" for="scopedSensitivity scopedSensitivityNumber">1.00×</output></div>
       <div class="sensitivity-controls"><input id="scopedSensitivity" type="range" min="0.1" max="5" step="0.05" value="1" aria-describedby="scopedSensitivityHelp"><label class="sensitivity-number-label" for="scopedSensitivityNumber">精确数值<input id="scopedSensitivityNumber" type="number" min="0.1" max="5" step="0.05" value="1.00" inputmode="decimal" aria-describedby="scopedSensitivityHelp"></label></div>
-      <p id="scopedSensitivityHelp" class="menu-help">0.10×–5.00×，相对于普通鼠标灵敏度；仅在狙击枪开镜时生效，默认 1.00×。</p>
+      <p id="scopedSensitivityHelp" class="menu-help">0.10×–5.00×，相对于普通鼠标灵敏度；在武器开镜时生效，默认 1.00×。</p>
       <div class="sensitivity-footer"><small id="mouseSettingsStatus" role="status" aria-live="polite"></small><button id="resetMouseSettings" class="secondary" type="button">恢复默认灵敏度</button></div>
+    </fieldset>
+    <fieldset class="menu-section"><legend>持枪与操作</legend>
+      <label for="weaponHand">持枪方向<select id="weaponHand" aria-describedby="weaponHandHelp"><option value="right">右手持枪</option><option value="left">左手持枪</option></select></label>
+      <p id="weaponHandHelp" class="menu-help">切换持枪手，准星和开镜保持居中。</p><small id="weaponHandStatus" role="status" aria-live="polite"></small>
+      <p class="menu-help">跳跃：空格 / 滚轮向下 · 蹲下：C / 左右 Ctrl<br>滚轮向上切枪；数字键和 Q 切枪保持可用。</p>
     </fieldset>
     <fieldset class="menu-section"><legend>图形与性能</legend><label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label></fieldset>
     <fieldset class="menu-section"><legend>联机诊断</legend>

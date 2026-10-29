@@ -1,12 +1,11 @@
 import {randomUUID} from 'node:crypto';
-import {trace, direction, eyeHeight, bodyHeight, RULES, MAP_BOUNDS} from './public/shared.js';
+import {trace, direction, eyeHeight, bodyHeight, RULES, MAP_BOUNDS, MAP_DATA} from './public/shared.js';
 import {FLASH_TIMING} from './public/grenade-state.js';
 
 // Independently implemented from the references and deviations in docs/grenades-fidelity.md.
 export const GRENADE_LIMITS = Object.freeze({active:64, smokes:32, ttl:10, smokeSeconds:20,
-  smokeRadius:4, substep:1/120, maxDelta:.25, maxSpeed:50});
+  smokeRadius:4, substep:1/RULES.tick, maxDelta:.25, maxSpeed:50});
 const KINDS = new Set(['hegrenade', 'flashbang', 'smokegrenade']);
-const EPS = .002;
 const FUSE = 1.5;
 const HE_RADIUS = 350/40;
 const FLASH_RADIUS = 1500/40;
@@ -46,7 +45,7 @@ export function createGrenade(owner, kind, now, secondary=false) {
     ...clearance.end, vx:forward.x*speed+clamp(finite(owner.vx),-50,50),
     vy:forward.y*speed+clamp(finite(owner.vy),-50,50),
     vz:forward.z*speed+clamp(finite(owner.vz),-50,50),
-    bornAt:now, detonateAt:now+FUSE, simulatedAt:now, grounded:false, resting:false, bounces:0};
+    bornAt:now, detonateAt:now+FUSE, simulatedAt:now, grounded:false, resting:false, bounces:0, nextThinkAt:now+.1, detonationQueued:false};
   capVelocity(p);
   return p;
 }
@@ -84,40 +83,67 @@ function sweep(start, end, players, ownerId) {
   return hit;
 }
 
-function integrate(p, dt, players, onBounce=()=>{}) {
-  if (p.resting) {
-    const floor = trace(p,{x:p.x,y:p.y-.015,z:p.z});
-    if (!floor.startSolid && floor.fraction < 1 && floor.normal[1] > .7) return true;
-    p.resting = false;
-  }
-  p.grounded = false;
-  // Conventional sv_gravity=800, with the grenade-specific source multiplier.
-  p.vy -= (800/40)*(p.kind === 'hegrenade' ? .55 : .5)*dt;
-  capVelocity(p);
-  let remaining = dt;
-  for (let bump=0; bump<4 && remaining > 1e-8; bump++) {
-    const start = position(p), end = {x:p.x+p.vx*remaining,y:p.y+p.vy*remaining,z:p.z+p.vz*remaining};
-    const hit = sweep(start,end,players,p.ownerId);
-    // Never teleport a projectile out of solid geometry or a newly overlapping body.
-    if (hit.startSolid) return false;
-    for (const k of ['x','y','z']) p[k] = start[k]+(end[k]-start[k])*hit.fraction;
-    if (hit.fraction === 1) break;
-    const n = hit.normal, into = p.vx*n[0]+p.vy*n[1]+p.vz*n[2];
-    if (into >= 0) { p.vx=0; p.vy=0; p.vz=0; break; }
-    if(-into>1)onBounce(p);
-    const friction = p.kind === 'hegrenade' ? .7 : .8;
-    const v = [p.vx,p.vy,p.vz].map((value,i) => (value-into*n[i])*friction-into*n[i]*.45);
-    p.vx=v[0]; p.vy=v[1]; p.vz=v[2]; p.bounces++;
-    p.x += n[0]*EPS; p.y += n[1]*EPS; p.z += n[2]*EPS;
-    if (!hit.body && n[1] > .7 && -into*.45 < .5) {
-      p.grounded = true;
-      const out = p.vx*n[0]+p.vy*n[1]+p.vz*n[2];
-      p.vx=(p.vx-out*n[0])*.8; p.vy=(p.vy-out*n[1])*.8; p.vz=(p.vz-out*n[2])*.8;
-      if (length(p) < .25) { p.vx=0; p.vy=0; p.vz=0; p.resting=true; break; }
+// MOVETYPE_BOUNCE uses (2 - entity friction) as the clip overbounce.
+// Friction .8 therefore retains .2 of normal speed, not .8 of tangent speed.
+export function clipBounceVelocity(velocity,normal,friction) {
+  const into=velocity.reduce((sum,v,i)=>sum+v*normal[i],0);
+  return velocity.map((v,i)=>{const out=v-normal[i]*into*(2-friction);return Math.abs(out)<.1/40?0:out;});
+}
+function pushEntity(p,seconds,players,onBounce) {
+  const start=position(p),end={x:p.x+p.vx*seconds,y:p.y+p.vy*seconds,z:p.z+p.vz*seconds};
+  const hit=sweep(start,end,players,p.ownerId);
+  if(hit.startSolid)return hit;
+  for(const k of ['x','y','z'])p[k]=start[k]+(end[k]-start[k])*hit.fraction;
+  if(hit.fraction<1){
+    p.bounces++;
+    const entity=hit.body?null:MAP_DATA.models.find(m=>m.index===hit.model)?.entity;
+    if(entity?.classname==='func_breakable'&&Number(entity.rendermode||0)!==0){
+      p.vx*=-2;p.vy*=-2;p.vz*=-2;
+    }else if(p.grounded){p.vx*=.8;p.vy*=.8;p.vz*=.8;}
+    else{
+      if(length(p)>1)onBounce(p);
+      if((p.airBounces||0)>=10){p.grounded=true;p.vx=p.vy=p.vz=0;}
+      p.airBounces=(p.airBounces||0)+1;
     }
-    remaining *= 1-hit.fraction;
+  }
+  return hit;
+}
+function integrate(p,dt,players,onBounce=()=>{}) {
+  if(p.vy>0||p.groundBody)p.grounded=false;
+  if(p.resting){
+    const floor=trace(p,{x:p.x,y:p.y-.015,z:p.z});
+    if(!floor.startSolid&&floor.fraction<1&&floor.normal[1]>.7)return true;
+    p.resting=false;p.grounded=false;
+  }
+  p.vy-=(800/40)*(p.kind==='hegrenade'?.55:.5)*dt;
+  capVelocity(p);
+  const hit=pushEntity(p,dt,players,onBounce);
+  // The local tracer has startSolid but no allSolid. Embedded projectiles are
+  // removed safely rather than pushed through geometry to find an exit.
+  if(hit.startSolid)return false;
+  if(hit.fraction===1)return validPosition(p);
+  [p.vx,p.vy,p.vz]=clipBounceVelocity([p.vx,p.vy,p.vz],hit.normal,p.kind==='hegrenade'?.7:.8);
+  if(hit.normal[1]>.7){
+    const speedSquared=p.vx*p.vx+p.vy*p.vy+p.vz*p.vz;
+    if(p.vy<(800/40)*dt){p.grounded=true;p.vy=0;p.groundBody=Boolean(hit.body);}
+    if(speedSquared<(30/40)**2){
+      p.grounded=true;p.groundBody=Boolean(hit.body);p.vx=p.vy=p.vz=0;p.resting=!hit.body;
+    }else{
+      // The engine makes one extra ground push, with touch friction but without
+      // recursively clipping the velocity again during this simulation tick.
+      const extra=pushEntity(p,(1-hit.fraction)*dt*.9,players,onBounce);
+      if(extra.startSolid)return false;
+    }
   }
   return validPosition(p);
+}
+function smokeThink(p,time) {
+  if(time+1e-9<p.nextThinkAt)return false;
+  if(p.detonationQueued)return true;
+  if(p.grounded){p.vx*=.95;p.vy*=.95;p.vz*=.95;}
+  p.nextThinkAt=time+.1;
+  if(time+1e-9>=p.detonateAt&&p.grounded)p.detonationQueued=true;
+  return false;
 }
 
 function visible(start, end) {
@@ -199,17 +225,23 @@ export function stepGrenades(game, dt) {
     ids.add(p.id);
     capVelocity(p);
     p.bounces = Number.isSafeInteger(p.bounces) && p.bounces >= 0 ? p.bounces : 0;
-    let time = Math.max(p.bornAt,finite(p.simulatedAt,p.bornAt),now-elapsed);
-    const end = p.kind === 'smokegrenade' ? now : Math.min(now,p.detonateAt);
-    let valid = true;
-    while (time < end-1e-9) {
-      const step = Math.min(GRENADE_LIMITS.substep,end-time);
-      if (!integrate(p,step,players,projectile=>{if(game.time-(projectile.lastBounceSound??-100)>.12){projectile.lastBounceSound=game.time;game.emit({type:'bounce',id:projectile.id,kind:projectile.kind,from:position(projectile)});}})) { valid=false; break; }
-      time += step;
+    let time=Math.max(p.bornAt,finite(p.simulatedAt,p.bornAt));
+    // Keep a fractional fixed-step remainder; discard only elapsed stall debt.
+    if(now-time>elapsed+GRENADE_LIMITS.substep+1e-9)time=now-elapsed;
+    const end=p.kind==='smokegrenade'?now:Math.min(now,p.detonateAt);
+    if(!Number.isFinite(p.nextThinkAt))p.nextThinkAt=p.bornAt+.1;
+    let valid=true,detonated=false;
+    while(time+GRENADE_LIMITS.substep<=end+1e-9){
+      const next=time+GRENADE_LIMITS.substep;
+      if(p.kind==='smokegrenade'&&smokeThink(p,next)){detonated=true;break;}
+      if(!integrate(p,GRENADE_LIMITS.substep,players,projectile=>{
+        if(game.time-(projectile.lastBounceSound??-100)>.12){projectile.lastBounceSound=game.time;game.emit({type:'bounce',id:projectile.id,kind:projectile.kind,from:position(projectile)});}
+      })){valid=false;break;}
+      time=next;
     }
-    if (!valid) continue;
-    p.simulatedAt = now;
-    if (now+1e-9 >= p.detonateAt && (p.kind !== 'smokegrenade' || p.grounded)) explode(game,p,players);
+    if(!valid)continue;
+    p.simulatedAt=time;
+    if(detonated||(p.kind!=='smokegrenade'&&now+1e-9>=p.detonateAt))explode(game,p,players);
     else game.projectiles.push(p);
   }
 }

@@ -46,7 +46,16 @@ export function traceMovement(start,end,height,players=[],self=null){
     }
   }return best;
 }
-function supported(p,players){const t=traceMovement(p,{...p,y:p.y-.04},bodyHeight(p),players,p);return !t.startSolid&&t.fraction<1&&t.normal[1]>.7&&(p.vy||0)<=.01;}
+function groundContact(p,players,height=bodyHeight(p)){
+  if((p.vy||0)>.01)return null;
+  const hit=traceMovement(p,{...p,y:p.y-.04},height,players,p);
+  return !hit.startSolid&&hit.fraction<1&&hit.normal[1]>.7?hit:null;
+}
+function supported(p,players){return Boolean(groundContact(p,players));}
+function settle(p,hit){
+  if(p.vy<0)p.landedSpeed=Math.max(p.landedSpeed||0,-p.vy);
+  p.y=hit.end.y;p.vy=0;
+}
 function slide(start,velocity,dt,height,players,self){
   let pos={x:start.x,y:start.y,z:start.z},v=[...velocity],remaining=dt;const planes=[];
   for(let bump=0;bump<4&&remaining>1e-8;bump++){
@@ -59,7 +68,10 @@ function slide(start,velocity,dt,height,players,self){
   return {pos,velocity:v};
 }
 function substep(p,input,dt,players){
-  let grounded=supported(p,players);const height=bodyHeight(p);
+  const height=bodyHeight(p),contact=groundContact(p,players,height);let grounded=Boolean(contact);
+  // The contact tolerance must agree with the actual feet position before a
+  // fresh jump impulse, including a new wheel pulse on the landing tick.
+  if(contact)settle(p,contact);
   const f=clamp(Number(input.f)||0,-1,1),s=clamp(Number(input.s)||0,-1,1),n=Math.max(1,Math.hypot(f,s));
   const wx=(-Math.sin(p.yaw)*f+Math.cos(p.yaw)*s)/n,wz=(-Math.cos(p.yaw)*f-Math.sin(p.yaw)*s)/n;
   const speed=maxMoveSpeed(p)*(p.crouch||p.ducking?.333:input.walk?.52:1),wish=Math.hypot(wx,wz);
@@ -99,7 +111,7 @@ function substep(p,input,dt,players){
     if(!vertical.startSolid)p.y=vertical.end.y;
     if(vertical.fraction<1&&vertical.normal[1]>.7&&p.vy<0)p.landedSpeed=-p.vy;
     p.vy=vertical.fraction<1?0:p.vy-halfGravity;}
-  const support=traceMovement(p,{...p,y:p.y-.04},height,players,p);p.grounded=!support.startSolid&&support.fraction<1&&support.normal[1]>.7&&(p.vy||0)<=.01;
+  const support=groundContact(p,players,height);p.grounded=Boolean(support);if(support)settle(p,support);
   p.groundPlayer=p.grounded? support.player||null:null;p.moving=Math.hypot(p.vx,p.vz)>.12;
 }
 export function movePlayer(p,input,dt,players=[]){

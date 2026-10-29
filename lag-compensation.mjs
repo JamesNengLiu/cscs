@@ -4,7 +4,7 @@ export function createLagCompensation({maxRewindSeconds=.2,maxFrames=32}={}){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const client=id=>{if(!clients.has(id))clients.set(id,{rttMs:0,views:new Map()});return clients.get(id);};
   return {
-    record({time,round,players}){if(!Number.isFinite(time))return;if(frames.at(-1)?.round!==round)frames.length=0;if(frames.at(-1)?.time>=time)return;frames.push({time,round,players:new Map(players.map(p=>[p.id,{id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,crouch:p.crouch,alive:p.alive,shield:p.shield,shieldRaised:p.shieldRaised,playedRound:p.playedRound}]))});while(frames.length>maxFrames||time-frames[0].time>maxRewindSeconds+.1)frames.shift();},
+    record({time,round,players}){if(!Number.isFinite(time))return;if(frames.at(-1)?.round!==round)frames.length=0;if(frames.at(-1)?.time>=time)return;frames.push({time,round,players:new Map(players.map(p=>[p.id,{id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch,weapon:p.weapon,vx:p.vx,vz:p.vz,grounded:p.grounded,lastShot:p.lastShot,reloadAt:p.reloadAt,reloadStartedAt:p.reloadStartedAt,crouch:p.crouch,alive:p.alive,shield:p.shield,shieldRaised:p.shieldRaised,playedRound:p.playedRound}]))});while(frames.length>maxFrames||time-frames[0].time>maxRewindSeconds+.1)frames.shift();},
     timing(id,rttMs){if(Number.isFinite(rttMs))client(id).rttMs=clamp(rttMs,0,1000);},
     view(id,commands,{viewTime,interpDelayMs,now,round}){
       const c=client(id),delay=clamp(Number.isFinite(interpDelayMs)?interpDelayMs:67,50,160)/1000,expected=now-c.rttMs/2000-delay;

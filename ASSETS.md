@@ -117,3 +117,15 @@ npm run test:downhill:browser
 `test:map` 的源数据逐项比对当前固定读取同级 `lan-strike-original-map-2026-10-27/`，使用 `--source` 在其他位置导入后，如需运行这一项，应将相同输入也放入默认源目录。源码内已包含它所需的 `tools/audit-bsp.py`。
 
 测试运行时会重新生成报告与截图；由于素材未提交，GitHub上的纯代码检出不能在未准备资源的情况下直接运行这些测试。
+
+## 本地声音资源
+
+声音文件位于忽略的 `public/assets/sounds/`。优先使用有权使用的本地游戏声音目录：
+
+```sh
+python3 tools/prepare-sounds.py --source /path/to/cstrike/sound
+```
+
+需要按当前工具列出的社区镜像准备本地验证素材时，可显式运行 `python3 tools/prepare-sounds.py --fetch`。工具只读取有界 WAV 数据并记录来源和散列，不执行下载内容，也不代表镜像文件获得了再分发许可或官方零售认证。声音名称来自枪械目录和已导入模型的动作事件；不会自动下载到公开仓库或随服务启动获取远程素材。
+
+缺少音频时保留游戏功能，声音诊断的 `missing` 计数反映缺失或解码失败；不会将所有武器替换成同一段合成枪声。实体双机的声场和真人听感需要另行试玩确认。

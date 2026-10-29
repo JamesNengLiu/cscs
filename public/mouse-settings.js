@@ -19,8 +19,8 @@ export function createMouseSettings(storage,definition=MOUSE_SENSITIVITY){
   };
 }
 export function mouseTurnFactor(settings,scopedSettings,player){
-  const scoped=player?.alive&&GUNS[player.weapon]?.category==='sniper'&&player.zoom>0&&player.zoom<90;
-  return settings.radiansPerPixel*(scoped?scopedSettings.value:1);
+  const scoped=player?.alive&&GUNS[player.weapon]?.zoom?.includes(player.zoom);
+  return settings.radiansPerPixel*(scoped?scopedSettings.value*player.zoom/90:1);
 }
 export function bindMouseSettings(root,settings,scopedSettings){
   const status=root.getElementById('mouseSettingsStatus'),renders=[];

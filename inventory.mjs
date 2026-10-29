@@ -1,6 +1,7 @@
 import {GUNS} from './public/arsenal.js';
 import {resetWeapon} from './public/weapons.js';
 import {resetGrenadeThrow} from './public/grenade-state.js';
+import {deploySeconds} from './public/weapon-feel.js';
 export const GRENADE_IDS=['hegrenade','flashbang','smokegrenade'];
 export function freshLoadout(p){
   const pistol=p.team==='T'?'glock18':'usp',w=GUNS[pistol];
@@ -12,6 +13,8 @@ export function freshLoadout(p){
 export function saveActive(p){const w=GUNS[p.weapon];if(w&&p.inventory?.[p.weapon]){
   p.inventory[p.weapon].ammo=Math.max(0,Math.trunc(p.ammo||0));p.inventory[p.weapon].silenced=!!p.silenced;p.inventory[p.weapon].burstMode=!!p.burstMode;
   p.ammoPool[w.ammoType]=Math.max(0,Math.trunc(p.reserve||0));
+  p.inventory[p.weapon].lastShot=p.lastShot;p.inventory[p.weapon].nextShotAt=p.nextShotAt||0;
+  p.inventory[p.weapon].modeLockAt=p.modeLockAt||0;
 }}
 // Save the active gun before filling shared pools so switching cannot overwrite a refill.
 export function refillAmmo(p,keys=Object.keys(p.inventory)){
@@ -30,5 +33,6 @@ export function activate(p,key,now=0){
   p.resumeZoom=0;p.resumeZoomAt=0;
   resetGrenadeThrow(p);
   const w=GUNS[key],entry=p.inventory[key];p.ammo=w?(entry?.ammo||0):0;p.reserve=w?(p.ammoPool[w.ammoType]||0):0;
-  p.silenced=!!entry?.silenced;p.burstMode=!!entry?.burstMode;p.lastShot=-100;p.nextAttackAt=now+.5;resetWeapon(p);
+  p.silenced=!!entry?.silenced;p.burstMode=!!entry?.burstMode;p.lastShot=entry?.lastShot??-100;p.nextShotAt=entry?.nextShotAt||0;
+  p.modeLockAt=entry?.modeLockAt||0;p.nextAttackAt=Math.max(now+deploySeconds(key),p.nextShotAt,p.modeLockAt);p.nextSecondaryAt=Math.max(now+(key==='awp'?1:deploySeconds(key)),p.modeLockAt);resetWeapon(p,{keepPunch:true});
 }

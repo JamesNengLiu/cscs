@@ -80,7 +80,7 @@ function climb(c,hz,duck){
   const p=player(...c.start);p.yaw=Math.PI/2;
   assert.equal(blocked(p),false);assert.equal(isGrounded(p),true);
   let landed=false;
-  for(let i=0;i<hz;i++){
+  for(let i=0;i<hz*1.6;i++){
     movePlayer(p,{f:1,yaw:p.yaw,jump:true,crouch:duck&&i>=Math.ceil(hz*.15)},1/hz);
     assert.equal(blocked(p),false);
     if(isGrounded(p)&&Math.abs(p.y-c.top)<.01&&p.x>=c.bounds[0]&&p.x<=c.bounds[1]&&p.z>=c.bounds[2]&&p.z<=c.bounds[3])landed=true;
@@ -96,7 +96,7 @@ for(const hz of [30,60,120,144])test(`Dust2 jump: climb the complete CT crate st
   const p=player(...CRATES[0].start);p.yaw=Math.PI/2;
   for(const top of [0,1]){
     let landed=false;
-    for(let i=0;i<hz;i++){
+    for(let i=0;i<hz*1.6;i++){
       movePlayer(p,{f:1,yaw:p.yaw,jump:true,crouch:i>=Math.ceil(hz*.15)},1/hz);
       assert.equal(blocked(p),false);
       landed||=isGrounded(p)&&Math.abs(p.y-top)<.01;

@@ -29,9 +29,9 @@ test('post-round: new movement, jumping and crouching inputs are simulated norma
 test('post-round: reload, switch, scope, knife attacks and weapon drops remain usable',()=>{
   const {g,t}=match('awp');t.ammo=2;t.reserve=5;g.finish('T','win');g.reload('t');assert.ok(t.reloadAt>g.time);
   advance(g,GUNS.awp.reload+.1);assert.equal(t.ammo,7);assert.equal(t.reserve,0);assert.equal(t.reloadAt,0);
-  g.secondary('t');assert.equal(t.zoom,40);assert.equal(g.equip('t',3),true);advance(g,.6);
+  g.secondary('t');assert.equal(t.zoom,40);assert.equal(g.equip('t',3),true);advance(g,1.5);
   assert.equal(g.shoot(t),true);assert.ok(g.events.some(e=>e.type==='melee'));
-  assert.equal(g.equip('t',1),true);advance(g,.6);assert.equal(g.shoot(t),true);assert.equal(g.drop('t'),true);assert.equal(t.primary,null);
+  assert.equal(g.equip('t',1),true);advance(g,1.5);assert.equal(g.shoot(t),true);assert.equal(g.drop('t'),true);assert.equal(t.primary,null);
   assert.throws(()=>g.buy('t','ak47'),/购买时间/);
 });
 test('post-round: an in-progress three-shot burst finishes without a second trigger press',()=>{

@@ -84,7 +84,7 @@ function sweep(start, end, players, ownerId) {
   return hit;
 }
 
-function integrate(p, dt, players) {
+function integrate(p, dt, players, onBounce=()=>{}) {
   if (p.resting) {
     const floor = trace(p,{x:p.x,y:p.y-.015,z:p.z});
     if (!floor.startSolid && floor.fraction < 1 && floor.normal[1] > .7) return true;
@@ -104,6 +104,7 @@ function integrate(p, dt, players) {
     if (hit.fraction === 1) break;
     const n = hit.normal, into = p.vx*n[0]+p.vy*n[1]+p.vz*n[2];
     if (into >= 0) { p.vx=0; p.vy=0; p.vz=0; break; }
+    if(-into>1)onBounce(p);
     const friction = p.kind === 'hegrenade' ? .7 : .8;
     const v = [p.vx,p.vy,p.vz].map((value,i) => (value-into*n[i])*friction-into*n[i]*.45);
     p.vx=v[0]; p.vy=v[1]; p.vz=v[2]; p.bounces++;
@@ -203,7 +204,7 @@ export function stepGrenades(game, dt) {
     let valid = true;
     while (time < end-1e-9) {
       const step = Math.min(GRENADE_LIMITS.substep,end-time);
-      if (!integrate(p,step,players)) { valid=false; break; }
+      if (!integrate(p,step,players,projectile=>{if(game.time-(projectile.lastBounceSound??-100)>.12){projectile.lastBounceSound=game.time;game.emit({type:'bounce',id:projectile.id,kind:projectile.kind,from:position(projectile)});}})) { valid=false; break; }
       time += step;
     }
     if (!valid) continue;

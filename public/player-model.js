@@ -1,3 +1,4 @@
+import {createBonePose} from './bone-pose.js';
 // GoldSrc player rendering. Assets are supplied separately; no retail mesh data here.
 import {createRigidSkinning} from './rigid-skinning.js';
 export const ORIGINAL_PLAYER_IDS = Object.freeze('terror leet arctic guerilla urban gsg9 sas gign'.split(' '));
@@ -244,16 +245,8 @@ function buildPose(THREE, asset, shared, skinningMode) {
     const mesh = new THREE.Mesh(geometry, materials[0]); root.add(mesh); return mesh;
   });
   root.traverse(world);
-  const unit = new THREE.Vector3(1, 1, 1);
-  const euler = new THREE.Euler(0, 0, 0, 'ZYX'), nextQ = new THREE.Quaternion();
-  const positions = Array.from({length: 4}, () => new THREE.Vector3());
-  const rotations = Array.from({length: 4}, () => new THREE.Quaternion());
-  const a = new Float64Array(6), b = new Float64Array(6), blendIndices = new Uint8Array(4);
-  const adjustment = (data.controllers || []).map(c => {
-    const value = c.type & 0x8000 ? c.start + c.rest * 360 / 256 : c.start + (c.end - c.start) * c.rest / 255;
-    return c.type & (8 | 16 | 32) ? value * Math.PI / 180 : value;
-  });
-  let currentSkin = -1, currentBody = -1, blendDescription = 'bind pose';
+  const bonePose=createBonePose(THREE,data,matrices);
+  let currentSkin = -1, currentBody = -1;
   function pose(sequence, frame, p, merged = null, mapping = null) {
     const skin = index(p.skin, data.skins.length) ? p.skin : 0, body = Math.max(0, Math.floor(finite(p.body)));
     root.matrix.elements[13] = p.crouch ? 0.45 : 0.9;
@@ -269,59 +262,10 @@ function buildPose(THREE, asset, shared, skinningMode) {
       }
       currentSkin = skin; currentBody = body;
     }
-    const time = clamp(finite(frame), 0, (sequence?.frames || 1) - 1);
-    const first = Math.floor(time), next = Math.min(first + 1, (sequence?.frames || 1) - 1), fraction = time - first;
-    const count = sequence?.blendCount || 1, all = sequence?.blendTracks;
-    let used = 1, bx = 0, by = 0;
-    blendIndices[0] = 0;
-    const normalized = (axis, fallback) => {
-      const explicit = axis === 0 ? p.blendX : p.blendY;
-      if (Number.isFinite(explicit)) return clamp(explicit, 0, 1);
-      const start = sequence?.blendStart?.[axis], end = sequence?.blendEnd?.[axis];
-      const degrees = axis === 0 ? -finite(p.pitch) * 180 / Math.PI : finite(p.aimYaw) * 180 / Math.PI;
-      return Number.isFinite(start) && Number.isFinite(end) && end !== start ? clamp((degrees - start) / (end - start), 0, 1) : fallback;
-    };
-    if (all && [2, 4, 9].includes(count)) {
-      const x = normalized(0, 0.5), y = normalized(1, clamp(finite(p.aimYaw) / Math.PI + 0.5, 0, 1));
-      if (count === 2) { used = 2; blendIndices[1] = 1; bx = x; }
-      else {
-        used = 4;
-        const size = count === 9 ? 3 : 2, xx = x * (size - 1), yy = y * (size - 1);
-        const col = Math.min(size - 2, Math.floor(xx)), row = Math.min(size - 2, Math.floor(yy));
-        blendIndices[0] = row * size + col; blendIndices[1] = row * size + col + 1;
-        blendIndices[2] = (row + 1) * size + col; blendIndices[3] = (row + 1) * size + col + 1;
-        bx = xx - col; by = yy - row;
-      }
-      blendDescription = `${count} source blends (${count === 9 ? '3×3' : count === 4 ? '2×2' : 'linear'})`;
-    } else blendDescription = count > 1 ? `blend 0 only: ${count} source blends unavailable/unsupported` : 'single source blend';
-    for (let i = 0; i < data.bones.length; i++) {
-      if (merged && mapping[i] >= 0) { matrices[i].copy(merged[mapping[i]]); continue; }
-      const bone = data.bones[i];
-      for (let k = 0; k < used; k++) {
-        const channels = (all?.[blendIndices[k]] || sequence?.tracks)?.[i];
-        for (let axis = 0; axis < 6; axis++) {
-          const track = channels?.[axis], adj = adjustment[bone.controllers?.[axis]] || 0;
-          a[axis] = bone.value[axis] + (track?.values[first] || 0) * bone.scale[axis] + adj;
-          b[axis] = bone.value[axis] + (track?.values[next] || 0) * bone.scale[axis] + adj;
-          if (axis < 3 && track?.positionHold?.includes(first)) b[axis] = a[axis];
-        }
-        positions[k].set(a[0] + (b[0] - a[0]) * fraction, a[1] + (b[1] - a[1]) * fraction, a[2] + (b[2] - a[2]) * fraction);
-        rotations[k].setFromEuler(euler.set(a[3], a[4], a[5], 'ZYX'));
-        nextQ.setFromEuler(euler.set(b[3], b[4], b[5], 'ZYX')); rotations[k].slerp(nextQ, fraction);
-      }
-      if (used > 1) { positions[0].lerp(positions[1], bx); rotations[0].slerp(rotations[1], bx); }
-      if (used === 4) {
-        positions[2].lerp(positions[3], bx); rotations[2].slerp(rotations[3], bx);
-        positions[0].lerp(positions[2], by); rotations[0].slerp(rotations[2], by);
-      }
-      // Source STUDIO_X/Y/Z root-motion axes are consumed by game movement.
-      if (sequence?.motionBone === i) for (let axis = 0; axis < 3; axis++) if (sequence.motionType & (1 << axis)) positions[0].setComponent(axis, 0);
-      matrices[i].compose(positions[0], rotations[0], unit);
-      if (bone.parent >= 0) matrices[i].premultiply(matrices[bone.parent]);
-    }
+    bonePose.pose(sequence,frame,p,merged,mapping);
     skinning.update(meshes);
   }
-  return {root, data, asset, matrices, pose, blendInfo: () => blendDescription,
+  return {root, data, asset, matrices, pose, blendInfo: bonePose.blendInfo,
     dispose() { skinning.dispose(); for (const mesh of meshes) mesh.geometry.dispose(); for (const m of materials) m.dispose(); shared.release(); }};
 }
 const weaponSuffix = id => ({glock18: 'onehanded', usp: 'onehanded', p228: 'onehanded', deagle: 'onehanded', fiveseven: 'onehanded',

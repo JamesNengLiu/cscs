@@ -8,7 +8,7 @@ const tick=(g,seconds,inputs={})=>{for(let i=0;i<Math.ceil(seconds*RULES.tick);i
 function duel(){const g=new Game({random:()=>.5});const t=g.add('t','进攻','T'),ct=g.add('ct','防守','CT');g.step();g.buy('t','ak47');g.buy('ct','defusekit');tick(g,RULES.freezeSeconds+.1);assert.equal(g.phase,'live');return {g,t,ct};}
 test('movement: normalized diagonals and bounded hostile inputs',()=>{
   const p={...SPAWNS.T,y:supportHeight(SPAWNS.T.x,SPAWNS.T.z,SPAWNS.T.y+.1),vy:0,pitch:0};const a={...p};movePlayer(p,{f:1,s:1,yaw:0},.1);assert.ok(Math.hypot(p.x-a.x,p.z-a.z)<=RULES.speed*.1+.00001);
-  const v=sanitizedInput({f:Infinity,s:-999,yaw:'nan',pitch:999,fire:'yes'});assert.equal(v.f,1);assert.equal(v.s,-1);assert.equal(v.yaw,0);assert.equal(v.pitch,1.45);assert.equal(v.fire,false);
+  const v=sanitizedInput({f:Infinity,s:-999,yaw:'nan',pitch:999,fire:'yes'});assert.equal(v.f,1);assert.equal(v.s,-1);assert.equal(v.yaw,0);assert.equal(v.pitch,89*Math.PI/180);assert.equal(v.fire,false);
 });
 test('ray test: near hit and no hit behind shooter',()=>{const b={x1:-1,x2:1,y1:0,y2:2,z1:-5,z2:-4};assert.equal(rayBox({x:0,y:1,z:0},direction(0,0),b),4);assert.equal(rayBox({x:0,y:1,z:0},direction(Math.PI,0),b),Infinity);});
 test('room: balanced capacity, invalid team and late join',()=>{const g=new Game();assert.throws(()=>g.add('x','x','bad'));for(let i=0;i<5;i++)g.add(`t${i}`,'a','T');assert.throws(()=>g.add('extra','a','T'));for(let i=0;i<5;i++)g.add(`ct${i}`,'a','CT');assert.throws(()=>g.add('over','a','CT'));const d=duel();assert.equal(d.g.add('late','晚加入','T').alive,false);});

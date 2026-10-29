@@ -1,6 +1,6 @@
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function direction(yaw,pitch){return {x:-Math.sin(yaw)*Math.cos(pitch),y:Math.sin(pitch),z:-Math.cos(yaw)*Math.cos(pitch)};}
-export function rayBox(o,d,b){let lo=0,hi=200;for(const k of ['x','y','z']){
+export function rayBox(o,d,b){let lo=0,hi=Infinity;for(const k of ['x','y','z']){
   if(Math.abs(d[k])<1e-9){if(o[k]<b[k+'1']||o[k]>b[k+'2'])return Infinity;}
   else {let a=(b[k+'1']-o[k])/d[k],c=(b[k+'2']-o[k])/d[k];if(a>c)[a,c]=[c,a];lo=Math.max(lo,a);hi=Math.min(hi,c);if(lo>hi)return Infinity;}}
   return lo;

@@ -201,7 +201,7 @@ async function buildOriginal(THREE, id, entry, skinningMode) {
  * update accepts optional weaponSequence (label/index), weaponFrame, animationToken,
  * skin/body; otherwise draw/idle/reload and observed ammo/lastShot changes drive it.
  */
-export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
+export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=()=>{}} = {}) {
   const group = new THREE.Group();
   group.name = 'first-person-weapon';
   group.layers.set(1);
@@ -220,9 +220,9 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
   try { manifest = await loadWeaponManifest(); }
   catch (error) { manifestError = String(error.message || error); }
   let id = null, active = null, placeholder = null, generation = 0, pending = null, error = null, disposed = false;
-  let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0;
+  let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0, soundFrame=-1;
   const find = pattern => active?.data.sequences.find(s => s.tracks && pattern.test(s.name));
-  function start(s) { sequence = s || idle; elapsed = 0; frame = 0; }
+  function start(s) { sequence = s || idle; elapsed = 0; frame = 0;soundFrame=-1; }
   function removeCurrent() {
     if (active) group.remove(active.root);
     if (placeholder) { group.remove(placeholder); disposeTree(placeholder); }
@@ -284,9 +284,24 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
     } else {
       if (explicitKey !== null) start(idle);
       const reloading = Boolean(state.reloading || state.reloadAt);
-      if (reloading && !previous.reloading) start(find(/^reload/i));
-      else if (!reloading && ((Number.isFinite(state.ammo) && Number.isFinite(previous.ammo) && state.ammo < previous.ammo) || (Number.isFinite(state.lastShot) && Number.isFinite(previous.lastShot) && state.lastShot > previous.lastShot))) start(find(/^(shoot|fire|slash)/i));
-      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot};
+      const variant=['m4a1','usp'].includes(id)&&!state.silenced?'_unsil':'';
+      const named=name=>active.data.sequences.find(s=>s.tracks&&s.name===name);
+      idle=named('idle'+variant)||named('idle1')||find(/^idle/i);
+      const shot=Number.isFinite(state.lastShot)&&Number.isFinite(previous.lastShot)&&state.lastShot>previous.lastShot;
+      if(previous.silenced!==undefined&&previous.silenced!==state.silenced&&['m4a1','usp'].includes(id))start(named(state.silenced?'add_silencer':'detach_silencer'));
+      else if(previous.silenced===undefined&&variant)start(named('draw'+variant)||find(/^(draw|deploy)/i));
+      else if(id==='shield'&&previous.shieldRaised!==state.shieldRaised)start(named(state.shieldRaised?'shield_up':'shield_down'));
+      else if(id==='c4'&&state.action==='plant'&&previous.action!=='plant')start(named('pressbutton'));
+      else if(shot&&!reloading){
+        if(id==='knife')start(named(state.meleeSecondary?'stab':'midslash'+((Math.floor(state.lastShot*10)%2)+1))||find(/^slash/i));
+        else if(id==='elite')start(named('shoot_'+(state.ammo%2?'left':'right')+(state.ammo<=1?'last':'1')));
+        else start(named((state.ammo===0&&id==='usp'?'shootlast':'shoot1')+variant)||find(/^(shoot|fire)/i));
+      }else if(reloading&&['m3','xm1014'].includes(id)){
+        if(!previous.reloading)start(named('start_reload'));
+        else if(state.reloadAt!==previous.reloadAt)start(named('insert'));
+      }else if(reloading&&!previous.reloading)start(named('reload'+variant)||find(/^reload/i));
+      else if(!reloading&&previous.reloading&&['m3','xm1014'].includes(id))start(named('after_reload'));
+      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
     }
     explicitKey = key;
     if(grenadeSequence&&Number.isFinite(time)&&Number.isFinite(grenadeAt))elapsed=Math.max(0,time-grenadeAt);
@@ -298,6 +313,9 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
       else if (sequence.flags & 1) frame %= span;
       else if (frame > span && key === null) { start(idle); frame = 0; }
       else frame = Math.min(frame, sequence.frames - 1);
+      if(frame<soundFrame)soundFrame=-1;
+      for(const event of sequence.events||[])if(event.event===5004&&event.frame>soundFrame&&event.frame<=frame&&/^(weapons|player|items)\/[a-zA-Z0-9_-]+\.wav$/.test(event.options))onSound(event.options);
+      soundFrame=frame;
     }
     skin = Number.isInteger(state.skin) ? state.skin : 0;
     body = Number.isInteger(state.body) ? state.body : 0;

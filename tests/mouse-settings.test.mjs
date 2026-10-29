@@ -32,17 +32,17 @@ test('scoped sensitivity has its own saved value and defaults without changing t
   normal.set(2);assert.equal(scoped.value,.35);scoped.reset();assert.equal(normal.value,2);
   assert.equal(createMouseSettings(s,SCOPED_SENSITIVITY).value,1);
 });
-test('scoped sensitivity scales both sniper zoom levels and leaves other weapons and unscoped aim unchanged',()=>{
+test('scoped sensitivity includes FOV scaling for both sniper and rifle zoom levels',()=>{
   const s=storage(),normal=createMouseSettings(s),scoped=createMouseSettings(s,SCOPED_SENSITIVITY);
   normal.set(1.5);scoped.set(.4);const base=normal.radiansPerPixel;
   for(const w of Object.values(GUNS)){
     assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:w.id,zoom:90}),base,w.id);
-    for(const zoom of w.zoom||[])assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:w.id,zoom}),w.category==='sniper'?base*.4:base,`${w.id} ${zoom}`);
+    for(const zoom of w.zoom||[])assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:w.id,zoom}),base*(.4*zoom/90),`${w.id} ${zoom}`);
   }
   assert.equal(mouseTurnFactor(normal,scoped,null),base);
   for(const zoom of [undefined,0,NaN])assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:'awp',zoom}),base);
   assert.equal(mouseTurnFactor(normal,scoped,{alive:false,weapon:'awp',zoom:40}),base);
-  scoped.reset();assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:'awp',zoom:10}),base);
+  scoped.reset();assert.equal(mouseTurnFactor(normal,scoped,{alive:true,weapon:'awp',zoom:10}),base*(10/90));
 });
 test('scoped sensitivity recovers corrupt values and still works when browser storage is unavailable',()=>{
   const s=storage('2');s.setItem(SCOPED_SENSITIVITY.storageKey,'broken');

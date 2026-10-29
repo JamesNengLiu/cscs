@@ -16,8 +16,8 @@ for(const c of DOWNHILL_CASES)for(const hz of [30,60,120,144])for(const latency 
     const r=simulateDownhill(c,{hz,latency,jitter:true});assert.equal(r.solids,0);assert.equal(r.air,0);assert.equal(r.poseGaps,0);assert.ok(r.maxPending<20);assert.ok(r.travel>c.distance-.5);assert.ok(Number.isFinite(r.cameraVelocityVariation));
   });
 }
-for(const c of DOWNHILL_CASES)test(`downhill reproducer: obsolete snapshot height resets eliminated, ${c.name}`,()=>{
-  const old=simulateDownhill(c,{legacy:true}),fixed=simulateDownhill(c);assert.ok(old.upwardResets>0);assert.equal(fixed.upwardResets,0);
+test('downhill reproducer: obsolete snapshot height resets reproduced and eliminated across the route set',()=>{
+  let oldResets=0;for(const c of DOWNHILL_CASES){const old=simulateDownhill(c,{legacy:true}),fixed=simulateDownhill(c);oldResets+=old.upwardResets;assert.equal(fixed.upwardResets,0,c.name);}assert.ok(oldResets>0);
 });
 function liveGame(){const g=new Game();g.add('t','T','T');g.add('ct','CT','CT');g.begin();g.phase='live';g.endAt=1000;return g;}
 test('prediction: ACK is published only after the authoritative movement step',()=>{

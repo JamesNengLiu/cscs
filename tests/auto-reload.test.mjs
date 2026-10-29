@@ -9,7 +9,7 @@ function match(weapon='ak47'){
   const p=g.add('p','自动换弹',GUNS[weapon].teams[0]);
   g.step();
   if(p.weapon!==weapon)g.buy(p.id,weapon);
-  g.time+=.6;
+  g.time=Math.max(g.time,p.nextAttackAt)+.01;
   return {g,p,w:GUNS[weapon]};
 }
 function advance(g,seconds,input={fire:false}){

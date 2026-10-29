@@ -8,7 +8,7 @@ import {RULES} from '../public/shared.js';
 
 function match(kind='hegrenade'){
   const g=new Game({random:()=>.5}),p=g.add('p','Grenade input','T');g.begin();g.buy(p.id,kind);g.equip(p.id,kind);
-  advance(g,.6);return {g,p};
+  advance(g,Math.max(0,p.nextAttackAt-g.time)+.01);return {g,p};
 }
 function advance(g,seconds,fire=false){
   for(let i=0;i<Math.ceil(seconds*RULES.tick);i++){g.input('p',{fire,yaw:0,pitch:0});g.step();}
@@ -57,7 +57,7 @@ test('grenade input: missing sequenced commands do not release; a real release e
 
 test('grenade input: holding fire while drawing starts pin preparation when the weapon is ready',()=>{
   const g=new Game(),p=g.add('p','Draw held','T');g.begin();g.buy(p.id,'hegrenade');g.equip(p.id,'hegrenade');
-  const ready=p.nextAttackAt;advance(g,.7,true);
+  const ready=p.nextAttackAt;advance(g,.85,true);
   assert.equal(p.grenadePhase,'pin');assert.ok(p.grenadeStartedAt+1e-8>=ready);assert.equal(throws(g).length,0);
   advance(g,.5,true);assert.equal(p.grenadePhase,'hold');advance(g,1/RULES.tick);assert.equal(throws(g).length,1);
 });

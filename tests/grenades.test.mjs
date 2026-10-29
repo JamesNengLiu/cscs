@@ -211,7 +211,7 @@ for(const kind of ['hegrenade','flashbang']) test(`${kind}: fuse bursts in fligh
   const g=game(owner());
   placed(g,kind,{x:-40,y:5,z:-56});
   advance(g,1.49);
-  assert.equal(g.events.length,0); assert.equal(g.projectiles.length,1);
+  assert.equal(g.events.filter(e=>e.type==='explosion'||e.type==='flash').length,0); assert.equal(g.projectiles.length,1);
   advance(g,.01);
   const e=g.events.find(e=>e.type==='explosion');
   assert.ok(e); assert.ok(e.y>0.1); assert.equal(g.projectiles.length,0);

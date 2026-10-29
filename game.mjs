@@ -1,5 +1,9 @@
 import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,shotProfile,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
+import {shotInterval,nextShotDeadline} from './public/weapon-feel.js';
+import {spreadDirection} from './public/weapons.js';
+import {rayPlayer,hitboxAnimation,hitboxDiagnostics} from './hitboxes.mjs';
+import {bulletProperties,materialAt,penetrationExit,materialDamage} from './ballistics.mjs';
 import {allowsPlayerActions} from './public/round-state.js';
 import {selectCharacter} from './public/characters-config.js';
 import {ECONOMY,clampMoney,equipmentPrice} from './public/economy.js';
@@ -31,7 +35,7 @@ export class Game {
   spawn(p){const index=[...this.players.values()].filter(a=>a.team===p.team).indexOf(p),s=SPAWN_POINTS[p.team][Math.max(0,index)%SPAWN_POINTS[p.team].length];
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
-    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
+    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0});
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
@@ -131,7 +135,7 @@ export class Game {
     if(typeof key==='number'||/^[1-5]$/.test(String(key))){const slot=Number(key);if(slot===1)key=p.primary||(p.shield?p.pistol:null);else if(slot===2)key=p.pistol;else if(slot===3)key='knife';else if(slot===5)key=hasBomb?'c4':null;else{const gs=GRENADE_IDS.filter(g=>p.grenades[g]>0);key=gs[(gs.indexOf(p.weapon)+1)%gs.length];}}
     if(typeof key!=='string'||!owned.includes(key)||key===p.weapon)return false;activate(p,key,this.time);return true;
   }
-  reload(id){const p=this.players.get(id),w=GUNS[p?.weapon];if(p?.alive&&allowsPlayerActions(this.phase)&&w&&!p.reloadAt&&p.reserve>0&&p.ammo<w.clip){p.reloadAt=this.time+(w.reloadStyle==='per-shell'?w.reloadStart:w.reload);p.zoom=90;p.resumeZoomAt=0;p.progress=0;p.burstRemaining=0;}}
+  reload(id){const p=this.players.get(id),w=GUNS[p?.weapon];if(p?.alive&&allowsPlayerActions(this.phase)&&w&&!p.reloadAt&&p.reserve>0&&p.ammo<w.clip){p.reloadStartedAt=this.time;p.reloadAt=this.time+(w.reloadStyle==='per-shell'?w.reloadStart:w.reload);p.zoom=90;p.resumeZoomAt=0;p.progress=0;p.burstRemaining=0;resetWeapon(p,{keepPunch:true});if(['aug','famas','mac10','mp5navy'].includes(p.weapon))p.accuracy=0;}}
   releaseGun(p,key){if(!own(GUNS,key)||!p.inventory[key])return;saveActive(p);const entry=p.inventory[key];
     this.drops.push({id:`drop-${++this.nextDrop}`,kind:'weapon',weapon:key,ammo:entry.ammo,silenced:!!entry.silenced,burstMode:!!entry.burstMode,x:p.x,y:p.y,z:p.z,ownerId:p.id,pickupAt:this.time+.5,endAt:this.time+180});
     delete p.inventory[key];if(p.primary===key)p.primary=null;if(p.pistol===key)p.pistol=null;this.drops=this.drops.slice(-64);
@@ -153,7 +157,7 @@ export class Game {
     if(p.shield){p.shieldRaised=!p.shieldRaised;p.nextAttackAt=this.time+.4;p.nextSecondaryAt=this.time+.4;return true;}
     if(p.weapon==='knife')return this.knife(p,true);const w=GUNS[p.weapon];if(!w)return false;
     if(w.zoom){const levels=[90,...w.zoom];p.zoom=levels[(levels.indexOf(p.zoom)+1)%levels.length];p.nextSecondaryAt=this.time+.3;}
-    else if(w.modes?.includes('silenced')){p.silenced=!p.silenced;p.nextAttackAt=this.time+2;p.nextSecondaryAt=this.time+2;}
+    else if(w.modes?.includes('silenced')){p.silenced=!p.silenced;p.modeLockAt=this.time+(p.weapon==='usp'?3:2);p.nextAttackAt=p.modeLockAt;p.nextSecondaryAt=p.modeLockAt;}
     else if(w.modes?.includes('burst')){p.burstMode=!p.burstMode;p.burstRemaining=0;p.nextSecondaryAt=this.time+.3;}else return false;
     saveActive(p);return true;
   }
@@ -176,27 +180,36 @@ export class Game {
   damage(p,amount,killer,options={}){if(!p?.alive||!Number.isFinite(amount)||amount<=0)return 0;
     if(killer&&killer!==p&&killer.team===p.team&&!this.friendlyFire)return 0;
     const result=armourDamage(amount,p.armour||0,p.helmet,options.hitgroup||'chest',options.armourRatio??1,!!options.blast);p.armour=result.armour;
-    p.hp=Math.max(0,p.hp-result.healthDamage);p.progress=0;p.action='';this.emit({type:'damage',id:p.id,amount:result.healthDamage,armour:result.armourDamage});
-    if(p.hp<=0){p.alive=false;p.deaths++;p.reloadAt=0;p.burstRemaining=0;resetGrenadeThrow(p);saveActive(p);
+    const healthDamage=Math.trunc(result.healthDamage);
+    if(GUNS[options.kind]&&killer&&killer!==p){
+      const large=!p.crouch&&options.hitgroup!=='legs'&&['scout','aug','sg550','galil','famas','awp','m3','m4a1','g3sg1','deagle','sg552','ak47'].includes(options.kind);
+      p.velocityModifier=large?.65:.5;
+      if(large&&Math.hypot(p.vx||0,p.vz||0,p.vy||0)<300/40){const dx=p.x-killer.x,dy=p.y-killer.y,dz=p.z-killer.z,len=Math.hypot(dx,dy,dz)||1;p.vx+=dx/len*170/40;p.vz+=dz/len*170/40;}
+      const unprotected=options.hitgroup==='head'?!p.helmet:!p.armour;
+      if(unprotected&&['head','chest','stomach'].includes(options.hitgroup))p.recoilPitch=Math.min(options.hitgroup==='head'?12:4,amount*(options.hitgroup==='head'?.5:.1))*Math.PI/180;
+    }
+    p.hp=Math.max(0,p.hp-healthDamage);p.progress=0;p.action='';this.emit({type:'damage',id:p.id,amount:healthDamage,armour:result.armourDamage,hitgroup:options.hitgroup,kind:options.kind});
+    if(p.hp<=0){p.alive=false;p.diedAt=this.time;p.deaths++;p.reloadAt=0;p.burstRemaining=0;resetGrenadeThrow(p);saveActive(p);
       if(p.shield)this.releaseShield(p);else {const best=p.primary||p.pistol;if(best)this.releaseGun(p,best);}
       if(p.defuseKit){this.drops.push({id:`drop-${++this.nextDrop}`,kind:'defusekit',x:p.x,y:p.y,z:p.z,pickupAt:this.time+.5,endAt:this.time+180});p.defuseKit=false;this.drops=this.drops.slice(-64);}this.dropBomb(p);
       if(killer){if(killer===p){killer.kills--;}else if(killer.team===p.team){killer.kills--;this.credit(killer,ECONOMY.teamKillPenalty,'teamkill');}else {killer.kills++;this.credit(killer,ECONOMY.killReward,'kill');}}
       this.emit({type:'kill',attacker:killer?.name||'环境',victim:p.name,team:killer?.team,weapon:options.kind||killer?.weapon});
-    }return result.healthDamage;
+    }return healthDamage;
   }
-  targetRay(p,d,range,expand=0,rewindTime=null){const o={x:p.x,y:p.y+eyeHeight(p),z:p.z},wall=trace(o,{x:o.x+d.x*range,y:o.y+d.y*range,z:o.z+d.z*range});let distance=range*wall.fraction,target=null,targetPose=null,hitgroup='chest';
-    for(const q of this.players.values())if(q.alive&&q.id!==p.id){const pose=rewindTime===null?q:(this.lagComp?.pose(q.id,rewindTime,this.round)||q);const h=eyeHeight(pose)+.2,box={x1:pose.x-.3-expand,x2:pose.x+.3+expand,y1:pose.y,y2:pose.y+h,z1:pose.z-.3-expand,z2:pose.z+.3+expand},hit=rayBox(o,d,box);
-      if(hit<distance){distance=hit;target=q;targetPose=pose;const y=o.y+d.y*hit-pose.y;hitgroup=y>h-.38?'head':y<h*.35?'legs':y<h*.58?'stomach':'chest';}}
+  targetRay(p,d,range,expand=0,rewindTime=null,origin=null,exclude=new Set()){const o=origin||{x:p.x,y:p.y+eyeHeight(p),z:p.z},wall=trace(o,{x:o.x+d.x*range,y:o.y+d.y*range,z:o.z+d.z*range});let distance=range*wall.fraction,target=null,targetPose=null,hitgroup='chest';
+    for(const q of this.players.values())if(q.alive&&q.id!==p.id&&!exclude.has(q.id)){const pose=rewindTime===null?q:(this.lagComp?.pose(q.id,rewindTime,this.round)||q);const h=pose.crouch?.9:1.8,box={x1:pose.x-.3-expand,x2:pose.x+.3+expand,y1:pose.y,y2:pose.y+h,z1:pose.z-.3-expand,z2:pose.z+.3+expand};
+      const bone=rayPlayer(o,d,pose,rewindTime??this.time,expand),hit=bone?bone.distance:rayBox(o,d,box);
+      if(hit<distance){distance=hit;target=q;targetPose=pose;const y=o.y+d.y*hit-pose.y;hitgroup=bone?bone.hitgroup:y>h-.38?'head':y<h*.35?'legs':y<h*.58?'stomach':'chest';}}
     const to={x:o.x+d.x*distance,y:o.y+d.y*distance,z:o.z+d.z*distance};
-    const impact=!target&&!wall.startSolid&&wall.fraction<1?{position:{...to},normal:{x:wall.normal[0],y:wall.normal[1],z:wall.normal[2]}}:null;
+    const impact=!target&&!wall.startSolid&&wall.fraction<1?{position:{...to},normal:{x:wall.normal[0],y:wall.normal[1],z:wall.normal[2]},material:materialAt(to,wall.normal,wall.model)}:null;
     return {o,d,distance,target,targetPose,hitgroup,to,impact};
   }
   shieldBlocks(p,ray){const pose=ray.targetPose||p;return pose.shield&&pose.shieldRaised&&ray.hitgroup!=='legs'&&((-Math.sin(pose.yaw))*(-ray.d.x)+(-Math.cos(pose.yaw))*(-ray.d.z))>.4;}
   knife(p,secondary=false){if(!p.alive||!allowsPlayerActions(this.phase)||p.weapon!=='knife'||p.shieldRaised||this.time<(p.nextAttackAt||0))return false;
     const ray=this.targetRay(p,direction(p.yaw,p.pitch),(secondary?32:48)/40,.12),hit=!!ray.target;
-    const base=secondary?65:this.time-p.lastShot>.8?20:15;p.nextAttackAt=this.time+(secondary?(hit?1.1:1):(hit?.4:.35));p.nextSecondaryAt=this.time+(secondary?1:.5);p.lastShot=this.time;
+    const base=secondary?65:this.time-p.lastShot>.8?20:15;p.nextAttackAt=this.time+(secondary?(hit?1.1:1):(hit?.4:.35));p.nextSecondaryAt=this.time+(secondary?(hit?1.1:1):.5);p.lastShot=this.time;p.meleeSecondary=secondary;
     let amount=base;if(secondary&&ray.target){const toVictim={x:ray.target.x-p.x,z:ray.target.z-p.z},len=Math.hypot(toVictim.x,toVictim.z)||1;if((toVictim.x*-Math.sin(ray.target.yaw)+toVictim.z*-Math.cos(ray.target.yaw))/len>.8)amount*=3;}
-    if(hit&&!this.shieldBlocks(ray.target,ray))this.damage(ray.target,amount*(ray.hitgroup==='head'?4:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:'knife',hitgroup:ray.hitgroup,armourRatio:1});
+    if(hit&&!this.shieldBlocks(ray.target,ray))this.damage(ray.target,amount*(ray.hitgroup==='head'?4:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:'knife',hitgroup:ray.hitgroup,armourRatio:1.7});
     this.emit({type:'melee',id:p.id,secondary,from:ray.o,to:ray.to,hit});return true;
   }
   shoot(p,burstFollowup=false){if(!p?.alive||!allowsPlayerActions(this.phase)||p.shieldRaised)return false;
@@ -206,17 +219,28 @@ export class Game {
       p.grenadePhase='pin';p.grenadeStartedAt=this.time;p.grenadeReleased=false;return true;
     }
     const w=GUNS[p.weapon];if(!w||this.time<(p.nextAttackAt||0)||p.ammo<=0)return false;
-    const interval=p.burstMode&&p.weapon==='glock18'?.5:p.burstMode&&p.weapon==='famas'?.55:w.interval;
-    if(!burstFollowup&&this.time-p.lastShot<interval-1e-8)return false;
+    const interval=shotInterval(p);
+    if(!burstFollowup&&this.time<(p.nextShotAt||p.lastShot+interval)-1e-8)return false;
     if(p.reloadAt){if(w.reloadStyle==='per-shell'&&p.ammo>0)p.reloadAt=0;else return false;}
-    p.lastShot=this.time;p.ammo--;const profile=shotProfile(p,this.random),damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
+    p.ammo--;p.shotsFired=(p.shotsFired||0)+1;const profile=shotProfile(p,this.random,this.time,burstFollowup),damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
+    if(!burstFollowup){p.nextShotAt=nextShotDeadline(p.nextShotAt||0,this.time,interval,w.automatic&&!p.burstMode&&p.fireHeld);p.nextSecondaryAt=p.nextShotAt;}p.lastShot=this.time;
     const shotId=`${this.round}:${p.id}:${p.lastAppliedInputSeq||0}:${this.time}`,rewindTime=this.lagComp?.targetTime(p.id,p.lastAppliedInputSeq,this.time,this.round)??null;
     for(let pellet=0;pellet<w.pellets;pellet++){
-      const d=pellet?direction(p.yaw+(p.recoilYaw||0)+(this.random()*2-1)*profile.spread,p.pitch+(p.recoilPitch||0)+(this.random()*2-1)*profile.spread):profile.direction;
-      const ray=this.targetRay(p,d,(w.range||8192)/40,0,rewindTime),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
+      const d=pellet?spreadDirection(profile,this.random):profile.direction;
+      const properties=bulletProperties(w),excluded=new Set();let origin=null,range=(w.range||8192)/40,remaining=damage,travelled=0;
+      for(let penetration=0;penetration<(w.pellets>1?1:properties.hits);penetration++){
+      const ray=this.targetRay(p,d,range,0,rewindTime,origin,excluded),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
+      travelled+=ray.distance;
       if(ray.target&&!blocked){const rangeModifier=p.silenced&&p.weapon==='m4a1'?.95:w.rangeModifier;const falloff=w.rangeModel==='linear'?Math.max(0,1-ray.distance*40/(w.range||3000)):Math.pow(rangeModifier,ray.distance*40/500);
-        this.damage(ray.target,damage*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
-      this.emit({type:'shot',id:p.id,weapon:p.weapon,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+        this.damage(ray.target,remaining*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
+      this.emit({type:'shot',id:p.id,weapon:p.weapon,silenced:!!p.silenced,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+      if(blocked||travelled>properties.distance||(!ray.target&&!ray.impact))break;
+      range=(range-ray.distance)*(ray.target?.75:.5);if(range<=.01)break;
+      remaining*=Math.pow(w.rangeModifier,ray.distance*40/500);
+      if(ray.target){excluded.add(ray.target.id);origin={x:ray.to.x+d.x*.002,y:ray.to.y+d.y*.002,z:ray.to.z+d.z*.002};remaining*=.75;}
+      else{origin=penetrationExit(ray.to,d,properties.power,ray.impact.material);remaining*=materialDamage(ray.impact.material);}
+      if(!origin||remaining<1)break;
+      }
     }
     if(p.burstMode&&!burstFollowup&&['glock18','famas'].includes(p.weapon)){p.burstRemaining=Math.min(2,p.ammo);p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
     if(['awp','scout'].includes(p.weapon)&&p.zoom!==90){p.resumeZoom=p.zoom;p.zoom=90;p.resumeZoomAt=this.time+w.interval;}
@@ -262,7 +286,10 @@ export class Game {
     for(const p of all)if(p.alive){
       const command=this.#nextInput(p);p.input=command.input||command;
       const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld,heldFire=p.fireHeld;
-      movePlayer(p,p.input,dt);
+      const beforeMove={x:p.x,z:p.z,grounded:p.grounded};movePlayer(p,p.input,dt,all);
+      if(beforeMove.grounded&&p.vy>0&&p.input.jump)this.emit({type:'jump',id:p.id,from:{x:p.x,y:p.y,z:p.z}});
+      if(p.grounded&&!p.crouch&&!p.walk){p.stepDistance=(p.stepDistance||0)+Math.hypot(p.x-beforeMove.x,p.z-beforeMove.z);if(p.stepDistance>1.6){p.stepDistance%=1.6;p.stepSound=((p.stepSound||0)+1)%4;this.emit({type:'footstep',id:p.id,from:{x:p.x,y:p.y,z:p.z},variant:p.stepSound+1});}}else p.stepDistance=0;
+      if(p.landedSpeed>250/40){this.emit({type:'landing',id:p.id,from:{x:p.x,y:p.y,z:p.z},speed:p.landedSpeed});if(p.landedSpeed>580/40)this.damage(p,(p.landedSpeed*40-580)*100/(1024-580),null,{kind:'fall',hitgroup:'legs'});}
       // Synthetic idle is not a real button release. Preserve the edge latches
       // without firing/jumping, so loss cannot manufacture another press.
       if(preserveEdges)p.jumpHeld=heldJump;
@@ -270,10 +297,10 @@ export class Game {
       updateWeapon(p,dt,this.time);this.pickup(p);
       const w=GUNS[p.weapon];
       if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
-      if(p.reloadAt&&this.time>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?this.time+w.reload:0;saveActive(p);}
+      if(p.reloadAt&&this.time+1e-8>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?p.reloadAt+w.reload:0;saveActive(p);}
       if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
-      if(p.burstRemaining>0&&this.time>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
-      if(p.input.fire&&!p.action&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||(w?.automatic&&!p.burstMode)||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
+      if(p.burstRemaining>0&&this.time+1e-8>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+.1;}
+      if(p.input.fire&&!p.action&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||w?.automatic||p.burstMode||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
       this.updateGrenade(p,!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS);
       // Reload an empty active firearm even after the trigger is released.
       if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
@@ -286,7 +313,7 @@ export class Game {
   }
   snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(({input,lastInput,lastInputSeq,pendingMoney,...p})=>{
-        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return visible;}
-        return {...p,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
+        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return {...visible,...hitboxAnimation(p,this.time)};}
+        return {...p,...hitboxAnimation(p,this.time),canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}
 }

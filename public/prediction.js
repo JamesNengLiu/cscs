@@ -4,11 +4,11 @@ export const PREDICTION_DT=INPUT_DT;
 export const MAX_PENDING_COMMANDS=MAX_INPUT_QUEUE;
 // ACK covers applied commands AND explicitly skipped stale/gap/cancelled slots.
 // Replacing Y alone while retaining future X/Z creates an invalid slope pose.
-export function reconcileMovement(authoritative,commands,round){
+export function reconcileMovement(authoritative,commands,round,players=[]){
   const pending=authoritative.playedRound!==undefined&&authoritative.playedRound!==round?[]:
     orderedInputCommands(commands,round,authoritative.ackInputSeq||0,MAX_PENDING_COMMANDS);
   const player={...authoritative};
-  for(const command of pending)movePlayer(player,command.input,PREDICTION_DT);
+  for(const command of pending)movePlayer(player,command.input,PREDICTION_DT,players);
   return {player,pending};
 }
 export function visualCorrection(previous,next,offset={x:0,y:0,z:0}){

@@ -11,6 +11,8 @@ export function slopeStart(c,crouch=false){const [x,hint,z]=c.start,height=crouc
   return {...floor.end,vx:0,vy:0,vz:0,yaw:Math.atan2(-c.direction[0],-c.direction[1]),pitch:0,crouch};}
 export function sampleSlope(c,hz=60,options={}){
   const p=slopeStart(c,options.crouch),start={...p},speed=options.crouch?RULES.crouchSpeed:options.walk?RULES.walkSpeed:RULES.speed;
+  // This fixture measures steady downhill travel, independently of the run-up.
+  p.vx=c.direction[0]*speed;p.vz=c.direction[1]*speed;
   const samples=[],total=c.distance/speed+.25,dt=1/hz;let stalls=0,air=0,solid=0,upward=0,minSpeed=Infinity,maxStep=0;
   for(let t=0;t<total;t+=dt){const before={...p};(options.move||movePlayer)(p,{f:1,yaw:p.yaw,crouch:!!options.crouch,walk:!!options.walk},dt);
     const delta=Math.hypot(p.x-before.x,p.z-before.z),dy=p.y-before.y;

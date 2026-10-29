@@ -329,6 +329,7 @@ export function createSnapshotBuffer(options = {}) {
         const delta = yawB - yawA;
         result.yaw = yawA + Math.atan2(Math.sin(delta), Math.cos(delta)) * alpha;
       }
+      if(a.player.playerSequence===b.player.playerSequence&&Number.isFinite(a.player.playerFrame)&&Number.isFinite(b.player.playerFrame)&&b.player.playerFrame>=a.player.playerFrame){result.playerFrame=a.player.playerFrame*(1-alpha)+b.player.playerFrame*alpha;}
       stats.interpolations++;
       return result;
     }

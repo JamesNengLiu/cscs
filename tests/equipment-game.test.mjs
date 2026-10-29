@@ -10,7 +10,7 @@ function place(p,x=-18.4,z=22){Object.assign(p,{x,y:3.2,z,vx:0,vz:0,vy:0,yaw:0,p
 for(const [id,w] of Object.entries(GUNS))test(`arsenal integration: buy, equip and fire ${id}`,()=>{
   const {g,t,ct}=match(),p=w.teams[0]==='T'?t:ct,q=p===t?ct:t;
   if(p.inventory[id])g.drop(p.id);const before=p.money;g.buy(p.id,id);assert.equal(p.money,before-w.price);assert.equal(p.weapon,id);assert.equal(p.ammo,w.clip);assert.equal(p.reserve,w.reserve);assert.ok(p.inventory[id]);
-  assert.equal(g.equip(p.id,3),true);assert.equal(p.weapon,'knife');g.equip(p.id,id);place(p);place(q,-18.4,19);q.hp=1000;g.time+=.6;
+  assert.equal(g.equip(p.id,3),true);assert.equal(p.weapon,'knife');g.equip(p.id,id);place(p);place(q,-18.4,19);q.hp=1000;g.time=Math.max(g.time,p.nextAttackAt)+.01;
   assert.equal(g.shoot(p),true);assert.equal(p.ammo,w.clip-1);assert.ok(q.hp<1000);const ammo=p.ammo;g.shoot(p);assert.equal(p.ammo,ammo);
 });
 test('economy: first join gets 10000, full pistol ammo, no free primary and no per-round cash reset',()=>{const {g,t,ct}=match();assert.equal(t.money,10000);assert.equal(ct.money,10000);assert.equal(t.primary,null);assert.equal(t.weapon,'glock18');assert.equal(ct.weapon,'usp');assert.equal(t.ammo,20);assert.equal(t.reserve,GUNS.glock18.reserve);assert.equal(ct.ammo,12);assert.equal(ct.reserve,GUNS.usp.reserve);assert.equal(g.equip('t','awp'),false);g.buy('t','ak47');g.begin();assert.equal(t.money,7500);assert.equal(t.weapon,'ak47');});

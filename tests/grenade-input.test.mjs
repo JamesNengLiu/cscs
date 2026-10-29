@@ -158,3 +158,32 @@ test('double flash: a click after automatic retirement uses the rifle instead of
   const {g,p}=firstOfTwoFlashes();advance(g,.8);assert.equal(p.weapon,'ak47');
   advance(g,1/60,true);assert.equal(p.weapon,'ak47');assert.equal(p.grenades.flashbang,1);assert.equal(throws(g).length,1);
 });
+
+for(const kind of GRENADE_IDS)for(const gapTicks of [8,20,40])test(`grenade hold: ${kind} keeps one pin preparation across repeated ${gapTicks}-tick input gaps`,()=>{
+  const {g,p}=match(kind);let seq=0;
+  const command=fire=>{g.inputBatch(p.id,[{seq:++seq,round:g.round,fire}]);g.step();};
+  command(true);const started=p.grenadeStartedAt;assert.equal(p.grenadePhase,'pin');
+  for(let burst=0;burst<3;burst++){
+    for(let i=0;i<gapTicks;i++)g.step();
+    assert.ok(['pin','hold'].includes(p.grenadePhase),'short missing-input window must not cancel the pin');
+    assert.equal(p.grenadeStartedAt,started);
+    for(let i=0;i<4;i++)command(true);
+    assert.equal(p.grenadeStartedAt,started,'resumed held input must not pull another pin');
+    assert.equal(throws(g).length,0);assert.equal(p.grenades[kind],1);
+  }
+  for(let i=0;i<32;i++)command(true);
+  assert.equal(p.grenadePhase,'hold');command(false);
+  assert.equal(throws(g).length,1);assert.equal(p.grenades[kind],0);
+});
+
+for(const kind of GRENADE_IDS)test(`grenade hold: ${kind} timeout cancels safely and requires a real release before rearming`,()=>{
+  const {g,p}=match(kind);let seq=0;
+  const command=fire=>{g.inputBatch(p.id,[{seq:++seq,round:g.round,fire}]);g.step();};
+  command(true);for(let i=0;i<60;i++)g.step();
+  assert.equal(p.grenadePhase,'');assert.equal(throws(g).length,0);assert.equal(p.grenades[kind],1);
+  for(let i=0;i<35;i++)command(true);
+  assert.equal(p.grenadePhase,'','recovered held packets cannot restart a cancelled pin');
+  command(false);assert.equal(throws(g).length,0);command(true);const started=p.grenadeStartedAt;
+  for(let i=0;i<32;i++)command(true);assert.equal(p.grenadeStartedAt,started);assert.equal(p.grenadePhase,'hold');
+  command(false);assert.equal(throws(g).length,1);assert.equal(p.grenades[kind],0);
+});

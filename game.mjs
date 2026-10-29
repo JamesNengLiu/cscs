@@ -43,7 +43,7 @@ export class Game {
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     p.gaitDistance=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
-    this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0});
+    this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeAwaitRelease:false});
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
     this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
@@ -222,7 +222,7 @@ export class Game {
   shoot(p,burstFollowup=false){if(!p?.alive||!allowsPlayerActions(this.phase)||p.shieldRaised)return false;
     if(p.weapon==='knife')return this.knife(p);
     if(GRENADE_IDS.includes(p.weapon)){
-      if(this.time+1e-8<(p.nextAttackAt||0)||(p.grenadePhase&&p.grenadePhase!=='throw')||p.grenades[p.weapon]<=0)return false;
+      if(this.#inputs.get(p.id)?.grenadeAwaitRelease||this.time+1e-8<(p.nextAttackAt||0)||(p.grenadePhase&&p.grenadePhase!=='throw')||p.grenades[p.weapon]<=0)return false;
       // A real held attack after the throw cooldown can pull the next grenade
       // before WeaponIdle retires it. Do not redeploy or carry its old release.
       resetGrenadeThrow(p);
@@ -269,14 +269,20 @@ export class Game {
     saveActive(p);return true;
   }
   updateGrenade(p,actualInput){
+    const inputState=this.#inputs.get(p.id);
+    if(actualInput&&!p.input.fire&&inputState)inputState.grenadeAwaitRelease=false;
     if(!p.grenadePhase||!GRENADE_IDS.includes(p.weapon))return;
     if(p.grenadePhase==='throw'){
       const retire=p.grenades[p.weapon]>0?GRENADE_TIMING.retireWithAmmoSeconds:GRENADE_TIMING.recoverSeconds;
       if(this.time+1e-8>=p.grenadeThrownAt+retire)this.activate(p,p.primary||p.pistol||'knife',this.time);
       return;
     }
-    // A missing sequenced command is not a release; prolonged silence cancels preparation.
-    if(!actualInput&&this.time-Math.max(p.lastInput,p.grenadeStartedAt)>LEGACY_INPUT_GRACE_SECONDS){resetGrenadeThrow(p);return;}
+    // Movement's 100ms neutral-input grace is not a grenade button release.
+    // Keep the same pin across bounded jitter. After a real timeout, do not
+    // re-pull on recovered held packets: require an actual release first.
+    if(!actualInput&&this.time-Math.max(p.lastInput,p.grenadeStartedAt)>GRENADE_TIMING.inputTimeoutSeconds){
+      resetGrenadeThrow(p);if(inputState)inputState.grenadeAwaitRelease=true;return;
+    }
     if(actualInput&&!p.input.fire)p.grenadeReleased=true;
     if(this.time+1e-8<p.grenadeStartedAt+GRENADE_TIMING.pinSeconds)return;
     p.grenadePhase='hold';if(!p.grenadeReleased)return;
@@ -324,7 +330,7 @@ export class Game {
       if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
       if(p.burstRemaining>0&&this.time+1e-8>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+.1;}
       if(p.input.fire&&!p.action&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||w?.automatic||p.burstMode||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
-      this.updateGrenade(p,!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS);
+      this.updateGrenade(p,Boolean(command.seq)||(!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS));
       // Reload an empty active firearm even after the trigger is released.
       if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
     }

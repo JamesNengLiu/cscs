@@ -207,6 +207,25 @@ test('grenade viewmodels play pullpin, hold the final pose, and play throw from 
   }
 });
 
+test('grenade viewmodel never rewinds one pin/throw animation when the estimated server clock regresses', {skip: !hasAssets && 'Private fixtures absent'}, async t => {
+  const old=globalThis.fetch;globalThis.fetch=localFetch;t.after(()=>{globalThis.fetch=old;});
+  const sounds=[];
+  const view=await createWeaponView(three,new THREE.PerspectiveCamera(),{skinning:'cpu',onSound:name=>sounds.push(name)});t.after(()=>view.dispose());
+  for(const weapon of ['hegrenade','flashbang','smokegrenade']){
+    const pinSounds=sounds.filter(s=>s==='weapons/pinpull.wav').length;
+    await view.setWeapon(weapon);
+    view.update(0,{grenadePhase:'pin',grenadeStartedAt:2},2.4);const pinFrame=view.info().frame;
+    assert.ok(pinFrame>0&&pinFrame<40);
+    view.update(0,{grenadePhase:'pin',grenadeStartedAt:2},2.1);assert.equal(view.info().frame,pinFrame);
+    view.update(0,{grenadePhase:'hold',grenadeStartedAt:2},4);assert.equal(view.info().frame,40);
+    view.update(0,{grenadePhase:'pin',grenadeStartedAt:2},2.2);assert.equal(view.info().frame,40);
+    assert.equal(sounds.filter(s=>s==='weapons/pinpull.wav').length,pinSounds+1,'one pin emits its authored sound event once');
+    view.update(0,{grenadePhase:'throw',grenadeThrownAt:5},5.2);const throwFrame=view.info().frame;
+    view.update(0,{grenadePhase:'throw',grenadeThrownAt:5},5.1);assert.equal(view.info().frame,throwFrame);
+    view.update(0,{grenadePhase:'pin',grenadeStartedAt:6},6.1);assert.ok(view.info().frame>0&&view.info().frame<pinFrame,'a genuinely new grenade must still start its own pin');
+  }
+});
+
 test('missing assets and rejected texture loads report honest playable fallbacks', async t => {
   const old = globalThis.fetch;
   globalThis.fetch = async () => new Response('missing', {status: 404});

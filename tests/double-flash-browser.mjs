@@ -10,7 +10,7 @@ const g=new Game({random:()=>.5}),p=g.add('local','Double flash regression','T')
 g.buy(p.id,'ak47');g.buy(p.id,'flashbang');g.buy(p.id,'flashbang');g.equip(p.id,'flashbang');
 Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0});
 const report={status:'running',checks:[],errors:[],externalRequests:[],scope:'Isolated native Chrome, real production client/assets and offline Game via IPC; no live room, listening service or physical multiplayer/FPS claim.'};
-let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0;
+let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,inputBlockedUntil=0;
 try{
   await mkdir(new URL('../artifacts/',import.meta.url),{recursive:true});
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
@@ -19,6 +19,8 @@ try{
   page.on('request',r=>{if(!r.url().startsWith('https://double-flash.test/')&&!r.url().startsWith('data:'))report.externalRequests.push(r.url());});
   await page.exposeFunction('sendToGame',m=>{
     if(m.type==='join'){joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}
+    // Application-input fault injection only; this is not a physical network test.
+    if(['inputBatch','inputCritical'].includes(m.type)&&performance.now()<inputBlockedUntil)return [];
     if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);
     else if(m.type==='input')g.input(p.id,m.input);
     else if(m.type==='equip')g.equip(p.id,m.weapon);
@@ -59,7 +61,19 @@ try{
   report.secondPin=await page.evaluate(()=>{const s=window.lanStrike.getState(),p=s.players[0];return {time:s.time,started:p.grenadeStartedAt,weapon:p.weapon,remaining:p.grenades.flashbang,model:window.lanStrike.getDiagnostics().weaponModel.sequence};});
   assert.ok(report.secondPin.started+1e-8>=firstThrow+.5);assert.equal(report.secondPin.remaining,1);
   report.checks.push('real mouse re-press during recovery starts the second pin pull after the 0.5-second cooldown');
+  await page.evaluate(()=>{
+    window.doubleFlash.heldFrames=[];window.doubleFlash.monitorHold=true;
+    const sample=()=>{if(!window.doubleFlash.monitorHold)return;const p=window.lanStrike.getState().players[0],m=window.lanStrike.getDiagnostics().weaponModel;
+      if(['pin','hold'].includes(p.grenadePhase)&&m.sequence==='pullpin'){const a=window.doubleFlash.heldFrames;a.push({started:p.grenadeStartedAt,frame:m.frame});if(a.length>600)a.shift();}
+      requestAnimationFrame(sample);};requestAnimationFrame(sample);
+  });
+  for(const milliseconds of [180,330,550]){inputBlockedUntil=performance.now()+milliseconds;await page.waitForTimeout(milliseconds+250);}
   await page.waitForFunction(()=>{const s=window.lanStrike.getState(),p=s.players[0],d=window.lanStrike.getDiagnostics();return p.grenadePhase==='hold'&&d.weaponModel.sequence==='pullpin'&&d.weaponModel.frame>=40&&s.time-p.grenadeStartedAt>3&&d.flashOpacity===0;});
+  const frames=await page.evaluate(()=>{window.doubleFlash.monitorHold=false;return window.doubleFlash.heldFrames;});
+  assert.ok(frames.length>3);assert.ok(frames.every(f=>f.started===report.secondPin.started),'held input gaps restarted the pin preparation');
+  assert.ok(frames.every((f,i)=>!i||f.frame>=frames[i-1].frame),'the same pin animation rewound');
+  report.holdFaults={inputDropWindowsMs:[180,330,550],sampledFrames:frames.length,uniquePinStarts:new Set(frames.map(f=>f.started)).size,monotonicAnimation:true};
+  report.checks.push('held input survives 180/330/550ms application-input gaps with one preparation timestamp and monotonic imported animation');
   assert.equal(await page.evaluate(()=>window.doubleFlash.events.filter(e=>e.type==='throw').length),1);
   const before=await page.evaluate(first=>window.doubleFlash.states.filter(s=>s.time>=first),firstThrow);
   assert.ok(before.every(s=>s.weapon==='flashbang'),'rifle was drawn between the two flashes');

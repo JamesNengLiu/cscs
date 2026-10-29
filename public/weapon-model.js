@@ -278,6 +278,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     const specified = state.weaponSequence ?? grenadeSequence;
     const grenadeAt=grenadeSequence==='throw'?state.grenadeThrownAt:state.grenadeStartedAt;
     const key = specified == null ? null : `${specified}:${grenadeSequence?grenadeAt:state.animationToken ?? ''}`;
+    const continuingGrenade=grenadeSequence&&key===explicitKey;
     if (key !== null) {
       const selected = typeof specified === 'number' ? active.data.sequences[specified] : active.data.sequences.find(s => s.name === specified);
       if (selected?.tracks && key !== explicitKey) start(selected);
@@ -304,7 +305,9 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
       previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
     }
     explicitKey = key;
-    if(grenadeSequence&&Number.isFinite(time)&&Number.isFinite(grenadeAt))elapsed=Math.max(0,time-grenadeAt);
+    // Arrival jitter can regress the estimated server clock. An unchanged
+    // grenade action must never rewind its pose or replay its pin-pull sound.
+    if(grenadeSequence&&Number.isFinite(time)&&Number.isFinite(grenadeAt))elapsed=Math.max(continuingGrenade?elapsed:0,time-grenadeAt,0);
     else elapsed += Number.isFinite(dt) ? Math.max(0, dt) : 0;
     if (sequence) {
       const span = Math.max(1, sequence.frames - 1);

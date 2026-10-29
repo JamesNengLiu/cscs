@@ -91,10 +91,17 @@ function disposeTree(root) {
   root.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); } });
 }
 
-async function buildOriginal(THREE, id, entry, skinningMode) {
+export async function loadWeaponManifest(){
+  const {data}=await fetchJSON(BASE+'manifest.json');
+  check(data.schema==='goldsrc-viewmodels-v1','Invalid weapon manifest');return data;
+}
+export async function loadConvertedWeapon(id,entry){
   check(entry?.source === 'original-mdl' && entry.file === `${id}/model.json`, 'No converted original asset');
   const {data, verified} = await fetchJSON(BASE + entry.file, entry.convertedSHA256);
-  validate(data, id, entry);
+  validate(data,id,entry);return {data,verified};
+}
+async function buildOriginal(THREE, id, entry, skinningMode) {
+  const {data,verified}=await loadConvertedWeapon(id,entry);
   const loader = new THREE.TextureLoader();
   const loaded = await Promise.allSettled(data.textures.map(t => loader.loadAsync(`${BASE}${id}/${t.file}`)));
   if (loaded.some(r => r.status === 'rejected')) {
@@ -210,7 +217,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu'} = {}) {
   group.add(muzzle);
   const cache = new Map();
   let manifest = null, manifestError = null;
-  try { manifest = (await fetchJSON(BASE + 'manifest.json')).data; check(manifest.schema === 'goldsrc-viewmodels-v1', 'Invalid weapon manifest'); }
+  try { manifest = await loadWeaponManifest(); }
   catch (error) { manifestError = String(error.message || error); }
   let id = null, active = null, placeholder = null, generation = 0, pending = null, error = null, disposed = false;
   let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0;

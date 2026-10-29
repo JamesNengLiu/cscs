@@ -22,6 +22,7 @@
     "test:round-end:browser": "node tests/round-end-browser.mjs",
     "test:shots": "node tests/shot-effects-browser.mjs",
     "test:utility": "node tests/utility-presentation-browser.mjs",
+    "test:projectiles": "node tests/projectile-models-browser.mjs",
     "benchmark:animation": "node tools/benchmark-animation.mjs --gpu",
     "import:players": "python3 tools/import-players.py",
     "build:trump-face": "python3 tools/build-trump-face.py",

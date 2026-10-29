@@ -25,6 +25,7 @@ for(const kind of GRENADE_IDS){
     assert.equal(p.grenadePhase,'throw');assert.equal(p.weapon,kind);assert.equal(p.grenades[kind],0);
     assert.equal(g.projectiles.length,1);assert.equal(throws(g).length,1);
     const projectile=g.projectiles[0];assert.ok(Math.abs(projectile.detonateAt-projectile.bornAt-1.5)<1e-8);
+    const visible=g.snapshot(p.id).projectiles[0];assert.equal(visible.bornAt,projectile.bornAt);assert.equal(visible.resting,false);
     assert.ok(Math.abs(projectile.bornAt-g.time)<1e-8);
     advance(g,GRENADE_TIMING.recoverSeconds+.02);
     assert.equal(p.weapon,'glock18');assert.equal(p.grenadePhase,'');assert.equal(throws(g).length,1);

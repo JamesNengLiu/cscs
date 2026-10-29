@@ -27,12 +27,12 @@ const cloud={x:0,y:0,z:0,radius:4,endAt:20};
 assert.ok(smokeOpacity([cloud],{x:0,y:1.6,z:0},10)>.98);
 assert.equal(smokeOpacity([cloud],{x:10,y:1.6,z:0},10),0);
 assert.equal(smokeOpacity([cloud],{x:0,y:1.6,z:0},21),0);
-const scene=new THREE.Scene(),fx=createWorldEffects(THREE,scene);
+const scene=new THREE.Scene(),fx=createWorldEffects(THREE,scene,{loadAssets:false});
 const crowded={projectiles:Array.from({length:200},()=>({kind:'flashbang',x:0,y:1,z:0})),smokes:Array.from({length:200},()=>({...cloud}))};
 for(let i=0;i<100;i++){fx.sync(crowded);fx.update(10,{x:0,y:1.6,z:0});}
 assert.equal(fx.info().projectilePool,FX_LIMITS.projectiles);assert.equal(fx.info().smokePool,FX_LIMITS.smokes);
-assert.equal(scene.children.length,FX_LIMITS.projectiles+FX_LIMITS.smokes);
-const geometry=new Set();scene.traverse(o=>{if(o.isMesh)geometry.add(o.geometry);});assert.equal(geometry.size,2);
+assert.equal(scene.children.length,9+FX_LIMITS.smokes);
+const geometry=new Set();scene.traverse(o=>{if(o.isMesh)geometry.add(o.geometry);});assert.ok(geometry.size<=10);
 fx.sync({});fx.update(30,null);assert.ok(scene.children.every(o=>!o.visible));fx.dispose();assert.equal(scene.children.length,0);
 console.log('PASS catalog, restrictions, owned-only cycling, flash/smoke opacity, bounded reusable FX');
 

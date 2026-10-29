@@ -104,3 +104,26 @@ These focused tests do not exercise WebGL. Separate real-server browser and shop
 * General external texture companion MDLs are rejected. External sequence groups retain metadata but no tracks. Multiblend models import blend 0 with a warning; controller input uses rest values. None of those gaps affects the 30 acquired viewmodels.
 * Chrome/legacy alpha material flags are retained but not emulated, with warnings when encountered. None of these acquired textures needs those flags. Masked and additive flags have basic material support.
 * No retail hash verification or redistribution rights were established. Source hashes and mirror comparisons document exactly what was tested, not a distribution grant.
+
+
+## Flying grenade presentation
+
+`public/projectile-models.js` reuses the validated local viewmodel data and only
+selects model 0 of its `weapon` bodypart. Hand and arm bodyparts and their
+textures are excluded. Meshes are baked into a common rigid local frame,
+centered, rotated to world up with a positive-determinant basis, and uniformly
+scaled by 1/40; original pixel UVs and the three body/top/lever textures remain.
+This is a viewmodel-body presentation, not an independently imported `w_` model
+or a claim of retail world-model fidelity. No derived asset is added to Git.
+
+The three types use at most nine reusable instanced meshes for up to 64 visible
+projectiles. Position still comes from the authoritative snapshot; `bornAt`
+and `resting` drive cosmetic tumble/settling only. The point-sized collision,
+velocity and fuse stay in the grenade simulation. Models/textures load once,
+with late completion and disposal guarded. Missing/invalid assets retain an
+explicitly diagnosed procedural canister/cap/lever fallback, never a sphere.
+
+`npm run test:projectiles` captures a local WebGL appearance review and checks
+batch/geometry bounds; `npm run test:utility` also verifies this rendering in
+the real client. Neither starts or restarts the current game service. These
+checks do not measure physical multiplayer or claim a hardware FPS result.

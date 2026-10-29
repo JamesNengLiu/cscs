@@ -54,6 +54,7 @@ try{
     await page.screenshot({path:`artifacts/${item.kind}-pullpin.png`});
     await emit(item.hold);await page.waitForFunction(()=>{const m=window.lanStrike.getDiagnostics().weaponModel;return m.sequence==='pullpin'&&m.frame>=39;});
     await emit(item.thrown);await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weaponModel.sequence==='throw');
+    await page.waitForFunction(kind=>window.lanStrike.getDiagnostics().worldEffects.projectileModels.models.some(m=>m.kind===kind&&m.source==='viewmodel-weapon-body'),item.kind);
     await page.screenshot({path:`artifacts/${item.kind}-throw.png`});
     await emit(item.recovered);await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='awp');
     report.checks.push(`${item.kind}: imported pin-pull, held pose, throw and weapon recovery`);

@@ -557,3 +557,16 @@ test('invalid options fail loudly instead of producing NaN/unbounded buffers', (
     { jitterMultiplier: NaN }, { clockSlewMsPerSecond: -1 },
   ]) assert.throws(() => createSnapshotBuffer(options));
 });
+
+test('looping player animation crosses the last frame continuously while gait follows distance',()=>{
+  const b=fixed(0),extra={playerSequence:'run',playerFrameSpan:36,playerLooping:true,playerGaitSequence:'run'};
+  b.push(snapshot(0,[player(0,{...extra,playerFrame:34,gaitDistance:3.5})]),1000);
+  b.push(snapshot(1/30,[player(.2,{...extra,playerFrame:0,gaitDistance:3.75})]),1000+1000/30);
+  const p=b.sample('remote',1000+1000/60);close(p.playerFrame,35);close(p.gaitDistance,3.625);
+  const end=b.sample('remote',1000+1000/30).playerFrame;close(Math.min(Math.abs(end),Math.abs(36-end)),0);
+});
+test('a restarted nonlooping action does not interpolate across its reset',()=>{
+  const b=fixed(0),extra={playerSequence:'gut_flinch',playerFrameSpan:1,playerLooping:false};
+  b.push(snapshot(0,[player(0,{...extra,playerFrame:1})]),1000);b.push(snapshot(.1,[player(.2,{...extra,playerFrame:0})]),1100);
+  assert.equal(b.sample('remote',1050).playerFrame,1);
+});

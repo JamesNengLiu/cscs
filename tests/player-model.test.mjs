@@ -257,3 +257,12 @@ test('file-backed real player assets load with Three, exact hashes and animated 
   }
   t.diagnostic(`File-backed runtime merged ${weapons.length} actual imported third-person weapons`);
 });
+
+test('switching remote weapons keeps the old mesh until the new asset is ready, then swaps atomically',async t=>{
+  let finish,waiting=false;const late=new Promise(resolve=>finish=resolve);
+  const {actor}=setup(t,[fixture()],{weapons:[fixture('ak47'),fixture('m4a1')],fetcher:async(url,body)=>{if(url.includes('/weapons/m4a1/')){waiting=true;await late;return new Response(body);}}});
+  const a=actor();await a.setCharacter('terror');a.update(0,{weapon:'ak47',playerSequence:'idle',playerFrame:0});await settle(()=>a.info().thirdPersonWeapon.loaded);
+  a.update(0,{weapon:'m4a1',playerSequence:'idle',playerFrame:0});await settle(()=>waiting);
+  assert.ok(a.group.getObjectByName('original-mdl:ak47'));assert.equal(a.info().thirdPersonWeapon.loaded,false);assert.equal(a.info().thirdPersonWeapon.displayedId,'ak47');
+  finish();await settle(()=>a.info().thirdPersonWeapon.loaded);assert.equal(a.group.getObjectByName('original-mdl:ak47'),undefined);assert.ok(a.group.getObjectByName('original-mdl:m4a1'));
+});

@@ -18,6 +18,11 @@ export class Game {
   #inputs=new Map();
   constructor({random=Math.random,friendlyFire=false}={}){this.random=random;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
   emit(e){this.events.push({...e,time:this.time});if(this.events.length>1024)this.events.splice(0,this.events.length-1024);}
+  activate(p,key,now=this.time,transition=true){
+    const before=transition&&p.alive&&p.weapon!==key?hitboxAnimation(p,now):null;
+    activate(p,key,now);
+    p.poseFromSequence=before?.playerSequence||null;p.poseFromFrame=before?.playerFrame||0;p.poseChangedAt=now;
+  }
   hasBothTeams(){return new Set([...this.players.values()].map(p=>p.team)).size===2;}
   waitForPlayers(){this.phase='waiting';this.endAt=0;this.buyEndAt=0;this.bomb={state:'none'};this.message='等待玩家加入';this.projectiles=[];this.smokes=[];this.drops=[];}
   add(id,name,team,character){
@@ -36,10 +41,11 @@ export class Game {
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
+    p.gaitDistance=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0});
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
-    activate(p,p.primary||p.pistol||'knife',this.time);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
+    this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
   credit(p,amount,reason){if(!Number.isFinite(amount)||!amount)return;p.money=clampMoney(p.money,amount);this.emit({type:'money',id:p.id,amount,money:p.money,reason});}
   remove(id){const p=this.players.get(id);if(!p)return;this.dropBomb(p);this.players.delete(id);this.#inputs.delete(id);this.emit({type:'notice',text:`${p.name} 离开`});if(!this.players.size)this.waitForPlayers();}
@@ -116,7 +122,7 @@ export class Game {
       if(item==='elite'&&p.shield)throw Error('双枪不能与防弹盾同时持有');cost=w.price;
       apply=()=>{if(w.slot===1&&p.shield)this.releaseShield(p);const old=w.slot===1?p.primary:p.pistol;if(old)this.releaseGun(p,old);
         p.inventory[item]={ammo:w.clip,silenced:false,burstMode:false};if(w.slot===1)p.primary=item;else p.pistol=item;
-        p.ammoPool[w.ammoType]??=0;activate(p,item,this.time);refillAmmo(p,[item]);};
+        p.ammoPool[w.ammoType]??=0;this.activate(p,item,this.time);refillAmmo(p,[item]);};
     }else if(own(EQUIPMENT,item)){
       const e=EQUIPMENT[item];if(!e.teams.includes(p.team))throw Error('该装备仅限另一阵营购买');cost=equipmentPrice(item,p);
       if(GRENADE_IDS.includes(item)){if(p.grenades[item]>=e.limit)throw Error('该投掷物已达携带上限');apply=()=>p.grenades[item]++;}
@@ -124,7 +130,7 @@ export class Game {
       else if(item==='assaultsuit'){if(p.armour>=100&&p.helmet)throw Error('护甲与头盔已齐全');apply=()=>{p.armour=100;p.helmet=true;};}
       else if(item==='defusekit'){if(p.defuseKit)throw Error('已持有拆弹器');apply=()=>{p.defuseKit=true;};}
       else if(item==='nightvision'){if(p.nightvision)throw Error('已持有夜视仪');apply=()=>{p.nightvision=true;};}
-      else if(item==='shield'){if(p.shield)throw Error('已持有防弹盾');if(p.pistol==='elite')throw Error('防弹盾不能与双枪同时持有');apply=()=>{if(p.primary)this.releaseGun(p,p.primary);p.shield=true;activate(p,p.pistol||'knife',this.time);};}
+      else if(item==='shield'){if(p.shield)throw Error('已持有防弹盾');if(p.pistol==='elite')throw Error('防弹盾不能与双枪同时持有');apply=()=>{if(p.primary)this.releaseGun(p,p.primary);p.shield=true;this.activate(p,p.pistol||'knife',this.time);};}
     }
     if(!apply||!Number.isFinite(cost)||cost<=0)throw Error('未知商品');if(p.money<cost)throw Error('金钱不足');
     apply();this.credit(p,-cost,'purchase');this.emit({type:'purchase',id:p.id,item,cost});return true;
@@ -133,7 +139,7 @@ export class Game {
     const hasBomb=this.bomb.state==='carried'&&this.bomb.holder===id,owned=ownedWeapons(p,hasBomb);
     if(key==='last')key=p.previousWeapon;
     if(typeof key==='number'||/^[1-5]$/.test(String(key))){const slot=Number(key);if(slot===1)key=p.primary||(p.shield?p.pistol:null);else if(slot===2)key=p.pistol;else if(slot===3)key='knife';else if(slot===5)key=hasBomb?'c4':null;else{const gs=GRENADE_IDS.filter(g=>p.grenades[g]>0);key=gs[(gs.indexOf(p.weapon)+1)%gs.length];}}
-    if(typeof key!=='string'||!owned.includes(key)||key===p.weapon)return false;activate(p,key,this.time);return true;
+    if(typeof key!=='string'||!owned.includes(key)||key===p.weapon)return false;this.activate(p,key,this.time);return true;
   }
   reload(id){const p=this.players.get(id),w=GUNS[p?.weapon];if(p?.alive&&allowsPlayerActions(this.phase)&&w&&!p.reloadAt&&p.reserve>0&&p.ammo<w.clip){p.reloadStartedAt=this.time;p.reloadAt=this.time+(w.reloadStyle==='per-shell'?w.reloadStart:w.reload);p.zoom=90;p.resumeZoomAt=0;p.progress=0;p.burstRemaining=0;resetWeapon(p,{keepPunch:true});if(['aug','famas','mac10','mp5navy'].includes(p.weapon))p.accuracy=0;}}
   releaseGun(p,key){if(!own(GUNS,key)||!p.inventory[key])return;saveActive(p);const entry=p.inventory[key];
@@ -142,15 +148,15 @@ export class Game {
   }
   releaseShield(p){if(!p.shield)return;p.shield=false;p.shieldRaised=false;this.drops.push({id:`drop-${++this.nextDrop}`,kind:'shield',x:p.x,y:p.y,z:p.z,ownerId:p.id,pickupAt:this.time+.5,endAt:this.time+180});this.drops=this.drops.slice(-64);}
   drop(id){const p=this.players.get(id);if(!p?.alive||!allowsPlayerActions(this.phase))return false;if(p.shield){this.releaseShield(p);return true;}
-    if(p.weapon==='c4'){this.dropBomb(p);activate(p,p.primary||p.pistol||'knife',this.time);return true;}if(!own(GUNS,p.weapon))return false;
-    this.releaseGun(p,p.weapon);activate(p,p.primary||p.pistol||'knife',this.time);return true;
+    if(p.weapon==='c4'){this.dropBomb(p);this.activate(p,p.primary||p.pistol||'knife',this.time);return true;}if(!own(GUNS,p.weapon))return false;
+    this.releaseGun(p,p.weapon);this.activate(p,p.primary||p.pistol||'knife',this.time);return true;
   }
   pickup(p){for(let i=this.drops.length-1;i>=0;i--){const d=this.drops[i];if(this.time<d.pickupAt||!this.canReach(p,d,.8))continue;
     if(d.kind==='defusekit'){if(p.team!=='CT'||p.defuseKit)continue;p.defuseKit=true;this.drops.splice(i,1);continue;}
     if(d.kind==='shield'){if(p.shield||p.primary||p.pistol==='elite')continue;p.shield=true;this.drops.splice(i,1);continue;}
     const w=GUNS[d.weapon];if(!w||p.inventory[d.weapon]||(w.slot===1&&(p.primary||p.shield))||(w.slot===2&&(p.pistol||(p.shield&&d.weapon==='elite'))))continue;
     saveActive(p);p.inventory[d.weapon]={ammo:d.ammo,silenced:d.silenced,burstMode:d.burstMode};p.ammoPool[w.ammoType]??=0;if(w.slot===1)p.primary=d.weapon;else p.pistol=d.weapon;
-    this.drops.splice(i,1);activate(p,d.weapon,this.time);
+    this.drops.splice(i,1);this.activate(p,d.weapon,this.time);
   }}
   secondary(id){const p=this.players.get(id);if(!p?.alive||!allowsPlayerActions(this.phase)||this.time<(p.nextSecondaryAt||0)||p.reloadAt)return false;
     if(p.grenadePhase)return false;
@@ -182,6 +188,7 @@ export class Game {
     const result=armourDamage(amount,p.armour||0,p.helmet,options.hitgroup||'chest',options.armourRatio??1,!!options.blast);p.armour=result.armour;
     const healthDamage=Math.trunc(result.healthDamage);
     if(GUNS[options.kind]&&killer&&killer!==p){
+      if(healthDamage>0||result.armourDamage>0){p.flinchAt=this.time;p.flinchHead=options.hitgroup==='head';}
       const large=!p.crouch&&options.hitgroup!=='legs'&&['scout','aug','sg550','galil','famas','awp','m3','m4a1','g3sg1','deagle','sg552','ak47'].includes(options.kind);
       p.velocityModifier=large?.65:.5;
       if(large&&Math.hypot(p.vx||0,p.vz||0,p.vy||0)<300/40){const dx=p.x-killer.x,dy=p.y-killer.y,dz=p.z-killer.z,len=Math.hypot(dx,dy,dz)||1;p.vx+=dx/len*170/40;p.vz+=dz/len*170/40;}
@@ -234,9 +241,21 @@ export class Game {
       for(let penetration=0;penetration<(w.pellets>1?1:properties.hits);penetration++){
       const ray=this.targetRay(p,d,range,0,rewindTime,origin,excluded),blocked=ray.target&&this.shieldBlocks(ray.target,ray);
       travelled+=ray.distance;
-      if(ray.target&&!blocked){const rangeModifier=p.silenced&&p.weapon==='m4a1'?.95:w.rangeModifier;const falloff=w.rangeModel==='linear'?Math.max(0,1-ray.distance*40/(w.range||3000)):Math.pow(rangeModifier,ray.distance*40/500);
-        this.damage(ray.target,remaining*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
-      this.emit({type:'shot',id:p.id,weapon:p.weapon,silenced:!!p.silenced,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+      let hitImpact=null;
+      if(ray.target){
+        const target=ray.target,armour=target.armour,hp=target.hp,helmet=target.helmet;
+        if(!blocked){const rangeModifier=p.silenced&&p.weapon==='m4a1'?.95:w.rangeModifier;const falloff=w.rangeModel==='linear'?Math.max(0,1-ray.distance*40/(w.range||3000)):Math.pow(rangeModifier,ray.distance*40/500);
+          this.damage(target,remaining*falloff*(ray.hitgroup==='head'?w.head:ray.hitgroup==='stomach'?1.25:ray.hitgroup==='legs'?.75:1),p,{kind:p.weapon,hitgroup:ray.hitgroup,armourRatio:w.armorRatio});}
+        if((blocked&&(target.team!==p.team||this.friendlyFire))||target.hp<hp||target.armour<armour){
+          const pose=ray.targetPose||target,effect=blocked?'shield':ray.hitgroup==='head'&&helmet?'helmet':armour>0&&ray.hitgroup!=='head'&&ray.hitgroup!=='legs'?'armour':'blood';
+          hitImpact={targetId:target.id,effect,hitgroup:ray.hitgroup,position:{...ray.to},direction:{...d},offset:{x:ray.to.x-pose.x,y:ray.to.y-pose.y,z:ray.to.z-pose.z}};
+          if(effect==='blood'){
+            const wall=trace(ray.to,{x:ray.to.x+d.x*2.5,y:ray.to.y+d.y*2.5,z:ray.to.z+d.z*2.5});
+            if(!wall.startSolid&&wall.fraction<1)hitImpact.wall={position:wall.end,normal:{x:wall.normal[0],y:wall.normal[1],z:wall.normal[2]}};
+          }
+        }
+      }
+      this.emit({type:'shot',id:p.id,weapon:p.weapon,silenced:!!p.silenced,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,...(hitImpact?{hitImpact}:{}),burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
       if(blocked||travelled>properties.distance||(!ray.target&&!ray.impact))break;
       range=(range-ray.distance)*(ray.target?.75:.5);if(range<=.01)break;
       remaining*=Math.pow(w.rangeModifier,ray.distance*40/500);
@@ -253,7 +272,7 @@ export class Game {
     if(!p.grenadePhase||!GRENADE_IDS.includes(p.weapon))return;
     if(p.grenadePhase==='throw'){
       const retire=p.grenades[p.weapon]>0?GRENADE_TIMING.retireWithAmmoSeconds:GRENADE_TIMING.recoverSeconds;
-      if(this.time+1e-8>=p.grenadeThrownAt+retire)activate(p,p.primary||p.pistol||'knife',this.time);
+      if(this.time+1e-8>=p.grenadeThrownAt+retire)this.activate(p,p.primary||p.pistol||'knife',this.time);
       return;
     }
     // A missing sequenced command is not a release; prolonged silence cancels preparation.
@@ -278,7 +297,7 @@ export class Game {
       else if(p.team==='CT'&&b.state==='planted'&&this.canReach(p,b,2.3))action='defuse';
     }
     if(action!==p.action)p.progress=0;p.action=action;p.progress=action?p.progress+dt:0;
-    if(action==='plant'&&p.progress>=RULES.plantSeconds){this.bomb={state:'planted',x:p.x,z:p.z,y:p.y,endAt:this.time+RULES.bombSeconds,site:siteAt(p).name,planter:p.id};p.progress=0;p.action='';if(p.weapon==='c4')activate(p,p.primary||p.pistol||'knife',this.time);this.emit({type:'notice',text:`炸弹已安放在 ${this.bomb.site} 点`});}
+    if(action==='plant'&&p.progress>=RULES.plantSeconds){this.bomb={state:'planted',x:p.x,z:p.z,y:p.y,endAt:this.time+RULES.bombSeconds,site:siteAt(p).name,planter:p.id};p.progress=0;p.action='';if(p.weapon==='c4')this.activate(p,p.primary||p.pistol||'knife',this.time);this.emit({type:'notice',text:`炸弹已安放在 ${this.bomb.site} 点`});}
     if(action==='defuse'&&p.progress>=(p.defuseKit?RULES.defuseKitSeconds:RULES.defuseSeconds)){this.bomb.state='defused';this.finish('CT','成功拆除炸弹','defuse');}
   }
   // One call is one authoritative 60Hz tick; transport/client dt is never used.

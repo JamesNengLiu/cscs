@@ -265,7 +265,7 @@ function buildPose(THREE, asset, shared, skinningMode) {
     bonePose.pose(sequence,frame,p,merged,mapping);
     skinning.update(meshes);
   }
-  return {root, data, asset, matrices, pose, blendInfo: bonePose.blendInfo,
+  return {root, data, asset, matrices, pose, blendInfo: bonePose.blendInfo,gaitInfo:bonePose.gaitInfo,
     dispose() { skinning.dispose(); for (const mesh of meshes) mesh.geometry.dispose(); for (const m of materials) m.dispose(); shared.release(); }};
 }
 const weaponSuffix = id => ({glock18: 'onehanded', usp: 'onehanded', p228: 'onehanded', deagle: 'onehanded', fiveseven: 'onehanded',
@@ -301,10 +301,11 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
   let id = null, active = null, missing = null, manifest = null, generation = 0, pending = null, disposed = false, error = null;
   let choose = null, sequence = null, elapsed = 0, frame = 0, action = 'idle', animationWarning = null, explicitKey = null;
   let shotSeen, ammoSeen, animationTokenSeen, reloadSeen = false, actionRemaining = 0;
-  let weapon = null, weaponId = null, weaponGeneration = 0, weaponStatus = 'No third-person weapon requested', weaponMapping = null;
+  let weapon = null, weaponId = null, weaponDisplayedId=null, weaponGeneration = 0, weaponStatus = 'No third-person weapon requested', weaponMapping = null;
   const state = {};
   function notify() { try { onChange(info()); } catch (cause) { console.error('Player onChange callback failed', cause); } }
-  function clearWeapon() { weaponGeneration++; if (weapon) { group.remove(weapon.root); weapon.dispose(); } weapon = null; weaponId = null; weaponMapping = null; weaponStatus = 'No third-person weapon requested'; }
+  function removeWeaponModel(){if(weapon){group.remove(weapon.root);weapon.dispose();}weapon=null;weaponDisplayedId=null;weaponMapping=null;}
+  function clearWeapon() { weaponGeneration++;removeWeaponModel();weaponId = null;weaponStatus = 'No third-person weapon requested'; }
   function clear() {
     clearWeapon();
     if (active) { group.remove(active.root); active.dispose(); }
@@ -314,11 +315,11 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
   function selectWeapon(next) {
     next = typeof next === 'string' && /^[a-z0-9_]{1,40}$/.test(next) ? next : null;
     if (next === weaponId) return;
-    clearWeapon(); weaponId = next;
-    if (!next) { weaponStatus = 'No third-person weapon requested'; return; }
+    const ticket=++weaponGeneration;weaponId = next;
+    if (!next) { removeWeaponModel();weaponStatus = 'No third-person weapon requested'; return; }
     const entry = manifest?.weapons?.[next];
-    if (!entry) { weaponStatus = `Missing third-person weapon: ${next}; no geometry substituted`; notify(); return; }
-    const ticket = weaponGeneration, owner = active;
+    if (!entry) { removeWeaponModel();weaponStatus = `Missing third-person weapon: ${next}; no geometry substituted`; notify(); return; }
+    const owner = active;
     weaponStatus = `Loading third-person weapon: ${next}`;
     (async () => {
       const asset = await modelFor(cache, next, entry, true);
@@ -327,11 +328,12 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
       if (disposed || ticket !== weaponGeneration || owner !== active) { shared.release(); return; }
       const map = asset.data.bones.map(b => owner.data.bones.findIndex(pb => pb.name.toLowerCase() === b.name.toLowerCase()));
       if (!map.some(n => n >= 0)) { shared.release(); throw new Error('No p_weapon bones match player bone names'); }
-      weapon = buildPose(THREE, asset, shared, skinning); weaponMapping = map; group.add(weapon.root);
+      const built=buildPose(THREE, asset, shared, skinning);
+      removeWeaponModel();weapon=built;weaponDisplayedId=next;weaponMapping = map; group.add(weapon.root);
       weapon.pose(null, 0, state, active.matrices, weaponMapping);
       weaponStatus = `Merged ${map.filter(n => n >= 0).length}/${map.length} p_weapon bones by name`;
       notify();
-    })().catch(cause => { if (ticket === weaponGeneration && !disposed) { weaponStatus = `Missing third-person weapon: ${next}: ${cause.message}`; notify(); } });
+    })().catch(cause => { if (ticket === weaponGeneration && !disposed) { removeWeaponModel();weaponStatus = `Missing third-person weapon: ${next}: ${cause.message}`; notify(); } });
   }
   function setCharacter(nextId) {
     if (disposed) return Promise.resolve(info());
@@ -371,11 +373,11 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
     if (disposed) return;
     p ||= {};
     // Copy only supported fields: no external objects or arbitrarily large state retained.
-    for (const key of ['x', 'y', 'z', 'yaw', 'pitch', 'aimYaw', 'vx', 'vz', 'crouch', 'grounded', 'alive', 'dead', 'walk', 'weapon', 'reloading', 'reloadAt', 'lastShot', 'ammo', 'skin', 'body', 'playerSequence', 'playerFrame', 'animation', 'animationToken', 'blendX', 'blendY']) state[key] = p[key];
+    for (const key of ['x', 'y', 'z', 'yaw', 'gaitYaw', 'pitch', 'aimYaw', 'vx', 'vz', 'crouch', 'grounded', 'alive', 'dead', 'walk', 'weapon', 'reloading', 'reloadAt', 'lastShot', 'ammo', 'skin', 'body', 'playerSequence', 'playerFrame', 'playerGaitSequence', 'playerGaitFrame', 'gaitDistance', 'playerPoseFromSequence', 'playerPoseFromFrame', 'playerPoseBlend', 'animation', 'animationToken', 'blendX', 'blendY']) state[key] = p[key];
     if (Number.isFinite(p.x)) group.position.x = p.x;
     if (Number.isFinite(p.y)) group.position.y = p.y;
     if (Number.isFinite(p.z)) group.position.z = p.z;
-    if (Number.isFinite(p.yaw)) group.rotation.y = p.yaw;
+    if (Number.isFinite(p.yaw)) group.rotation.y = Number.isFinite(p.gaitYaw)?p.gaitYaw:p.yaw;
     if (!active) return;
     const step = clamp(finite(dt), 0, 0.25);
     actionRemaining = Math.max(0, actionRemaining - step);
@@ -423,14 +425,14 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
       counts: active?.data.metadata.counts ? {...active.data.metadata.counts} : null,
       sourceHashStatus: active ? 'MDL provenance declared by manifest; raw MDL not fetched by renderer' : 'no loaded source',
       customCosmetic: active?.data.metadata.source === 'custom-trump-face',
-      sequence: sequence?.name || null, action, frame, animationWarning, skinning,
+      sequence: sequence?.name || null, action, frame, animationWarning, skinning,gait:active?.gaitInfo()||null,
       blendSupport: active?.blendInfo() || 'none',
       availableSequences: active?.data.sequences.map((s, index) => ({index, name: s.name, frames: s.frames, fps: s.fps, blendCount: s.blendCount,
         imported: !!(s.tracks || s.blendTracks), allBlends: !!s.blendTracks || s.blendCount === 1})) || [],
-      thirdPersonWeapon: {id: weaponId, loaded: !!weapon, status: weaponStatus,
+      thirdPersonWeapon: {id: weaponId,displayedId:weaponDisplayedId,loaded:!!weapon&&weaponDisplayedId===weaponId,visible:!!weapon,status: weaponStatus,
         unmatchedBones: weapon ? weapon.data.bones.filter((b, i) => weaponMapping[i] < 0).map(b => b.name) : []},
       transform: {goldSrcToWorld: '(-Y,Z,-X)/40', scale: 1 / 40, origin: 'feet + (crouch ? 0.45 : 0.9)', yawZero: '-Z', layer: 0},
-      limitations: ['Client animation selection is heuristic, not CS server animation/gait parity.',
+      limitations: ['Server-authored upper-body/gait layers when supplied; retail gait yaw and controller behavior remain approximate.',
         '1, 2, 4 and 9 source blends supported; other/missing blends expose blend-0 fallback.',
         'Palette textures use unlit materials; controller rest values only; no source engine lighting.'],
     };

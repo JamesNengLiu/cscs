@@ -40,7 +40,9 @@
  * deliberate hard discontinuities, never blends across lives/teleports. Send a
  * spawn/teleport token for same-position or small-distance discontinuities;
  * unmarked teleports below the distance threshold cannot be inferred reliably.
- * Only x/y/z, yaw (shortest arc), pitch, vx/vy/vz are blended. All other fields
+ * x/y/z, yaw (shortest arc), pitch, vx/vy/vz and gait distance are blended.
+ * Compatible animation frames interpolate, wrapping forward for declared loops;
+ * nonlooping gait frames interpolate without crossing resets. Other fields
  * use the earlier timestamp's state until the later timestamp is reached.
  * Outputs and inputs are isolated copies, including nested metadata.
  *
@@ -317,19 +319,29 @@ export function createSnapshotBuffer(options = {}) {
       const a = history[i - 1];
       const alpha = clamp((playbackTimeMs - a.timeMs) / (b.timeMs - a.timeMs), 0, 1);
       const result = clone(a.player);
-      for (const k of ['x', 'y', 'z', 'pitch', 'vx', 'vy', 'vz']) {
+      for (const k of ['x', 'y', 'z', 'pitch', 'vx', 'vy', 'vz', 'gaitDistance']) {
         if (Number.isFinite(a.player[k]) && Number.isFinite(b.player[k])) {
           // Convex combination avoids both overshoot and b-a overflow.
           result[k] = a.player[k] * (1 - alpha) + b.player[k] * alpha;
         }
       }
-      if (Number.isFinite(a.player.yaw) && Number.isFinite(b.player.yaw)) {
-        const yawA = Math.atan2(Math.sin(a.player.yaw), Math.cos(a.player.yaw));
-        const yawB = Math.atan2(Math.sin(b.player.yaw), Math.cos(b.player.yaw));
+      for(const angle of ['yaw','gaitYaw'])if (Number.isFinite(a.player[angle]) && Number.isFinite(b.player[angle])) {
+        const yawA = Math.atan2(Math.sin(a.player[angle]), Math.cos(a.player[angle]));
+        const yawB = Math.atan2(Math.sin(b.player[angle]), Math.cos(b.player[angle]));
         const delta = yawB - yawA;
-        result.yaw = yawA + Math.atan2(Math.sin(delta), Math.cos(delta)) * alpha;
+        result[angle] = yawA + Math.atan2(Math.sin(delta), Math.cos(delta)) * alpha;
       }
-      if(a.player.playerSequence===b.player.playerSequence&&Number.isFinite(a.player.playerFrame)&&Number.isFinite(b.player.playerFrame)&&b.player.playerFrame>=a.player.playerFrame){result.playerFrame=a.player.playerFrame*(1-alpha)+b.player.playerFrame*alpha;}
+      if(a.player.playerSequence===b.player.playerSequence&&Number.isFinite(a.player.playerFrame)&&Number.isFinite(b.player.playerFrame)){
+        const span=a.player.playerFrameSpan;
+        if(a.player.playerLooping&&b.player.playerLooping&&Number.isFinite(span)&&span>0&&span<=10000&&span===b.player.playerFrameSpan){
+          const delta=(b.player.playerFrame-a.player.playerFrame+span)%span;
+          result.playerFrame=(a.player.playerFrame+delta*alpha)%span;
+        }else if(b.player.playerFrame>=a.player.playerFrame)result.playerFrame=a.player.playerFrame*(1-alpha)+b.player.playerFrame*alpha;
+      }
+      if(a.player.playerGaitSequence===b.player.playerGaitSequence&&Number.isFinite(a.player.playerGaitFrame)&&Number.isFinite(b.player.playerGaitFrame)&&b.player.playerGaitFrame>=a.player.playerGaitFrame)
+        result.playerGaitFrame=a.player.playerGaitFrame*(1-alpha)+b.player.playerGaitFrame*alpha;
+      if(a.player.playerSequence===b.player.playerSequence&&a.player.playerPoseFromSequence===b.player.playerPoseFromSequence&&Number.isFinite(a.player.playerPoseBlend)&&Number.isFinite(b.player.playerPoseBlend))
+        result.playerPoseBlend=a.player.playerPoseBlend*(1-alpha)+b.player.playerPoseBlend*alpha;
       stats.interpolations++;
       return result;
     }

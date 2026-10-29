@@ -112,6 +112,15 @@ function substep(p,input,dt,players){
     if(vertical.fraction<1&&vertical.normal[1]>.7&&p.vy<0)p.landedSpeed=-p.vy;
     p.vy=vertical.fraction<1?0:p.vy-halfGravity;}
   const support=groundContact(p,players,height);p.grounded=Boolean(support);if(support)settle(p,support);
+  const travel=Math.hypot(p.x-start.x,p.z-start.z),forward=(p.x-start.x)*-Math.sin(p.yaw)+(p.z-start.z)*-Math.cos(p.yaw);
+  let gaitYaw=Number.isFinite(p.gaitYaw)?p.gaitYaw:p.yaw;
+  if(Math.hypot(p.vx,p.vz)>.125)gaitYaw=Math.atan2(-p.vx,-p.vz);
+  else gaitYaw+=Math.atan2(Math.sin(p.yaw-gaitYaw),Math.cos(p.yaw-gaitYaw))*Math.min(1,dt*4);
+  const relative=Math.atan2(Math.sin(p.yaw-gaitYaw),Math.cos(p.yaw-gaitYaw));
+  if(Math.abs(relative)>Math.PI*2/3)gaitYaw+=Math.PI;
+  p.gaitYaw=Math.atan2(Math.sin(gaitYaw),Math.cos(gaitYaw));
+  if(p.grounded)p.gaitDistance=(p.gaitDistance||0)+travel*(forward<-travel*.5?-1:1);
+  p.airTime=p.grounded?0:(p.airTime||0)+dt;
   p.groundPlayer=p.grounded? support.player||null:null;p.moving=Math.hypot(p.vx,p.vz)>.12;
 }
 export function movePlayer(p,input,dt,players=[]){

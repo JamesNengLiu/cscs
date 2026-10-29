@@ -198,6 +198,12 @@ test('grenade viewmodels play pullpin, hold the final pose, and play throw from 
     view.update(0,{grenadePhase:'hold',grenadeStartedAt:2},5);assert.equal(view.info().frame,40);
     view.update(0,{grenadePhase:'throw',grenadeThrownAt:5},5.2);
     assert.equal(view.info().sequence,'throw');assert.ok(Math.abs(view.info().frame-6)<1e-6);
+    if(weapon==='flashbang'){
+      view.update(0,{grenadePhase:'pin',grenadeStartedAt:5.5},5.6);
+      assert.equal(view.info().sequence,'pullpin');assert.ok(Math.abs(view.info().frame-4.1)<1e-6);
+      view.update(0,{grenadePhase:'hold',grenadeStartedAt:5.5},8);
+      assert.equal(view.info().sequence,'pullpin');assert.equal(view.info().frame,40);
+    }
   }
 });
 

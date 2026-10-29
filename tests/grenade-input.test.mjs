@@ -95,3 +95,66 @@ test('grenade input: release uses current aim and holding longer does not increa
   }
   assert.deepEqual(velocities[0],velocities[1]);
 });
+
+function firstOfTwoFlashes(){
+  const g=new Game({random:()=>.5}),p=g.add('p','Double flash','T');g.begin();g.buy(p.id,'ak47');
+  g.buy(p.id,'flashbang');g.buy(p.id,'flashbang');g.equip(p.id,'flashbang');
+  advance(g,Math.max(0,p.nextAttackAt-g.time)+.01);advance(g,.6,true);advance(g,1/RULES.tick);
+  assert.equal(throws(g).length,1);assert.equal(p.grenades.flashbang,1);return {g,p,firstThrow:p.grenadeThrownAt};
+}
+for(const delay of [1/60,.25,.5,.6,.7])test(`double flash: held left click ${delay}s after throw prepares the second without drawing the rifle`,()=>{
+  const {g,p,firstThrow}=firstOfTwoFlashes();advance(g,delay);advance(g,1/60,true);
+  if(g.time<firstThrow+GRENADE_TIMING.recoverSeconds-1e-8)assert.equal(p.grenadePhase,'throw','cannot skip throw recovery');
+  for(let i=0;i<40&&p.grenadePhase==='throw';i++)advance(g,1/60,true);
+  assert.equal(p.weapon,'flashbang');assert.equal(p.grenadePhase,'pin');
+  assert.ok(p.grenadeStartedAt+1e-8>=firstThrow+GRENADE_TIMING.recoverSeconds);
+  assert.equal(p.grenadeThrownAt,0);assert.equal(p.grenadeReleased,false);
+  assert.equal(p.grenades.flashbang,1);assert.equal(throws(g).length,1,'pulling a pin does not consume or throw');
+  const secondStarted=p.grenadeStartedAt;advance(g,.7,true);
+  assert.equal(p.grenadePhase,'hold');assert.equal(p.weapon,'flashbang');assert.equal(p.grenades.flashbang,1);
+  assert.equal(throws(g).length,1,'holding cannot reuse the first grenade release');
+  advance(g,1/60);
+  assert.equal(p.grenadePhase,'throw');assert.equal(p.grenades.flashbang,0);assert.equal(throws(g).length,2);
+  assert.ok(p.grenadeThrownAt+1e-8>=secondStarted+GRENADE_TIMING.pinSeconds);
+  assert.ok(g.projectiles.some(q=>q.bornAt===p.grenadeThrownAt&&q.detonateAt===q.bornAt+1.5));
+  advance(g,GRENADE_TIMING.recoverSeconds+.02);assert.equal(p.weapon,'ak47');assert.equal(p.grenadePhase,'');
+});
+test('double flash: without another attack the rifle returns at the source idle deadline',()=>{
+  const {g,p,firstThrow}=firstOfTwoFlashes();advance(g,.6);
+  assert.equal(p.weapon,'flashbang');assert.equal(p.grenadePhase,'throw');assert.equal(p.grenades.flashbang,1);
+  advance(g,.16);assert.equal(p.weapon,'ak47');assert.equal(p.grenadePhase,'');assert.equal(throws(g).length,1);
+  assert.ok(g.time>=firstThrow+GRENADE_TIMING.retireWithAmmoSeconds);
+});
+test('double flash: a tap released before recovery cannot queue an unwanted second throw',()=>{
+  const {g,p}=firstOfTwoFlashes();advance(g,.1);advance(g,1/60,true);advance(g,.7);
+  assert.equal(p.weapon,'ak47');assert.equal(p.grenades.flashbang,1);assert.equal(throws(g).length,1);
+});
+test('double flash: a quick release after recovery pulls and throws only one additional grenade',()=>{
+  const {g,p}=firstOfTwoFlashes();advance(g,.55);advance(g,1/60,true);const started=p.grenadeStartedAt;advance(g,1/60);
+  assert.equal(p.grenadePhase,'pin');assert.equal(p.grenadeReleased,true);assert.equal(throws(g).length,1);
+  advance(g,.6);assert.equal(throws(g).length,2);assert.equal(p.grenades.flashbang,0);
+  assert.ok(p.grenadeThrownAt+1e-8>=started+GRENADE_TIMING.pinSeconds);
+});
+for(const action of ['switch','menu','death','round'])test(`double flash: ${action} cancels followup preparation`,()=>{
+  const {g,p}=firstOfTwoFlashes();advance(g,.1);advance(g,.7,true);assert.equal(p.grenadePhase,'pin');
+  if(action==='switch')g.equip(p.id,1);
+  else if(action==='menu')g.input(p.id,{fire:false,cancelThroughSeq:1,round:g.round});
+  else if(action==='death')g.damage(p,1000);
+  else g.begin();
+  advance(g,.8);assert.equal(p.grenadePhase,'');assert.equal(p.grenades.flashbang,1);assert.equal(throws(g).length,1);
+});
+test('double flash: missing sequenced commands cannot rearm or release a grenade',()=>{
+  const {g,p}=firstOfTwoFlashes();let seq=0;
+  const input=fire=>{g.input(p.id,{seq:++seq,round:g.round,fire});g.step();};
+  for(let i=0;i<10;i++)input(true);for(let i=0;i<26;i++)g.step();
+  assert.equal(p.grenadePhase,'throw','lost hold cannot start another pin');assert.equal(p.grenades.flashbang,1);
+  input(true);assert.equal(p.grenadePhase,'pin');for(let i=0;i<12;i++)input(true);
+  for(let i=0;i<4;i++)g.step();assert.equal(p.grenadeReleased,false);assert.equal(throws(g).length,1);
+  for(let i=0;i<30;i++)input(true);assert.equal(p.grenadePhase,'hold');input(false);
+  assert.equal(throws(g).length,2);assert.equal(p.grenades.flashbang,0);
+});
+
+test('double flash: a click after automatic retirement uses the rifle instead of retrieving a grenade',()=>{
+  const {g,p}=firstOfTwoFlashes();advance(g,.8);assert.equal(p.weapon,'ak47');
+  advance(g,1/60,true);assert.equal(p.weapon,'ak47');assert.equal(p.grenades.flashbang,1);assert.equal(throws(g).length,1);
+});

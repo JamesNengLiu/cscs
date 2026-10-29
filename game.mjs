@@ -215,7 +215,10 @@ export class Game {
   shoot(p,burstFollowup=false){if(!p?.alive||!allowsPlayerActions(this.phase)||p.shieldRaised)return false;
     if(p.weapon==='knife')return this.knife(p);
     if(GRENADE_IDS.includes(p.weapon)){
-      if(this.time<(p.nextAttackAt||0)||p.grenadePhase||p.grenades[p.weapon]<=0)return false;
+      if(this.time+1e-8<(p.nextAttackAt||0)||(p.grenadePhase&&p.grenadePhase!=='throw')||p.grenades[p.weapon]<=0)return false;
+      // A real held attack after the throw cooldown can pull the next grenade
+      // before WeaponIdle retires it. Do not redeploy or carry its old release.
+      resetGrenadeThrow(p);
       p.grenadePhase='pin';p.grenadeStartedAt=this.time;p.grenadeReleased=false;return true;
     }
     const w=GUNS[p.weapon];if(!w||this.time<(p.nextAttackAt||0)||p.ammo<=0)return false;
@@ -249,7 +252,8 @@ export class Game {
   updateGrenade(p,actualInput){
     if(!p.grenadePhase||!GRENADE_IDS.includes(p.weapon))return;
     if(p.grenadePhase==='throw'){
-      if(this.time+1e-8>=p.grenadeThrownAt+GRENADE_TIMING.recoverSeconds)activate(p,p.primary||p.pistol||'knife',this.time);
+      const retire=p.grenades[p.weapon]>0?GRENADE_TIMING.retireWithAmmoSeconds:GRENADE_TIMING.recoverSeconds;
+      if(this.time+1e-8>=p.grenadeThrownAt+retire)activate(p,p.primary||p.pistol||'knife',this.time);
       return;
     }
     // A missing sequenced command is not a release; prolonged silence cancels preparation.

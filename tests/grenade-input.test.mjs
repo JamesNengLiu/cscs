@@ -62,12 +62,12 @@ test('grenade input: holding fire while drawing starts pin preparation when the 
   advance(g,.5,true);assert.equal(p.grenadePhase,'hold');advance(g,1/RULES.tick);assert.equal(throws(g).length,1);
 });
 
-test('grenade input: menu cancellation and prolonged input silence never become a throw',()=>{
+test('grenade input: explicit menu cancellation clears preparation; silence preserves it without a throw',()=>{
   for(const cancel of [true,false]){
     const {g,p}=match();g.input(p.id,{seq:1,round:g.round,fire:true});g.step();
     if(cancel)g.input(p.id,{round:g.round,fire:false,cancelThroughSeq:1});
     for(let i=0;i<60;i++)g.step();
-    assert.equal(p.grenadePhase,'');assert.equal(p.grenades.hegrenade,1);assert.equal(throws(g).length,0);
+    assert.equal(p.grenadePhase,cancel?'':'hold');assert.equal(p.grenades.hegrenade,1);assert.equal(throws(g).length,0);
   }
 });
 
@@ -176,14 +176,12 @@ for(const kind of GRENADE_IDS)for(const gapTicks of [8,20,40])test(`grenade hold
   assert.equal(throws(g).length,1);assert.equal(p.grenades[kind],0);
 });
 
-for(const kind of GRENADE_IDS)test(`grenade hold: ${kind} timeout cancels safely and requires a real release before rearming`,()=>{
+for(const kind of GRENADE_IDS)test(`grenade hold: ${kind} survives a six-second gap until explicit release, without another pin`,()=>{
   const {g,p}=match(kind);let seq=0;
   const command=fire=>{g.inputBatch(p.id,[{seq:++seq,round:g.round,fire}]);g.step();};
-  command(true);for(let i=0;i<60;i++)g.step();
-  assert.equal(p.grenadePhase,'');assert.equal(throws(g).length,0);assert.equal(p.grenades[kind],1);
+  command(true);const started=p.grenadeStartedAt;for(let i=0;i<360;i++)g.step();
+  assert.equal(p.grenadePhase,'hold');assert.equal(throws(g).length,0);assert.equal(p.grenades[kind],1);
   for(let i=0;i<35;i++)command(true);
-  assert.equal(p.grenadePhase,'','recovered held packets cannot restart a cancelled pin');
-  command(false);assert.equal(throws(g).length,0);command(true);const started=p.grenadeStartedAt;
-  for(let i=0;i<32;i++)command(true);assert.equal(p.grenadeStartedAt,started);assert.equal(p.grenadePhase,'hold');
+  assert.equal(p.grenadePhase,'hold');assert.equal(p.grenadeStartedAt,started);
   command(false);assert.equal(throws(g).length,1);assert.equal(p.grenades[kind],0);
 });

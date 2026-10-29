@@ -277,7 +277,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
       ? ['pin','hold'].includes(state.grenadePhase)?'pullpin':state.grenadePhase==='throw'?'throw':null : null;
     const specified = state.weaponSequence ?? grenadeSequence;
     const grenadeAt=grenadeSequence==='throw'?state.grenadeThrownAt:state.grenadeStartedAt;
-    const key = specified == null ? null : `${specified}:${grenadeSequence?grenadeAt:state.animationToken ?? ''}`;
+    const key = specified == null ? null : `${specified}:${grenadeSequence?(state.grenadeAnimationToken??grenadeAt):state.animationToken ?? ''}`;
     const continuingGrenade=grenadeSequence&&key===explicitKey;
     if (key !== null) {
       const selected = typeof specified === 'number' ? active.data.sequences[specified] : active.data.sequences.find(s => s.name === specified);

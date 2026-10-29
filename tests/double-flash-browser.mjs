@@ -11,6 +11,7 @@ g.buy(p.id,'ak47');g.buy(p.id,'flashbang');g.buy(p.id,'flashbang');g.equip(p.id,
 Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0});
 const report={status:'running',checks:[],errors:[],externalRequests:[],scope:'Isolated native Chrome, real production client/assets and offline Game via IPC; no live room, listening service or physical multiplayer/FPS claim.'};
 let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,inputBlockedUntil=0;
+let intentGate=null,releaseGate=null,intentChain=Promise.resolve();
 try{
   await mkdir(new URL('../artifacts/',import.meta.url),{recursive:true});
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
@@ -18,7 +19,11 @@ try{
   page.on('pageerror',e=>report.errors.push(e.message));
   page.on('request',r=>{if(!r.url().startsWith('https://double-flash.test/')&&!r.url().startsWith('data:'))report.externalRequests.push(r.url());});
   await page.exposeFunction('sendToGame',m=>{
-    if(m.type==='join'){joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}
+    if(m.type==='join'){g.enableGrenadeIntents(p.id);joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}
+    if(m.type==='grenadeIntent'){
+      const gate=intentGate,result=intentChain.then(async()=>{if(gate)await gate;const ack=g.grenadeIntent(p.id,m);return ack?[ack]:[];});
+      intentChain=result.catch(()=>[]);return result;
+    }
     // Application-input fault injection only; this is not a physical network test.
     if(['inputBatch','inputCritical'].includes(m.type)&&performance.now()<inputBlockedUntil)return [];
     if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);
@@ -53,8 +58,20 @@ try{
   await page.goto('https://double-flash.test/?transport=websocket');await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.click('#resumeButton');
   await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.locked&&d.weapon==='flashbang'&&!d.weaponModel.loading;});
   await page.waitForFunction(()=>window.lanStrike.getState().time>1);
-  await page.mouse.click(640,400);
+  intentGate=new Promise(resolve=>{releaseGate=resolve;});
+  await page.mouse.down();
+  await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.grenadePrediction.phase==='pin'&&d.weaponModel.sequence==='pullpin';});
+  assert.equal(p.grenadePhase,'','pin prediction must render before the press reaches the server');
+  await page.screenshot({path:'artifacts/grenade-prediction-before-authority.png'});
+  await page.mouse.up();
+  await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.grenadePrediction.phase==='throw'&&d.weaponModel.sequence==='throw';});
+  assert.equal(g.projectiles.length,0);assert.equal(p.grenades.flashbang,2);
+  const firstLocalStart=await page.evaluate(()=>window.lanStrike.getDiagnostics().grenadePrediction.startedAt);
+  releaseGate();intentGate=null;releaseGate=null;
   await page.waitForFunction(()=>window.doubleFlash.events.filter(e=>e.type==='throw').length===1);
+  const confirmed=await page.evaluate(()=>window.lanStrike.getDiagnostics().grenadePrediction);
+  assert.equal(confirmed.phase,'throw');assert.equal(confirmed.startedAt,firstLocalStart);assert.equal(confirmed.predicted,1);
+  report.checks.push('pin and release animate before gated reliable delivery; server confirmation neither replays nor re-anchors the action');
   const firstThrow=await page.evaluate(()=>window.doubleFlash.events.find(e=>e.type==='throw').time);
   await page.mouse.down();
   await page.waitForFunction(first=>{const p=window.lanStrike.getState().players[0],m=window.lanStrike.getDiagnostics().weaponModel;return p.weapon==='flashbang'&&p.grenadeStartedAt>first&&p.grenadePhase==='pin'&&m.sequence==='pullpin';},firstThrow);
@@ -67,23 +84,27 @@ try{
       if(['pin','hold'].includes(p.grenadePhase)&&m.sequence==='pullpin'){const a=window.doubleFlash.heldFrames;a.push({started:p.grenadeStartedAt,frame:m.frame});if(a.length>600)a.shift();}
       requestAnimationFrame(sample);};requestAnimationFrame(sample);
   });
-  for(const milliseconds of [180,330,550]){inputBlockedUntil=performance.now()+milliseconds;await page.waitForTimeout(milliseconds+250);}
+  for(const milliseconds of [180,330,1200,3000]){inputBlockedUntil=performance.now()+milliseconds;await page.waitForTimeout(milliseconds+250);}
   await page.waitForFunction(()=>{const s=window.lanStrike.getState(),p=s.players[0],d=window.lanStrike.getDiagnostics();return p.grenadePhase==='hold'&&d.weaponModel.sequence==='pullpin'&&d.weaponModel.frame>=40&&s.time-p.grenadeStartedAt>3&&d.flashOpacity===0;});
   const frames=await page.evaluate(()=>{window.doubleFlash.monitorHold=false;return window.doubleFlash.heldFrames;});
   assert.ok(frames.length>3);assert.ok(frames.every(f=>f.started===report.secondPin.started),'held input gaps restarted the pin preparation');
   assert.ok(frames.every((f,i)=>!i||f.frame>=frames[i-1].frame),'the same pin animation rewound');
-  report.holdFaults={inputDropWindowsMs:[180,330,550],sampledFrames:frames.length,uniquePinStarts:new Set(frames.map(f=>f.started)).size,monotonicAnimation:true};
-  report.checks.push('held input survives 180/330/550ms application-input gaps with one preparation timestamp and monotonic imported animation');
+  report.holdFaults={inputDropWindowsMs:[180,330,1200,3000],sampledFrames:frames.length,uniquePinStarts:new Set(frames.map(f=>f.started)).size,monotonicAnimation:true};
+  report.checks.push('held input survives 180/330/1200/3000ms application-input gaps with one preparation timestamp and monotonic imported animation');
   assert.equal(await page.evaluate(()=>window.doubleFlash.events.filter(e=>e.type==='throw').length),1);
   const before=await page.evaluate(first=>window.doubleFlash.states.filter(s=>s.time>=first),firstThrow);
   assert.ok(before.every(s=>s.weapon==='flashbang'),'rifle was drawn between the two flashes');
   await page.screenshot({path:'artifacts/double-flash-held-second.png'});
   report.checks.push('the second imported viewmodel stays in the held pin pose, keeps one flash in inventory, and does not cook or auto-throw');
-  await page.mouse.up();await page.waitForFunction(()=>window.doubleFlash.events.filter(e=>e.type==='throw').length===2);
+  intentGate=new Promise(resolve=>{releaseGate=resolve;});await page.mouse.up();
+  await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weaponModel.sequence==='throw');
+  assert.equal(p.grenadePhase,'hold');assert.equal(p.grenades.flashbang,1,'local throw prediction cannot consume authority inventory');
+  releaseGate();intentGate=null;releaseGate=null;
+  await page.waitForFunction(()=>window.doubleFlash.events.filter(e=>e.type==='throw').length===2);
   await page.waitForFunction(()=>{const p=window.lanStrike.getState().players[0];return p.weapon==='ak47'&&p.grenades.flashbang===0;});
   const states=await page.evaluate(()=>window.doubleFlash.states);report.secondThrow=await page.evaluate(()=>window.doubleFlash.events.filter(e=>e.type==='throw')[1].time);
   const rifle=states.find(s=>s.time>report.secondThrow&&s.weapon==='ak47');assert.ok(rifle.time+1e-8>=report.secondThrow+.5);
   report.checks.push('releasing left click throws exactly the second flash, consumes it once, and returns to the rifle after recovery');
   assert.deepEqual(report.errors,[]);assert.deepEqual(report.externalRequests,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;console.error(e);process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/double-flash-browser-report.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}
+finally{releaseGate?.();closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/double-flash-browser-report.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}

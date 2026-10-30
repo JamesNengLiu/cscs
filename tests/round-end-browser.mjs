@@ -19,7 +19,7 @@ async function control(action){
   });server.send({action});return received;
 }
 try{
-  for(const name of ['server.mjs','server-telemetry.mjs','lag-compensation.mjs','game.mjs','inventory.mjs','grenades.mjs','package.json','public'])await cp(path.join(root,name),path.join(temporary,name),{recursive:true,filter:source=>!source.startsWith(path.join(root,'public/assets'))&&source!==path.join(root,'public/map-data.js')});
+  for(const name of ['server.mjs','event-visibility.mjs','ballistics.mjs','hitboxes.mjs','server-telemetry.mjs','lag-compensation.mjs','game.mjs','inventory.mjs','grenades.mjs','package.json','public'])await cp(path.join(root,name),path.join(temporary,name),{recursive:true,filter:source=>!source.startsWith(path.join(root,'public/assets'))&&source!==path.join(root,'public/map-data.js')});
   await symlink(path.join(root,'node_modules'),path.join(temporary,'node_modules'),'dir');
   await writeFile(path.join(temporary,'public/map-data.js'),'export const MAP_DATA='+JSON.stringify(FLAT_MAP)+';\n');
   await writeFile(path.join(temporary,'fixture-server.mjs'),`import {game} from './server.mjs';
@@ -35,11 +35,11 @@ try{
     server.stderr.on('data',chunk=>process.stderr.write(chunk));server.once('exit',code=>{clearTimeout(timeout);reject(Error('Server exited '+code));});
   });
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-background-timer-throttling']});
-  const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];page.on('pageerror',error=>{errors.push(error.message);console.error('PAGE ERROR',error.message,error.stack);});
   await page.route(base+'/map-render.js',route=>route.fulfill({contentType:'text/javascript',body:`import * as THREE from '/vendor/three.module.js';
     export async function loadOriginalMap(scene){const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshBasicMaterial({color:0x666666}));floor.rotation.x=-Math.PI/2;floor.position.y=3.2;scene.add(floor);
-      return {faces:1,triangles:2,textures:0,sourceSHA256:'synthetic',minimap:document.createElement('canvas'),minimapPoint:()=>[100,100]};}` }));
-  await page.route(base+'/weapon-model.js',route=>route.fulfill({contentType:'text/javascript',body:`export async function createWeaponView(THREE,camera){const group=new THREE.Group();camera.add(group);return {group,setWeapon(){},update(){},dispose(){},info:()=>({source:'test-stand-in'})};}` }));
+      return {faces:1,triangles:2,textures:0,sourceSHA256:'synthetic',minimap:document.createElement('canvas'),minimapPoint:()=>[100,100],groundSoundSurface:()=>({material:'concrete',texture:'synthetic'})};}` }));
+  await page.route(base+'/weapon-model.js',route=>route.fulfill({contentType:'text/javascript',body:`export async function loadWeaponManifest(){throw Error('Synthetic fixture: no original weapon assets');}export async function loadConvertedWeapon(){throw Error('Synthetic fixture: no original weapon assets');}export async function createWeaponView(THREE,camera){const group=new THREE.Group();camera.add(group);return {group,setWeapon(){},update(){},dispose(){},info:()=>({source:'test-stand-in'})};}` }));
   await page.route(base+'/player-model.js',route=>route.fulfill({contentType:'text/javascript',body:`export function createPlayerActor(THREE){const group=new THREE.Group();return {group,setCharacter(){},update(dt,p){group.position.set(p.x,p.y,p.z);},dispose(){},info:()=>({source:'test-stand-in'})};}` }));
   await page.goto(base);await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.waitForFunction(()=>window.lanStrike.getId()&&window.lanStrike.getState()?.players.length===1);
   peer=new WebSocket(base.replace('http','ws'));await new Promise((resolve,reject)=>{peer.once('error',reject);peer.on('message',raw=>{const m=JSON.parse(String(raw));if(m.type==='hello')peer.send(JSON.stringify({type:'join',team:'CT',name:'round fixture opponent'}));if(m.type==='joined')resolve();});});

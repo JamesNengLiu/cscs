@@ -1,5 +1,6 @@
 import * as THREE from '/vendor/three.module.js';
 import {MAP_DATA} from './map-data.js';
+import {createGroundSoundSampler,parseSoundMaterials} from './audio-surfaces.js';
 export async function loadOriginalMap(scene){
   const base='/assets/dust2/',response=await fetch(base+'render.json');if(!response.ok)throw Error('地图数据加载失败');
   const data=await response.json();if(data.sourceSHA256!==MAP_DATA.sourceSHA256)throw Error('Map source mismatch');
@@ -39,5 +40,8 @@ export async function loadOriginalMap(scene){
   ctx.fillStyle='#14212a';ctx.fillRect(0,0,200,200);
   for(const p of [...data.polygons].sort((a,b)=>a.vertices[0][1]-b.vertices[0][1]))if(p.normal[1]>.7){
     ctx.fillStyle=p.vertices[0][1]>2?'#bdac8d':'#93866e';ctx.beginPath();p.vertices.forEach((v,i)=>{const c=point(v[0],v[2]);i?ctx.lineTo(...c):ctx.moveTo(...c);});ctx.closePath();ctx.fill();}
-  return {faces:data.polygons.length,triangles,textures:images.length,sourceSHA256:data.sourceSHA256,minimap:mini,minimapPoint:point};
+  let materialTable=new Map();
+  try{const r=await fetch('/assets/sounds/materials.txt');if(r.ok)materialTable=parseSoundMaterials(await r.text());}catch{}
+  const groundSoundSurface=createGroundSoundSampler(data,materialTable,new Set(MAP_DATA.models.filter(m=>m.index===0||m.entity.classname==='func_breakable').map(m=>m.index)));
+  return {faces:data.polygons.length,triangles,textures:images.length,sourceSHA256:data.sourceSHA256,minimap:mini,minimapPoint:point,groundSoundSurface,soundMaterials:groundSoundSurface.info()};
 }

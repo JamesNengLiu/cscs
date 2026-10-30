@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAN STRIKE · 局域网战术射击原型</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tuning.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAN STRIKE · 局域网战术射击原型</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tuning.css"><link rel="stylesheet" href="/audio.css"></head>
 <body>
 <canvas id="game"></canvas>
 <div id="lobby" class="overlay"><section class="card">
@@ -12,7 +12,7 @@
   <label>画质 / 流畅度<select data-quality aria-label="画质 / 流畅度"><option value="auto">自动 · 显卡持续过载时调整分辨率</option><option value="performance">优先流畅 · 较低渲染分辨率</option><option value="sharp">优先清晰 · 固定高分辨率</option></select></label>
   <button type="submit" id="joinButton" disabled>正在连接服务器…</button></form>
   <button id="characterPreview" class="secondary" type="button">人物预览 · CS原版 / 自定义面部</button>
-  <button id="lobbySettingsButton" class="secondary" type="button">游戏菜单 · 鼠标 / 持枪 / 画质</button>
+  <button id="lobbySettingsButton" class="secondary" type="button">游戏菜单 · 鼠标 / 声音 / 持枪 / 画质</button>
   <button id="previewButton" class="secondary" type="button">先看地图 · 高差与路线预览</button><p class="quality">已启用原图贴图与 BSP 静态光照</p>
   <p id="error" role="alert"></p><div class="help"><b>桌面电脑 + 键盘鼠标 · 自定义开局 $10,000</b><br>WASD 移动 · 左键射击 / 投掷 · 右键武器副功能<br>空格 / 滚轮下跳跃 · Shift 慢走 · C / Ctrl 蹲下 · 按住 E 安放 / 拆除<br>B 购买 · 1 主武器 / 2 手枪 / 3 匕首 / 4 手雷 / 5 C4<br>Q 上一武器 · 滚轮上切换 · G 丢弃 · R 换弹 · Tab 战绩<br>Esc 释放鼠标；购买后点击“继续游戏”恢复操作</div>
   <p class="disclaimer">CS 1.6 武器目录与自定义经济；地图由社区镜像 BSP 数据转换。此项目不是完整原版引擎移植，武器动画与烟雾效果为浏览器近似实现。单人即可开局、购买和自由行动；首个对立阵营玩家加入时重新开局，同队加入延续当前回合。</p>
@@ -23,6 +23,7 @@
   <div id="topStatus"><strong id="timer">--:--</strong><div id="phase">等待玩家</div></div>
   <canvas id="minimap" width="200" height="200"></canvas><div id="mapLabel">de_dust2 · BSP 导入 v0.3</div>
   <div id="feed"></div><div id="notice"></div>
+  <aside id="radioMenu" hidden><b>无线电 · 数字选择</b><div id="radioChoices"></div><small>0 取消 · Z / X / V 切换菜单</small></aside>
   <div id="crosshair"><i></i><i></i><i></i><i></i></div><div id="hitmarker">×</div><div id="tuning"></div>
   <div id="interaction"><div id="actionText"></div><progress id="progress" max="1" value="0"></progress></div>
   <div id="loadout"><div id="weaponSlots"><span data-slot="1">1 主武器</span><span data-slot="2">2 手枪</span><span data-slot="3">3 匕首</span><span data-slot="4">4 手雷</span><span data-slot="5">5 C4</span></div><small id="grenadeCounts">HE 0 · FLASH 0 · SMOKE 0</small></div>
@@ -46,6 +47,16 @@
       <label for="weaponHand">持枪方向<select id="weaponHand" aria-describedby="weaponHandHelp"><option value="right">右手持枪</option><option value="left">左手持枪</option></select></label>
       <p id="weaponHandHelp" class="menu-help">切换持枪手，准星和开镜保持居中。</p><small id="weaponHandStatus" role="status" aria-live="polite"></small>
       <p class="menu-help">跳跃：空格 / 滚轮向下 · 蹲下：C / 左右 Ctrl<br>滚轮向上切枪；数字键和 Q 切枪保持可用。</p>
+    </fieldset>
+    <fieldset class="menu-section"><legend>声音与听声辨位</legend>
+      <label class="audio-toggle"><input id="audioEnabled" type="checkbox" checked>启用游戏声音</label>
+      <label for="audioMode">输出模式<select id="audioMode"><option value="hrtf">双声道耳机 · HRTF 三维定位（推荐）</option><option value="equalpower">立体声扬声器 · 左右声像</option></select></label>
+      <div class="audio-volume"><label for="audioMaster">总音量 <output id="audioMasterValue">28%</output></label><input id="audioMaster" type="range" min="0" max="100" step="1" value="28"></div>
+      <div class="audio-volume"><label for="audioEffects">战斗与环境 <output id="audioEffectsValue">100%</output></label><input id="audioEffects" type="range" min="0" max="100" step="1" value="100"></div>
+      <div class="audio-volume"><label for="audioVoice">无线电与播报 <output id="audioVoiceValue">100%</output></label><input id="audioVoice" type="range" min="0" max="100" step="1" value="100"></div>
+      <p class="menu-help">敌人的脚步、枪声和爆炸来自实际声源，随距离衰减、随视角转动改变方向，不依赖是否看见敌人。建议关闭系统/耳机额外的虚拟环绕，避免与 HRTF 重复处理。前后辨位需要双声道耳机，并受设备与个体影响。</p>
+      <div class="diagnostics-actions"><button id="testAudioPosition" type="button" class="secondary">方位试听 · 左 / 右 / 前 / 后</button><button id="resetAudioSettings" type="button" class="secondary">恢复默认声音设置</button></div>
+      <small id="audioSettingsStatus" role="status" aria-live="polite">点击继续游戏或方位试听后启用声音。</small><small id="audioRuntimeStatus"></small>
     </fieldset>
     <fieldset class="menu-section"><legend>图形与性能</legend><label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label></fieldset>
     <fieldset class="menu-section"><legend>联机诊断</legend>

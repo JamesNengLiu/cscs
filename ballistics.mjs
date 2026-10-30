@@ -1,10 +1,23 @@
 import {readFileSync} from 'node:fs';
 import {MAP_DATA,trace} from './public/map.js';
 // Geometry stays in the existing ignored BSP render resource. No material meshes are bundled here.
+import {createGroundSoundSampler,parseSoundMaterials,textureSoundMaterial} from './public/audio-surfaces.js';
 const surfaces=new Map();
+let materials=new Map(),groundSounds=()=>({material:'concrete',texture:''});
+try{materials=parseSoundMaterials(readFileSync(new URL('./public/assets/sounds/materials.txt',import.meta.url),'utf8'));}catch{}
+export const groundSoundSurface=p=>groundSounds(p);
+export function soundMaterialAt(position,normal,model=0){
+  const point=[position.x,position.y,position.z];
+  for(const face of surfaces.get(model)||[]){
+    if(face.normal.reduce((s,n,i)=>s+n*normal[i],0)<.9||point.some((n,i)=>n<face.min[i]-.02||n>face.max[i]+.02))continue;
+    if(Math.abs(face.normal.reduce((s,n,i)=>s+n*(point[i]-face.vertices[0][i]),0))>.025)continue;
+    return {texture:face.name,material:textureSoundMaterial(face.name,materials)};
+  }return {texture:'',material:'concrete'};
+}
 try{
   const data=JSON.parse(readFileSync(new URL('./public/assets/dust2/render.json',import.meta.url),'utf8'));
   if(data.sourceSHA256!==MAP_DATA.sourceSHA256)throw Error('Map material provenance differs');
+  groundSounds=createGroundSoundSampler(data,materials,new Set(MAP_DATA.models.filter(m=>m.index===0||m.entity.classname==='func_breakable').map(m=>m.index)));
   for(const face of data.polygons.slice(0,20000)){
     const list=surfaces.get(face.model)||[];list.push({name:data.textures[face.texture].name,vertices:face.vertices,normal:face.normal,
       min:[0,1,2].map(i=>Math.min(...face.vertices.map(v=>v[i]))),max:[0,1,2].map(i=>Math.max(...face.vertices.map(v=>v[i])))});surfaces.set(face.model,list);

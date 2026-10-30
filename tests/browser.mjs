@@ -23,7 +23,7 @@ try{
   await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().remoteModels.some(m=>m.id==='urban'&&m.source==='original-mdl'&&!m.loading&&m.error===null));
   await pages[1].waitForFunction(()=>window.lanStrike.getDiagnostics().remoteModels.some(m=>m.id==='terror_trump'&&m.source==='custom-trump-face'&&!m.loading&&m.error===null));
   assert.equal(await pages[0].evaluate(()=>window.lanStrike.getDiagnostics().character),'terror_trump');assert.equal(await pages[1].evaluate(()=>window.lanStrike.getDiagnostics().character),'urban');check('two real clients replicate selected T custom / CT original characters and load actual remote MDLs');
-  await pages[0].click('#openBuyButton');await pages[0].locator('button[data-category="rifle"]').click();await pages[0].locator('[data-item="ak47"]').click();
+  await pages[0].click('#openBuyButton');await pages[0].locator('[data-item="ak47"]').click();
   await pages[0].waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='ak47'&&window.lanStrike.getDiagnostics().money===7500);
   assert.equal(await pages[0].locator('button[data-category="ammo"]').count(),0);
   await pages[0].waitForFunction(()=>{const p=window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId());return p?.ammo===30&&p.reserve===90;});

@@ -34,19 +34,20 @@ try{
   peer=new WebSocket(base.replace('http','ws'));await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Peer timeout')),10000);peer.on('error',reject);peer.on('message',c=>{const m=JSON.parse(String(c));if(m.type==='hello')peer.send(JSON.stringify({type:'join',team:'CT',name:'Menu Opponent'}));if(m.type==='joined'){clearTimeout(timeout);resolve();}});});heartbeat=setInterval(()=>{if(peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({type:'input',input:{f:0,s:0,fire:false,yaw:0,pitch:0}}));},100);
   await page.bringToFront();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked&&document.pointerLockElement===document.getElementById('game'));
   const move=()=>page.evaluate(()=>{const before=window.lanStrike.getDiagnostics().input;document.dispatchEvent(new MouseEvent('mousemove',{movementX:40,movementY:-10,bubbles:true}));const after=window.lanStrike.getDiagnostics().input;return {yawDelta:after.yaw-before.yaw,pitchDelta:after.pitch-before.pitch,sensitivity:window.lanStrike.getDiagnostics().mouseSensitivity};});
-  const low=await move();assert.ok(Math.abs(low.yawDelta-(-40*.002*.5))<1e-8);assert.ok(Math.abs(low.pitchDelta-(10*.002*.5))<1e-8);
+  // Current project baseline: sensitivity 1 = .001 rad/pixel; scope also scales by FOV.
+  const low=await move();assert.ok(Math.abs(low.yawDelta-(-40*.001*.5))<1e-8);assert.ok(Math.abs(low.pitchDelta-(10*.001*.5))<1e-8);
   await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen&&!window.lanStrike.getDiagnostics().locked&&document.pointerLockElement===null);
   await page.fill('#mouseSensitivityNumber','1');await page.locator('#mouseSensitivityNumber').blur();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);const normal=await move();assert.ok(Math.abs(normal.yawDelta-low.yawDelta*2)<1e-8);assert.ok(Math.abs(normal.pitchDelta-low.pitchDelta*2)<1e-8);check('real pointer lock and actual yaw/pitch use the selected multiplier immediately',{low,normal});
   await page.waitForFunction(()=>{const s=window.lanStrike.getState();return s?.phase==='live'&&s.players.find(p=>p.id===window.lanStrike.getId())?.alive;});
   await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);
   await page.fill('#scopedSensitivityNumber','0.5');await page.locator('#scopedSensitivityNumber').blur();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);
-  await page.keyboard.press('KeyB');await page.locator('button[data-category="sniper"]').click();await page.locator('[data-item="awp"]').click();await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='awp');await page.click('#buyResume');
+  await page.keyboard.press('KeyB');await page.locator('[data-item="awp"]').click();await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='awp');await page.click('#buyResume');
   await page.waitForFunction(()=>{const s=window.lanStrike.getState(),p=s.players.find(p=>p.id===window.lanStrike.getId());return window.lanStrike.getDiagnostics().locked&&s.time>=p.nextAttackAt;});
   const unscoped=await move();assert.ok(Math.abs(unscoped.yawDelta-normal.yawDelta)<1e-8);
   const secondary=()=>page.evaluate(()=>document.dispatchEvent(new MouseEvent('mousedown',{button:2,bubbles:true})));
   for(const zoom of [40,10,90]){
     await secondary();await page.waitForFunction(z=>window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId())?.zoom===z,zoom);
-    const aimed=await move(),scale=zoom===90?1:.5;
+    const aimed=await move(),scale=zoom===90?1:.5*zoom/90;
     assert.ok(Math.abs(aimed.yawDelta-normal.yawDelta*scale)<1e-8);assert.ok(Math.abs(aimed.pitchDelta-normal.pitchDelta*scale)<1e-8);
     await page.waitForTimeout(350);
   }

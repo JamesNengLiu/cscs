@@ -101,6 +101,7 @@ export function createShotFeedback({maxAgeMs=1200}={}){
     },
     authoritative(){view=null;},
     view:()=>view,
-    diagnostics:()=>({pending:pending.filter(p=>!p.auth).length,predicted,suppressed,history:history.length}),
+    diagnostics:()=>({pending:pending.filter(p=>!p.auth).length,predicted,suppressed,history:history.length,
+      recoil:view?{weapon:view.weapon,yaw:view.recoilYaw||0,pitch:view.recoilPitch||0}:null}),
   };
 }

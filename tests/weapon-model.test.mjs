@@ -153,7 +153,7 @@ test('runtime loads all canonical weapons, samples real skeletal motion, preserv
     assert.equal(view.info().convertedSHA256Verified, true);
     assert.ok(view.info().cachedModels<=4,'Viewmodel cache must remain bounded during all-weapon cycling');
     view.update(0.016, {weaponSequence: view.info().availableSequences.find(s => s.name.startsWith('idle')).name, weaponFrame: 0});
-    view.group.traverse(o => { if (o.isMesh) { assert.equal(o.material.depthTest, true); assert.equal(o.material.depthWrite, true); assert.equal(o.layers.mask,2); assert.ok(o.renderOrder >= 100); assert.ok(o.geometry.attributes.position.array.every(Number.isFinite)); } });
+    view.group.traverse(o => { if (o.isMesh) { assert.equal(o.material.depthTest, true); assert.equal(o.material.depthWrite, o!==view.muzzle); assert.equal(o.layers.mask,2); assert.ok(o.renderOrder >= 100); assert.ok(o.geometry.attributes.position.array.every(Number.isFinite)); } });
   }
   await view.setWeapon('ak47');
   view.update(0, {weaponSequence: 'idle1', weaponFrame: 0});

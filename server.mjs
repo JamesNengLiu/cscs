@@ -7,6 +7,7 @@ import os from 'node:os';
 import {randomUUID,X509Certificate} from 'node:crypto';
 import {WebSocketServer,WebSocket} from 'ws';
 import {Game} from './game.mjs';
+import {applyScopeAwareAction} from './scope-actions.mjs';
 import {RULES,MAP_VERSION,MAP_DATA} from './public/shared.js';
 import {GUNS} from './public/arsenal.js';
 import {ECONOMY} from './public/economy.js';
@@ -67,11 +68,8 @@ function connect(ws,req){
       else if(m.type==='grenadeIntent'&&joined){const ack=game.grenadeIntent(id,m);if(ack)send(ws,ack);}
       else if((m.type==='inputBatch'||m.type==='inputCritical')&&joined){if(!Array.isArray(m.commands)||m.commands.length>MAX_INPUT_BATCH)throw Error('Invalid input batch');game.inputBatch(id,m.commands);game.lagComp.view(id,m.commands,{viewTime:m.viewTime,interpDelayMs:m.interpDelayMs,now:game.time,round:game.round});}
       else if(m.type==='input'&&joined)game.input(id,m.input);
-      else if(m.type==='reload'&&joined)game.reload(id);
-      else if(m.type==='equip'&&joined)game.equip(id,m.weapon);
+      else if(['reload','equip','drop','secondary'].includes(m.type)&&joined){const ack=applyScopeAwareAction(game,id,m);if(ack)send(ws,ack);}
       else if(m.type==='buy'&&joined){game.buy(id,m.item);send(ws,game.snapshot(id));}
-      else if(m.type==='drop'&&joined)game.drop(id);
-      else if(m.type==='secondary'&&joined)game.secondary(id);
       else if(m.type==='nightvision'&&joined)game.toggleNightvision(id);
       else if(m.type==='radio'&&joined)game.radio(id,m.menu,m.slot);
       else if(m.type==='clockReply'&&probe&&m.token===probe.token){game.lagComp.timing(id,performance.now()-probe.at);probe=null;}

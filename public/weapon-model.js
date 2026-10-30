@@ -1,5 +1,6 @@
 // Real MDLv10 geometry/skins and embedded skeletal tracks, converted locally.
 import {createRigidSkinning} from './rigid-skinning.js';
+import {createMuzzleFlash} from './muzzle-flash.js';
 // No proprietary assets are embedded in this module. See docs/weapon-model-fidelity.md.
 export const WEAPON_MODEL_IDS = Object.freeze('glock18 usp p228 deagle elite fiveseven m3 xm1014 mac10 tmp mp5navy ump45 p90 galil famas ak47 m4a1 aug sg552 scout awp g3sg1 sg550 m249 knife hegrenade flashbang smokegrenade c4 shield'.split(' '));
 const BASE = '/assets/weapons/';
@@ -38,9 +39,9 @@ function validate(data, id, entry) {
   for (const m of data.meshes) {
     const n = m.vertexBones.length;
     check(n <= 1000000 && m.positions.length === n * 3 && m.normals.length === n * 3 && m.normalBones.length === n && m.uvPixels.length === n * 2, 'Invalid vertex arrays');
-    check([...m.positions, ...m.normals, ...m.uvPixels].every(Number.isFinite), 'Non-finite geometry');
+    check(m.positions.every(Number.isFinite)&&m.normals.every(Number.isFinite)&&m.uvPixels.every(Number.isFinite), 'Non-finite geometry');
     check(m.indices.length % 3 === 0 && m.indices.every(i => index(i, n)), 'Invalid triangle index');
-    check([...m.vertexBones, ...m.normalBones].every(i => index(i, data.bones.length)), 'Invalid vertex bone');
+    check(m.vertexBones.every(i=>index(i,data.bones.length))&&m.normalBones.every(i=>index(i,data.bones.length)), 'Invalid vertex bone');
     check(index(m.bodypart, data.bodyparts.length) && index(m.model, data.bodyparts[m.bodypart].models.length), 'Invalid bodypart');
     check(index(m.skinref, data.skins[0].length), 'Invalid mesh skin reference');
   }
@@ -190,7 +191,7 @@ async function buildOriginal(THREE, id, entry, skinningMode) {
     if (attachment) target.fromArray(attachment.origin).applyMatrix4(matrices[attachment.bone]).applyMatrix4(root.matrix);
     else target.set(0, 0, -0.43);
   }
-  return {root, data, pose, muzzlePosition, verified, dispose() {
+  return {root, data, pose, muzzlePosition, verified,textures:[...materials.map(m=>m.map),skinning.texture].filter(Boolean), dispose() {
     skinning.dispose(); meshes.forEach(m => m.geometry.dispose());
     materials.forEach(m => { m.map.dispose(); m.dispose(); });
   }};
@@ -208,9 +209,9 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   group.position.fromArray(LEGACY_ORIGIN);
   group.renderOrder = FOREGROUND;
   camera.add(group);
-  const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({color: 0xffca69, depthTest: false, depthWrite: false, toneMapped: false}));
-  muzzle.name = 'procedural-muzzle-flash';
+  const flash=createMuzzleFlash(THREE),muzzle=flash.mesh;
   foreground(muzzle);
+  muzzle.material.depthWrite=false;
   muzzle.visible = false;
   muzzle.renderOrder = FOREGROUND + 10;
   muzzle.frustumCulled = false;
@@ -271,6 +272,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     return pending;
   }
   function update(dt, state = {}, time = null) {
+    flash.update({...state,weapon:id},time);
     if (!active || disposed) return;
     state ||= {};
     const grenadeSequence=state.weaponSequence==null&&['hegrenade','flashbang','smokegrenade'].includes(id)
@@ -331,7 +333,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   function info() {
     return {
       ...(active ? active.data.metadata : {id, source: 'procedural-fallback', sourceSHA256: null, animationSupport: 'none'}),
-      id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,muzzleVisible:muzzle.visible,
+      id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,muzzleVisible:muzzle.visible,muzzleProfile:flash.info(),
       convertedSHA256Verified: active?.verified || false,
       availableSequences: active?.data.sequences.map(s => ({name: s.name, fps: s.fps, frames: s.frames, imported: !!s.tracks})) || [],
       transform: {goldSrcToCamera: '(Y,Z,-X)/40 (right hand)', legacyOrigin: [...LEGACY_ORIGIN], uniformScale: SCALE},
@@ -344,8 +346,8 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     if (disposed) return;
     disposed = true; generation++; pending = null; removeCurrent();
     for (const promise of cache.values()) promise.then(model => model.dispose(), () => {});
-    cache.clear(); muzzle.geometry.dispose(); muzzle.material.dispose(); group.removeFromParent();
+    cache.clear();flash.dispose();group.removeFromParent();
   }
   await setWeapon('glock18');
-  return {group, muzzle, setWeapon, update, info, dispose};
+  return {group,muzzle,setWeapon,update,info,dispose,prepare(){const model=active;return {objects:model?[model.root,muzzle]:[muzzle],textures:[muzzle.material.map,...(model?.textures||[])],valid:()=>!disposed&&active===model};}};
 }

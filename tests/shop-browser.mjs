@@ -59,12 +59,13 @@ if(!process.argv.includes('--unit-only')){
     });
     await page.goto('https://shop.test/');await page.waitForFunction(()=>Boolean(window.testShop));
     assert.equal(await page.locator('#buyBalance').textContent(),'$10,000');
-    const categories=await page.locator('[data-category]').evaluateAll(nodes=>nodes.filter(n=>n.tagName==='BUTTON').map(n=>n.dataset.category));
-    const ids=[];
-    for(const category of categories){await page.locator(`button[data-category="${category}"]`).click();ids.push(...await page.locator('[data-item]').evaluateAll(nodes=>nodes.map(n=>n.dataset.item)));}
+    assert.equal(await page.locator('button[data-category]').count(),0,'unified menu has no category-switch step');
+    const ids=await page.locator('[data-item]').evaluateAll(nodes=>nodes.map(n=>n.dataset.item));
     assert.deepEqual(ids.sort(),[...Object.keys(GUNS),...Object.keys(EQUIPMENT)].sort());
+    const allOnScreen=await page.locator('[data-item]').evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth;}));
+    assert.equal(allOnScreen,true,'all 32 cards fit on the desktop screen');
+    assert.equal(await page.locator('.buy-column').count(),5);
     assert.ok(!ids.some(id=>['rifle','pistol','sniper'].includes(id)));
-    await page.locator('button[data-category="rifle"]').click();
     assert.equal(await page.locator('[data-item="m4a1"]').isDisabled(),true);
     await page.locator('[data-item="ak47"]').click();
     assert.deepEqual(await page.evaluate(()=>window.testShop.sent),[{type:'buy',item:'ak47'}]);
@@ -74,16 +75,21 @@ if(!process.argv.includes('--unit-only')){
     await page.evaluate(()=>{const t=window.testShop;t.player.money=7500;t.player.primary='ak47';t.player.weapon='ak47';t.player.inventory.ak47={ammo:30,reserve:0};t.update();});
     assert.equal(await page.locator('#buyBalance').textContent(),'$7,500');
     assert.equal(await page.locator('[data-item="ak47"]').getAttribute('data-equipped'),'true');
+    await page.evaluate(()=>window.stableSmoke=document.querySelector('[data-item="smokegrenade"]'));
+    await page.evaluate(()=>{window.testShop.player.money=7400;window.testShop.update();});
+    assert.equal(await page.evaluate(()=>window.stableSmoke===document.querySelector('[data-item="smokegrenade"]')),true);
     assert.equal(await page.locator('button[data-category="ammo"]').count(),0);
     assert.match(await page.locator('[data-item="ak47"]').textContent(),/赠满备弹/);
     assert.match(await page.locator('#buyStartMoney').textContent(),/每回合自动补满/);
-    await page.locator('button[data-category="equipment"]').click();
     await page.evaluate(()=>{const t=window.testShop;t.player.grenades.flashbang=2;t.update();});
     assert.equal(await page.locator('[data-item="flashbang"]').isDisabled(),true);
     await page.evaluate(()=>{const t=window.testShop;t.player.canBuy=false;t.update();});
     assert.equal(await page.locator('.shop-item:not(:disabled)').count(),0);
     await page.evaluate(()=>{const t=window.testShop;t.player.canBuy=true;t.player.team='CT';t.update();});
     assert.equal(await page.locator('[data-item="defusekit"]').isDisabled(),false);
+    await page.evaluate(()=>{const t=window.testShop;t.player.money=10000;t.update();t.sent.length=0;document.querySelector('[data-item="m4a1"]').click();document.querySelector('[data-item="assaultsuit"]').click();document.querySelector('[data-item="smokegrenade"]').click();});
+    assert.deepEqual(await page.evaluate(()=>window.testShop.sent.map(m=>m.item)),['m4a1','assaultsuit','smokegrenade']);
+    assert.equal(await page.locator('#buyBalance').textContent(),'$10,000');
     await mkdir('artifacts',{recursive:true});await page.screenshot({path:'artifacts/lan-strike-shop.png'});
     await page.setViewportSize({width:760,height:560});
     assert.equal(await page.evaluate(()=>document.querySelector('.buy-panel').scrollWidth<=innerWidth),true);
@@ -122,6 +128,10 @@ async function checkClient(browser){
     try{await route.fulfill({contentType:type,body:await readFile(file)});}catch{await route.fulfill({status:404,body:'Missing fixture asset'});}
   });
   await page.goto('https://client.test/');await page.waitForFunction(()=>window.lanStrike?.getRenderInfo().triangles>0,null,{timeout:30000});
+  // Asset completion can request its final lobby frame. Establish an idle
+  // baseline after those asynchronous loads, before testing unrelated shots.
+  await page.waitForFunction(()=>window.lanStrike.getDiagnostics().worldEffects.projectileModels.models.every(m=>m.source==='viewmodel-weapon-body'));
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const idleFrames=await page.evaluate(()=>window.lanStrike.getRenderInfo().frame);
   await page.evaluate(()=>window.fixtureWS.emit({type:'events',events:[{type:'shot',id:'remote',from:{x:0,y:1,z:0},to:{x:1,y:1,z:1}}]}));
   await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>window.lanStrike.getRenderInfo().frame),idleFrames);
@@ -131,7 +141,7 @@ async function checkClient(browser){
   await page.waitForFunction(()=>window.lanStrike.getDiagnostics().buyMenuOpen&&!document.pointerLockElement);
   const neutral=await page.evaluate(()=>window.lanStrike.getDiagnostics().input);
   assert.equal(neutral.f,0);assert.equal(neutral.fire,false);assert.equal(neutral.jump,false);
-  await page.locator('button[data-category="equipment"]').click();await page.locator('[data-item="hegrenade"]').isDisabled();
+  assert.equal(await page.locator('[data-item="hegrenade"]').isDisabled(),true,'one carried HE already reaches its limit');
   await page.locator('[data-item="smokegrenade"]').click();
   assert.ok(await page.evaluate(()=>window.clientSent.some(m=>m.type==='buy'&&m.item==='smokegrenade')));
   assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().money),10000);

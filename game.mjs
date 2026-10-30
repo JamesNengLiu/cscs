@@ -15,6 +15,8 @@ import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TIC
 import {GRENADE_TIMING,resetGrenadeThrow,grenadeActionPhase} from './public/grenade-state.js';
 import {GRENADE_PROTOCOL,normalizeGrenadeIntent} from './public/grenade-intent.js';
 import {consumeGunShot} from './public/gun-state.js';
+import {SCOPE_VIEW_PROTOCOL} from './public/awp-view.js';
+import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
@@ -262,7 +264,12 @@ export class Game {
     const result=armourDamage(amount,previousArmour,p.helmet,options.hitgroup||'chest',options.armourRatio??1,!!options.blast);p.armour=result.armour;
     const healthDamage=Math.trunc(result.healthDamage);
     if(GUNS[options.kind]&&killer&&killer!==p){
-      if(healthDamage>0||result.armourDamage>0){p.flinchAt=this.time;p.flinchHead=options.hitgroup==='head';}
+      if(healthDamage>0||result.armourDamage>0){
+        const head=options.hitgroup==='head',reacting=this.time-p.flinchAt>=0&&this.time-p.flinchAt<.16;
+        // Let a reaction finish under automatic fire; head hits can supersede a
+        // body reaction. The same phase feeds rendered and historical hitboxes.
+        if(!reacting||(head&&!p.flinchHead)){p.flinchAt=this.time;p.flinchHead=head;}
+      }
       const large=!p.crouch&&options.hitgroup!=='legs'&&['scout','aug','sg550','galil','famas','awp','m3','m4a1','g3sg1','deagle','sg552','ak47'].includes(options.kind);
       p.velocityModifier=large?.65:.5;
       if(large&&Math.hypot(p.vx||0,p.vz||0,p.vy||0)<300/40){const dx=p.x-killer.x,dy=p.y-killer.y,dz=p.z-killer.z,len=Math.hypot(dx,dy,dz)||1;p.vx+=dx/len*170/40;p.vz+=dz/len*170/40;}
@@ -409,7 +416,7 @@ export class Game {
       // without firing/jumping, so loss cannot manufacture another press.
       if(preserveEdges)p.jumpHeld=heldJump;
       if(command.seq){p.ackInputSeq=command.seq;p.lastAppliedInputSeq=command.seq;p.appliedInputCommands++;}
-      updateWeapon(p,dt,this.time);this.pickup(p);
+      updateWeapon(p,dt,this.time,preserveEdges);this.pickup(p);
       const w=GUNS[p.weapon];
       if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
       if(p.reloadAt&&this.time+1e-8>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?p.reloadAt+w.reload:0;saveActive(p);}
@@ -428,7 +435,7 @@ export class Game {
     const present=team=>all.some(p=>p.team===team),alive=team=>all.some(p=>p.alive&&p.team===team);
     if(present('CT')&&!alive('CT'))this.finish('T','对方全灭');else if(present('T')&&!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'0.5.0',movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
+  snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(player=>{
         const {input,lastInput,lastInputSeq,pendingMoney,...p}=player,animation=hitboxAnimation(player,this.time);
         if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return {...visible,...animation};}

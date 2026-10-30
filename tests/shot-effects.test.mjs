@@ -96,20 +96,42 @@ test('shot effects: sustained fire reuses bounded batches and creates no line ob
   const scene=new THREE.Scene(),fx=createShotEffects(THREE,scene,{random:seed()});
   for(let i=0;i<3000;i++)fx.add(impact(),1+i/10000);
   assert.equal(fx.info().decals,SHOT_FX_LIMITS.decals);assert.equal(fx.info().dust,SHOT_FX_LIMITS.dust);
-  assert.equal(scene.children.length,SHOT_FX_LIMITS.variants+1);
-  assert.equal(new Set(scene.children.map(o=>o.geometry)).size,2);
+  assert.equal(fx.info().debris,SHOT_FX_LIMITS.debris);
+  assert.equal(scene.children.length,SHOT_FX_LIMITS.variants+2);
+  assert.equal(new Set(scene.children.map(o=>o.geometry)).size,3);
   scene.traverse(o=>assert.equal(Boolean(o.isLine),false));assert.equal(fx.info().tracers,0);
-  fx.update(2);assert.equal(fx.info().dust,0);assert.equal(fx.info().decals,SHOT_FX_LIMITS.decals);
+  fx.update(2.2);assert.equal(fx.info().dust,0);assert.equal(fx.info().debris,0);assert.equal(fx.info().decals,SHOT_FX_LIMITS.decals);
   fx.dispose();assert.equal(scene.children.length,0);
 });
 
 test('shot effects: dust is brief, settled holes render on demand, and lifetime/round cleanup works',()=>{
   const scene=new THREE.Scene(),fx=createShotEffects(THREE,scene,{random:()=>0});fx.add(impact(),1);
   assert.equal(fx.update(1.08),true);assert.ok(fx.info().dust>0);
-  fx.update(1.2);assert.equal(fx.info().dust,0);assert.equal(fx.info().decals,1);
+  fx.update(1+SHOT_FX_LIMITS.dustSeconds+.001);assert.equal(fx.info().dust,0);assert.equal(fx.info().decals,1);
+  fx.update(1+SHOT_FX_LIMITS.debrisSeconds+.001);assert.equal(fx.info().debris,0);
   assert.equal(fx.update(2),false);
   assert.equal(fx.update(62),true);assert.equal(fx.info().decals,0);assert.ok(scene.children.every(o=>!o.visible));
   fx.add(impact(),63);fx.clear();assert.equal(fx.info().decals,0);assert.equal(fx.info().dust,0);
   fx.add(impact(),64);assert.equal(fx.info().decals,1);fx.dispose();fx.dispose();
   assert.equal(scene.children.length,0);assert.equal(fx.add(impact(),65),false);
+});
+
+test('wall chips travel away from the surface, spin, fall and expire without moving the decal',()=>{
+  const scene=new THREE.Scene(),fx=createShotEffects(THREE,scene,{random:()=>.6});fx.add(impact(),1);
+  assert.equal(fx.info().debris,8);const chips=scene.getObjectByName('bullet-impact-debris'),matrix=new THREE.Matrix4();
+  const at=time=>{fx.update(time);chips.getMatrixAt(0,matrix);const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();matrix.decompose(p,q,s);return {p,q,s};};
+  const a=at(1.05),b=at(1.15),c=at(1.25);
+  assert.ok(a.p.z>point.z+.05);assert.ok(c.p.z>b.p.z&&b.p.z>a.p.z);
+  assert.ok(c.p.y-b.p.y<b.p.y-a.p.y,'gravity accelerates falling');assert.ok(a.q.angleTo(b.q)>.001);
+  assert.equal(chips.material.depthTest,true);assert.equal(chips.parent,scene);assert.ok(a.s.x>.02);
+  fx.update(1.7);assert.equal(fx.info().debris,0);assert.equal(fx.info().decals,1);assert.equal(chips.visible,false);
+  fx.add(impact(),2);fx.clear();assert.equal(fx.info().debris,0);fx.dispose();assert.equal(scene.children.length,0);
+});
+test('sky hits and player hits do not emit wall chips; floor chips stay above the struck plane',()=>{
+  const scene=new THREE.Scene(),fx=createShotEffects(THREE,scene,{random:()=>.5});
+  assert.equal(fx.add({...impact(),impact:{...impact().impact,soundSurface:{texture:'sky'}}},1),false);
+  assert.equal(fx.add({...impact(),hit:true},1),false);assert.equal(fx.info().debris,0);
+  fx.add(impact({x:0,y:1,z:0}),1);const mesh=scene.getObjectByName('bullet-impact-debris'),m=new THREE.Matrix4();
+  for(const time of [1.05,1.2,1.4,1.6]){fx.update(time);for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,m);if(m.elements[0]||m.elements[5]||m.elements[10])assert.ok(m.elements[13]>=point.y-1e-5);}}
+  fx.dispose();
 });

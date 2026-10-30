@@ -33,7 +33,7 @@ test('friendly-fire rejection and a miss produce no player hit feedback',()=>{
 test('hit effects anchor to the visible delayed target, deduplicate a shotgun volley and expire',()=>{
   const shot=fire(match()),scene=new THREE.Scene(),fx=createPlayerHitEffects(THREE,scene,{random:()=>.5});
   const at=fx.add(shot,1,{x:4,y:2,z:3});assert.ok(at);for(const k of ['x','y','z'])assert.equal(at[k],({x:4,y:2,z:3})[k]+shot.hitImpact.offset[k]);
-  assert.equal(fx.add(shot,1),null);assert.equal(fx.info().accepted,1);assert.equal(fx.info().blood,10);
+  assert.equal(fx.add(shot,1),null);assert.equal(fx.info().accepted,1);assert.equal(fx.info().blood,12);
   fx.update(1.05,new THREE.Quaternion());assert.equal(scene.children[0].visible,true);assert.equal(fx.info().batches,1);
   fx.update(30);assert.equal(fx.info().active,0);assert.equal(scene.children[0].visible,false);fx.dispose();assert.equal(scene.children.length,0);
 });

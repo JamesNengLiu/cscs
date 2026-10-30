@@ -2,6 +2,12 @@
 import {GUNS} from './arsenal.js';
 import {KICK} from './weapon-kick.js';
 const rad=Math.PI/180,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// Explicit rollout scope: six rifles, five SMGs and AWP. Missing local version
+// means current rules; network clients mark older snapshots with version zero.
+export const MAIN_BALLISTICS_VERSION=1;
+const MAIN_AUTOMATICS=new Set(['ak47','m4a1','aug','sg552','galil','famas','mac10','mp5navy','tmp','ump45','p90']);
+export const usesMainAutoRules=p=>p?.ballisticsVersion!==0&&MAIN_AUTOMATICS.has(p?.weapon);
+export const usesMainWeaponRules=p=>p?.ballisticsVersion!==0&&(MAIN_AUTOMATICS.has(p?.weapon)||p?.weapon==='awp');
 const AUTO={
   ak47:[3,200,.35,1.25,.2],m4a1:[3,220,.3,1,.2],aug:[3,215,.3,1,.2],sg552:[3,220,.3,1,.2],
   galil:[3,200,.35,1.25,.2],famas:[3,215,.3,1,.2],m249:[3,175,.4,.9,.2],
@@ -75,7 +81,10 @@ export function applyKick(p,grounded,random=Math.random){
     const tuple=table[airFirst&&!grounded?1:moving?0:!grounded?1:p.crouch?2:3];
     const [up,side,upStep,sideStep,maxUp,maxSide,flip]=tuple;
     p.recoilPitch=Math.min(maxUp*rad,(p.recoilPitch||0)+(up+(n===1?0:n*upStep))*rad);
-    p.recoilYaw=clamp((p.recoilYaw||0)+(p.recoilDirection===1?1:-1)*(side+(n===1?0:n*sideStep))*rad,-maxSide*rad,maxSide*rad);
+    const yaw=(p.recoilYaw||0)+(p.recoilDirection===1?1:-1)*(side+(n===1?0:n*sideStep))*rad;
+    p.recoilYaw=usesMainAutoRules(p)
+      ?p.recoilDirection===1?Math.min(maxSide*rad,yaw):Math.max(-maxSide*rad,yaw)
+      :clamp(yaw,-maxSide*rad,maxSide*rad);
     if(Math.floor(random()*(flip+1))===0)p.recoilDirection=p.recoilDirection===1?0:1;
   }else{
     let kick=id==='glock18'?0:2;
@@ -92,4 +101,10 @@ export function decayPunch(p,dt){
   const length=Math.hypot(p.recoilYaw||0,p.recoilPitch||0),degrees=length/rad;
   const factor=length?Math.max(0,degrees-(10+degrees*.5)*dt)/degrees:0;
   p.recoilYaw=(p.recoilYaw||0)*factor;p.recoilPitch=(p.recoilPitch||0)*factor;
+}
+// Sample the remaining fraction of a fixed prediction tick analytically, rather
+// than adding another low-pass tail after the actual ballistic punch has ended.
+export function sampleViewRecoil(p,seconds=0){
+  const recoil={recoilYaw:Number.isFinite(p?.recoilYaw)?p.recoilYaw:0,recoilPitch:Number.isFinite(p?.recoilPitch)?p.recoilPitch:0};
+  decayPunch(recoil,Number.isFinite(seconds)?clamp(seconds,0,1/60):0);return recoil;
 }

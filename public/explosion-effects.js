@@ -1,5 +1,7 @@
 // Original procedural fire/smoke artwork. Effects follow authoritative detonation positions.
 export const EXPLOSION_LIMITS=Object.freeze({bursts:16,seconds:2,firePerBurst:2,smokePerBurst:6,sparksPerBurst:12});
+// Presentation scale only; blast damage, radius, fuse and projectile physics are unchanged.
+export const HE_VISUAL_SCALE=1.7;
 const clamp=n=>Math.max(0,Math.min(1,n));
 function texture(THREE,fire){
   const size=64,data=new Uint8Array(size*size*4);
@@ -14,9 +16,10 @@ function texture(THREE,fire){
   const result=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);result.colorSpace=THREE.SRGBColorSpace;result.needsUpdate=true;return result;
 }
 function batch(THREE,scene,name,capacity,map){
+  const fire=name==='he-explosion-fire';
   const geometry=map?new THREE.PlaneGeometry(1,1):new THREE.BoxGeometry(1,1,1);
   const tint=new THREE.InstancedBufferAttribute(new Float32Array(capacity*4),4);tint.setUsage(THREE.DynamicDrawUsage);geometry.setAttribute('fxTint',tint);
-  const material=new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,toneMapped:false,
+  const material=new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,toneMapped:false,blending:fire?THREE.AdditiveBlending:THREE.NormalBlending,
     uniforms:{fxMap:{value:map},textured:{value:Boolean(map)}},
     vertexShader:`attribute vec4 fxTint;varying vec4 vTint;varying vec2 vFXuv;
       void main(){vTint=fxTint;vFXuv=uv;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`,
@@ -25,7 +28,7 @@ function batch(THREE,scene,name,capacity,map){
       #include <colorspace_fragment>
       }`,
   });
-  const mesh=new THREE.InstancedMesh(geometry,material,capacity);mesh.name=name;mesh.count=0;mesh.visible=false;mesh.frustumCulled=false;mesh.renderOrder=2;
+  const mesh=new THREE.InstancedMesh(geometry,material,capacity);mesh.name=name;mesh.count=0;mesh.visible=false;mesh.frustumCulled=false;mesh.renderOrder=fire?3:2;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(mesh);return {mesh,tint,map};
 }
 export function createExplosionEffects(THREE,scene){
@@ -52,20 +55,20 @@ export function createExplosionEffects(THREE,scene){
         if(age<.7)for(let j=0;j<2;j++){
           position.set(s.x+(j? .15:-.15),s.y+.35+age*.65+j*.12,s.z);
           rotation.copy(cameraQuaternion||spin.identity()).multiply(spin.setFromAxisAngle(axis,s.seed+j*1.7+age*.5));
-          write(batches[0],counts[0]++,.55+Math.sqrt(age/.7)*2.5,[1,1,1],clamp(1-age/.7)**.7*(j?.65:1));
+          write(batches[0],counts[0]++,(.55+Math.sqrt(age/.7)*2.5)*HE_VISUAL_SCALE,[1,1,1],clamp(1-age/.7)**.7*(j?.65:1));
         }
         for(let j=0;j<6;j++){
-          const angle=s.seed+j*Math.PI/3,spread=.12+age*.3;
+          const angle=s.seed+j*Math.PI/3,spread=(.12+age*.3)*HE_VISUAL_SCALE;
           position.set(s.x+Math.cos(angle)*spread,s.y+.22+j*.1+age*(.35+j*.035),s.z+Math.sin(angle)*spread);
           rotation.copy(cameraQuaternion||spin.identity()).multiply(spin.setFromAxisAngle(axis,angle));
           const opacity=clamp(age/.18)*clamp((2-age)/.8)*.36;
-          write(batches[1],counts[1]++, .6+age*.8+j*.055,[.3,.27,.23],opacity);
+          write(batches[1],counts[1]++, (.6+age*.8+j*.055)*HE_VISUAL_SCALE,[.3,.27,.23],opacity);
         }
         if(age<.65)for(let j=0;j<12;j++){
-          const angle=s.seed+j*Math.PI*2/12,speed=1.5+j%4*.7;
+          const angle=s.seed+j*Math.PI*2/12,speed=(1.5+j%4*.7)*1.35;
           const y=s.y+.1+(1.6+j%3*.8)*age-5*age*age;if(y<s.y+.02)continue;
           position.set(s.x+Math.cos(angle)*age*speed,y,s.z+Math.sin(angle)*age*speed);rotation.identity();
-          write(batches[2],counts[2]++,.022+j%3*.007,[1,.55,.12],clamp(1-age/.65));
+          write(batches[2],counts[2]++,(.022+j%3*.007)*1.35,[1,.55,.12],clamp(1-age/.65));
         }
       }
       for(let i=0;i<batches.length;i++){const b=batches[i];b.mesh.count=counts[i];b.mesh.visible=counts[i]>0;b.mesh.instanceMatrix.needsUpdate=true;b.tint.needsUpdate=true;}

@@ -1,8 +1,8 @@
 import {encodeDatagrams,createReassembler,readReliable,encodeReliable} from './net-wire.js';
 // WebSocket-compatible surface. Fallback only BEFORE join: reconnecting an active game requires a refresh.
 export class GameConnection{
-  constructor({mode=new URLSearchParams(location.search).get('transport')||'auto',timeoutMs=5000}={}){
-    this.readyState=0;this.bufferedAmount=0;this.transport='connecting';this.reason='';this.counters={sentDatagrams:0,receivedDatagrams:0,coalescedInputs:0,staleStates:0};this.closed=false;this.mode=mode;this.timeoutMs=timeoutMs;this.sequence=0;this.actionSequence=0;this.latestInput=null;this.datagramBusy=false;this.controlQueue=Promise.resolve();this.reassembler=createReassembler();this.lastStateSeq=0;queueMicrotask(()=>this.connect());
+  constructor({mode=new URLSearchParams(location.search).get('transport')||'auto',timeoutMs=5000,deferStates=false}={}){
+    this.readyState=0;this.bufferedAmount=0;this.transport='connecting';this.reason='';this.counters={sentDatagrams:0,receivedDatagrams:0,coalescedInputs:0,staleStates:0,coalescedStates:0};this.closed=false;this.mode=mode;this.timeoutMs=timeoutMs;this.sequence=0;this.actionSequence=0;this.latestInput=null;this.datagramBusy=false;this.controlQueue=Promise.resolve();this.reassembler=createReassembler();this.lastStateSeq=0;this.deferStates=deferStates;this.pendingState=null;queueMicrotask(()=>this.connect());
   }
   diagnostics(){return {transport:this.transport,fallbackReason:this.reason,...this.counters,reassembly:this.reassembler.diagnostics(),bufferedBytes:this.bufferedAmount};}
   async connect(){
@@ -25,8 +25,16 @@ export class GameConnection{
   deliver(m){
     if(this.closed)return;
     if(m.type==='state'){const seq=m.net?.seq||0;if(seq&&seq<=this.lastStateSeq){this.counters.staleStates++;return;}this.lastStateSeq=Math.max(this.lastStateSeq,seq);}
-    this.onmessage?.({data:JSON.stringify(m)});
+    const event={data:JSON.stringify(m),receivedAtMs:performance.now()};
+    if(m.type==='state'){
+      this.onstatearrival?.(m,event);
+      // Consume one newest state at the start of the game frame. Events and
+      // reliable action acknowledgements still arrive immediately.
+      if(this.deferStates&&m.net?.seq){if(this.pendingState)this.counters.coalescedStates++;this.pendingState=event;return;}
+    }
+    this.onmessage?.(event);
   }
+  flushState(){const event=this.pendingState;this.pendingState=null;if(event&&!this.closed)this.onmessage?.(event);}
   send(payload){
     if(this.readyState!==1)return;const m=typeof payload==='string'?JSON.parse(payload):payload;
     if(this.transport==='websocket'){if(this.ws.bufferedAmount>65536){if(m.type==='inputBatch')return;this.close();return;}this.ws.send(JSON.stringify(m));this.bufferedAmount=this.ws.bufferedAmount;return;}
@@ -41,6 +49,6 @@ export class GameConnection{
     const packets=encodeDatagrams(m,{sequence:++this.sequence,maxSize:Math.min(1000,this.wt.datagrams.maxDatagramSize||1000)});
     for(const bytes of packets){await this.datagrams.write(bytes);this.counters.sentDatagrams++;}
   }}catch{this.close();}finally{this.datagramBusy=false;}}
-  finish(){if(this.closed)return;this.closed=true;this.readyState=3;try{this.wt?.close();}catch{}this.ws?.close();this.onclose?.({});}
+  finish(){if(this.closed)return;this.closed=true;this.pendingState=null;this.readyState=3;try{this.wt?.close();}catch{}this.ws?.close();this.onclose?.({});}
   close(){this.finish();}
 }

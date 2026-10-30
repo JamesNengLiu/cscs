@@ -1,11 +1,12 @@
 // Server-confirmed, world-space hit feedback. One lazily created instanced batch.
+import {hitFeedbackProfile} from './hit-feedback-profile.js';
 export const PLAYER_HIT_LIMITS=Object.freeze({particles:256,marks:64,markSeconds:25});
 const valid=v=>v&&[v.x,v.y,v.z].every(n=>Number.isFinite(n)&&Math.abs(n)<10000);
 const SOUNDS=Object.freeze({blood:'player/bhit_flesh-1.wav',helmet:'player/bhit_helmet-1.wav',armour:'player/bhit_kevlar-1.wav',shield:'player/bhit_helmet-1.wav'});
 export const playerHitSound=effect=>typeof effect==='string'&&Object.hasOwn(SOUNDS,effect)?SOUNDS[effect]:null;
 export function createPlayerHitEffects(THREE,scene,{random=Math.random}={}){
   const capacity=PLAYER_HIT_LIMITS.particles+PLAYER_HIT_LIMITS.marks,slots=Array(capacity).fill(null),seen=new Set();
-  let mesh=null,geometry,material,map,tint,next=0,nextMark=0,disposed=false,previousCount=0,accepted=0;
+  let mesh=null,geometry,material,map,tint,next=0,nextMark=0,disposed=false,previousCount=0,accepted=0,lastProfile=null;
   const point=new THREE.Vector3(),scale=new THREE.Vector3(),rotation=new THREE.Quaternion(),spin=new THREE.Quaternion(),axis=new THREE.Vector3(0,0,1),matrix=new THREE.Matrix4();
   const unit=()=>Math.max(0,Math.min(.999999,Number(random())||0));
   function ensure(){
@@ -25,8 +26,9 @@ export function createPlayerHitEffects(THREE,scene,{random=Math.random}={}){
     mesh=new THREE.InstancedMesh(geometry,material,capacity);mesh.name='player-hit-feedback';mesh.count=0;mesh.visible=false;mesh.frustumCulled=false;mesh.renderOrder=2;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(mesh);
   }
   const particle=p=>{slots[next++%PLAYER_HIT_LIMITS.particles]=p;};
-  function clear(){slots.fill(null);seen.clear();next=nextMark=previousCount=0;if(mesh){mesh.count=0;mesh.visible=false;}}
+  function clear(){slots.fill(null);seen.clear();next=nextMark=previousCount=0;lastProfile=null;if(mesh){mesh.count=0;mesh.visible=false;}}
   return {
+    prepare(){if(disposed)return null;ensure();return {objects:[mesh],textures:[map],valid:()=>!disposed};},
     add(event,time,targetPosition=null){
       const hit=event?.hitImpact;
       if(disposed||!Number.isFinite(time)||event?.type!=='shot'||!playerHitSound(hit?.effect)||!valid(hit.position)||!valid(hit.direction)||typeof hit.targetId!=='string')return null;
@@ -38,12 +40,12 @@ export function createPlayerHitEffects(THREE,scene,{random=Math.random}={}){
       const d={x:hit.direction.x/magnitude,y:hit.direction.y/magnitude,z:hit.direction.z/magnitude};
       ensure();accepted++;
       const blood=hit.effect==='blood',spark=hit.effect==='helmet'||hit.effect==='shield';
-      const count=spark?12:blood?10:6;
+      const profile=hitFeedbackProfile(event),count=profile.count;lastProfile={weapon:event.weapon,kind:profile.kind,effect:hit.effect,hitgroup:hit.hitgroup,count};
       for(let i=0;i<count;i++){
-        const puff=i<2&&!spark,size=puff?.22+unit()*.16:spark?.035+unit()*.025:.035+unit()*.035;
-        particle({time,life:spark?.2:puff?.25:.32,effect:hit.effect,x:at.x-d.x*.035,y:at.y-d.y*.035,z:at.z-d.z*.035,
-          vx:-d.x*.4+(unit()-.5)*(puff?.5:2),vy:-d.y*.4+unit()*(puff?.5:1.5),vz:-d.z*.4+(unit()-.5)*(puff?.5:2),
-          size,stretch:spark?3:1,angle:unit()*Math.PI*2,color:blood?[.52,.008,.006]:spark?[1,.72,.22]:[.42,.4,.36],opacity:puff?.85:1});
+        const puff=i<profile.puffs,size=puff?profile.puffMin+unit()*profile.puffRange:profile.dropMin+unit()*profile.dropRange;
+        particle({time,life:puff?profile.puffLife:profile.life,effect:hit.effect,x:at.x-d.x*.035,y:at.y-d.y*.035,z:at.z-d.z*.035,
+          vx:-d.x*profile.outward+(unit()-.5)*(puff?.5:profile.spread),vy:-d.y*profile.outward+unit()*(puff?.5:1.5),vz:-d.z*profile.outward+(unit()-.5)*(puff?.5:profile.spread),
+          size,stretch:profile.stretch,angle:unit()*Math.PI*2,color:blood?[.52,.008,.006]:spark?(profile.kind!=='legacy'&&i<2?[1,.95,.65]:[1,.72,.22]):[.42,.4,.36],opacity:puff?.85:1});
       }
       if(blood&&valid(hit.wall?.position)&&valid(hit.wall?.normal)&&Math.hypot(hit.wall.position.x-hit.position.x,hit.wall.position.y-hit.position.y,hit.wall.position.z-hit.position.z)<=2.6){
         const n=new THREE.Vector3(hit.wall.normal.x,hit.wall.normal.y,hit.wall.normal.z);
@@ -69,7 +71,7 @@ export function createPlayerHitEffects(THREE,scene,{random=Math.random}={}){
     },
     clear,
     info(){const counts={blood:0,helmet:0,armour:0,shield:0,mark:0};for(const p of slots)if(p)counts[p.effect]++;
-      return {accepted,...counts,capacity,batches:mesh?1:0,active:slots.filter(Boolean).length};},
+      return {accepted,...counts,capacity,batches:mesh?1:0,active:slots.filter(Boolean).length,lastProfile:lastProfile&&{...lastProfile}};},
     dispose(){if(disposed)return;clear();disposed=true;if(mesh){scene.remove(mesh);mesh.dispose();geometry.dispose();material.dispose();map.dispose();}},
   };
 }

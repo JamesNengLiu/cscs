@@ -1,0 +1,2859 @@
+{
+  "reference": "ReGameDLL_CS",
+  "commit": "4a50c42e85fd3778c2b7d24731c7d30c83bbab01",
+  "flags": [
+    "REGAMEDLL_FIXES"
+  ],
+  "scope": "Numeric outputs of compiled PrimaryAttack/Fire/KickBack bodies with engine stubs and normalized midpoint random input. Not a retail executable trace.",
+  "cases": [
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.00549999997,
+        "pitch": 1,
+        "yaw": -0.375,
+        "accuracy": 0.3549999893,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -6,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.925000191,
+        "yaw": -1.75,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -6,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.925000191,
+        "yaw": -5.212500095,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 6,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.925000191,
+        "yaw": 5.212500095,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 6,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.925000191,
+        "yaw": 1.75,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -6,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.550000191,
+        "yaw": -1.5,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -6,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.550000191,
+        "yaw": -5.375,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 6,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.550000191,
+        "yaw": 5.375,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "ak47",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 6,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02749999985,
+        "pitch": 4.550000191,
+        "yaw": 1.5,
+        "accuracy": 1.25,
+        "interval": 0.09549999982
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.00400000019,
+        "pitch": 0.6499999762,
+        "yaw": -0.349999994,
+        "accuracy": 0.3045454621,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": -2.25,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": -2.985000134,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": 2.985000134,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": 2.25,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": -2,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": -3.0625,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": 3.0625,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "m4a1",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": 2,
+        "accuracy": 1,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.00400000019,
+        "pitch": 0.625,
+        "yaw": -0.375,
+        "accuracy": 0.304651171,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": -2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": -3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": 3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.5,
+        "yaw": 2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": -2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": -3.553999901,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": 3.553999901,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "aug",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.25,
+        "yaw": 2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.00400000019,
+        "pitch": 0.625,
+        "yaw": -0.375,
+        "accuracy": 0.3045454621,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 4,
+        "yaw": -2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 4,
+        "yaw": -3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 4,
+        "yaw": 3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 4,
+        "yaw": 2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.700000048,
+        "yaw": -2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.700000048,
+        "yaw": -3.512500048,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.700000048,
+        "yaw": 3.512500048,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "sg552",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.01999999955,
+        "pitch": 3.700000048,
+        "yaw": 2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.007500000298,
+        "pitch": 0.6499999762,
+        "yaw": -0.349999994,
+        "accuracy": 0.3549999893,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.5,
+        "yaw": -2.25,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.5,
+        "yaw": -2.985000134,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.5,
+        "yaw": 2.985000134,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.5,
+        "yaw": 2.25,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.25,
+        "yaw": -2,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.25,
+        "yaw": -3.0625,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.25,
+        "yaw": 3.0625,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "galil",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03750000149,
+        "pitch": 3.25,
+        "yaw": 2,
+        "accuracy": 1.25,
+        "interval": 0.08749999851
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.01400000043,
+        "pitch": 0.625,
+        "yaw": -0.375,
+        "accuracy": 0.304651171,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.5,
+        "yaw": -2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.5,
+        "yaw": -3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.5,
+        "yaw": 3.487499952,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.5,
+        "yaw": 2.25,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.25,
+        "yaw": -2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.25,
+        "yaw": -3.553999901,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.25,
+        "yaw": 3.553999901,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "famas",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3.25,
+        "yaw": 2,
+        "accuracy": 1,
+        "interval": 0.08250000328
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.15,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.004500000272,
+        "pitch": 0.7749999762,
+        "yaw": -0.4250000119,
+        "accuracy": 0.6050000191,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.75,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3,
+        "yaw": -2.75,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.75,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3,
+        "yaw": -2.994999886,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.75,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3,
+        "yaw": 2.994999886,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.75,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 3,
+        "yaw": 2.75,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.75,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": -2.5,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.75,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": -3.019999981,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.75,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": 3.019999981,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mac10",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.75,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": 2.5,
+        "accuracy": 1.649999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0,
+        "pitch": 0.25,
+        "yaw": -0.174999997,
+        "accuracy": 0.4545433819,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": -1.25,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": -2.605000019,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": 2.605000019,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": 1.25,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2,
+        "yaw": -1,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2,
+        "yaw": -2.684999943,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2,
+        "yaw": 2.684999943,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "mp5navy",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2,
+        "yaw": 1,
+        "accuracy": 0.75,
+        "interval": 0.07500000298
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.006000000052,
+        "pitch": 0.7250000238,
+        "yaw": -0.375,
+        "accuracy": 0.5550000072,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": -2.25,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": -2.849999905,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": 2.849999905,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.75,
+        "yaw": 2.25,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.5,
+        "yaw": -2,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.5,
+        "yaw": -2.875,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.5,
+        "yaw": 2.875,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "tmp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.02999999933,
+        "pitch": 2.5,
+        "yaw": 2,
+        "accuracy": 1.399999976,
+        "interval": 0.0700000003
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0,
+        "pitch": 0.275000006,
+        "yaw": -0.200000003,
+        "accuracy": 0.5047619343,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.5,
+        "yaw": -1.5,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.5,
+        "yaw": -3.55250001,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.5,
+        "yaw": 3.55250001,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.5,
+        "yaw": 1.5,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": -1.25,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": -3.605000019,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 0,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": 3.605000019,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "ump45",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 4,
+      "direction": 1,
+      "expected": {
+        "spread": 0.03999999911,
+        "pitch": 2.25,
+        "yaw": 1.25,
+        "accuracy": 1,
+        "interval": 0.1000000015
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0.2,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.009000000544,
+        "pitch": 0.3000000119,
+        "yaw": -0.224999994,
+        "accuracy": 0.4557142854,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3.25,
+        "yaw": -1.25,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3.25,
+        "yaw": -3.055000067,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3.25,
+        "yaw": 3.055000067,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3.25,
+        "yaw": 1.25,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3,
+        "yaw": -1,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": -3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3,
+        "yaw": -3.079999924,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 0,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3,
+        "yaw": 3.079999924,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "p90",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 1,
+      "count": 10,
+      "last": 9.8,
+      "pitch": 2,
+      "yaw": 3.5,
+      "direction": 1,
+      "expected": {
+        "spread": 0.04500000179,
+        "pitch": 3,
+        "yaw": 1,
+        "accuracy": 1,
+        "interval": 0.06599999964
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.08100000024,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.001000000047,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.07999999821,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": true,
+      "crouch": true,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 11,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.1800000072,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 11,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.1000000015,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 150,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.3299999833,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 150,
+      "grounded": true,
+      "crouch": false,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.25,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": false,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.9300000072,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 0,
+      "grounded": false,
+      "crouch": false,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.8500000238,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 200,
+      "grounded": false,
+      "crouch": false,
+      "zoom": 90,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.9300000072,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    },
+    {
+      "weapon": "awp",
+      "speed": 200,
+      "grounded": false,
+      "crouch": false,
+      "zoom": 40,
+      "mode": 0,
+      "accuracy": 0,
+      "count": 0,
+      "last": -100,
+      "pitch": 0,
+      "yaw": 0,
+      "direction": 0,
+      "expected": {
+        "spread": 0.8500000238,
+        "pitch": 2,
+        "yaw": 0,
+        "accuracy": 0,
+        "interval": 1.450000048
+      }
+    }
+  ],
+  "recovery": {
+    "initialCount": 24,
+    "initialAccuracy": 1,
+    "baseAccuracy": 0.2,
+    "rows": [
+      {
+        "tick": 0,
+        "time": 10.0200004578,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 1,
+        "time": 10.0366668701,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 2,
+        "time": 10.0533342361,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 3,
+        "time": 10.0700006485,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 4,
+        "time": 10.0866670609,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 5,
+        "time": 10.1033334732,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 6,
+        "time": 10.1200008392,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 7,
+        "time": 10.1366672516,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 8,
+        "time": 10.1533336639,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 9,
+        "time": 10.1700000763,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 10,
+        "time": 10.1866674423,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 11,
+        "time": 10.2033338547,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 12,
+        "time": 10.220000267,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 13,
+        "time": 10.2366666794,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 14,
+        "time": 10.2533340454,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 15,
+        "time": 10.2700004578,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 16,
+        "time": 10.2866668701,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 17,
+        "time": 10.3033342361,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 18,
+        "time": 10.3200006485,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 19,
+        "time": 10.3366670609,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 20,
+        "time": 10.3533334732,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 21,
+        "time": 10.3700008392,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 22,
+        "time": 10.3866672516,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 23,
+        "time": 10.4033336639,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 24,
+        "time": 10.4200000763,
+        "count": 15,
+        "deadline": 10.4200000763,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 25,
+        "time": 10.4366674423,
+        "count": 14,
+        "deadline": 10.4591674805,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 26,
+        "time": 10.4533338547,
+        "count": 14,
+        "deadline": 10.4591674805,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 27,
+        "time": 10.470000267,
+        "count": 13,
+        "deadline": 10.4925003052,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 28,
+        "time": 10.4866666794,
+        "count": 13,
+        "deadline": 10.4925003052,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 29,
+        "time": 10.5033340454,
+        "count": 12,
+        "deadline": 10.5258340836,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 30,
+        "time": 10.5200004578,
+        "count": 12,
+        "deadline": 10.5258340836,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 31,
+        "time": 10.5366668701,
+        "count": 11,
+        "deadline": 10.5591669083,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 32,
+        "time": 10.5533342361,
+        "count": 11,
+        "deadline": 10.5591669083,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 33,
+        "time": 10.5700006485,
+        "count": 10,
+        "deadline": 10.5925006866,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 34,
+        "time": 10.5866670609,
+        "count": 10,
+        "deadline": 10.5925006866,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 35,
+        "time": 10.6033334732,
+        "count": 9,
+        "deadline": 10.6258335114,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 36,
+        "time": 10.6200008392,
+        "count": 9,
+        "deadline": 10.6258335114,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 37,
+        "time": 10.6366672516,
+        "count": 8,
+        "deadline": 10.6591672897,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 38,
+        "time": 10.6533336639,
+        "count": 8,
+        "deadline": 10.6591672897,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 39,
+        "time": 10.6700000763,
+        "count": 7,
+        "deadline": 10.6925001144,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 40,
+        "time": 10.6866674423,
+        "count": 7,
+        "deadline": 10.6925001144,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 41,
+        "time": 10.7033338547,
+        "count": 6,
+        "deadline": 10.7258338928,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 42,
+        "time": 10.720000267,
+        "count": 6,
+        "deadline": 10.7258338928,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 43,
+        "time": 10.7366666794,
+        "count": 5,
+        "deadline": 10.7591667175,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 44,
+        "time": 10.7533340454,
+        "count": 5,
+        "deadline": 10.7591667175,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 45,
+        "time": 10.7700004578,
+        "count": 4,
+        "deadline": 10.7925004959,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 46,
+        "time": 10.7866668701,
+        "count": 4,
+        "deadline": 10.7925004959,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 47,
+        "time": 10.8033342361,
+        "count": 3,
+        "deadline": 10.8258342743,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 48,
+        "time": 10.8200006485,
+        "count": 3,
+        "deadline": 10.8258342743,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 49,
+        "time": 10.8366670609,
+        "count": 2,
+        "deadline": 10.859167099,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 50,
+        "time": 10.8533334732,
+        "count": 2,
+        "deadline": 10.859167099,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 51,
+        "time": 10.8700008392,
+        "count": 1,
+        "deadline": 10.8925008774,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 52,
+        "time": 10.8866672516,
+        "count": 1,
+        "deadline": 10.8925008774,
+        "accuracy": 1.0
+      },
+      {
+        "tick": 53,
+        "time": 10.9033336639,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 54,
+        "time": 10.9200000763,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 55,
+        "time": 10.9366674423,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 56,
+        "time": 10.9533338547,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 57,
+        "time": 10.970000267,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 58,
+        "time": 10.9866666794,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 59,
+        "time": 11.0033340454,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 60,
+        "time": 11.0200004578,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 61,
+        "time": 11.0366668701,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 62,
+        "time": 11.0533332825,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 63,
+        "time": 11.0700006485,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 64,
+        "time": 11.0866670609,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 65,
+        "time": 11.1033334732,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 66,
+        "time": 11.1200008392,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 67,
+        "time": 11.1366672516,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 68,
+        "time": 11.1533336639,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 69,
+        "time": 11.1700000763,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      },
+      {
+        "tick": 70,
+        "time": 11.1866674423,
+        "count": 0,
+        "deadline": 10.9258337021,
+        "accuracy": 0.20000000298
+      }
+    ],
+    "baseAccuracyByWeapon": {
+      "ak47": 0.2,
+      "m4a1": 0.2,
+      "aug": 0.2,
+      "sg552": 0.2,
+      "galil": 0.2,
+      "famas": 0.2,
+      "mac10": 0.15,
+      "mp5navy": 0,
+      "tmp": 0.2,
+      "ump45": 0,
+      "p90": 0.2,
+      "awp": 0
+    }
+  }
+}

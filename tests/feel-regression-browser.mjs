@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';import {performance} from 'node:perf_hooks';
-import {Game} from '../game.mjs';import {supportHeight} from '../public/shared.js';
+import {Game} from '../game.mjs';import {GUNS} from '../public/arsenal.js';import {supportHeight} from '../public/shared.js';
 const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game({random:()=>.27}),p=g.add('local','Feel regression','T');g.begin();g.time=10;g.buy(p.id,'ak47');Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});
 let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,blocked=false,heldEvents=[];
 const report={scope:'Production client and offline Game, native isolated headless Chrome; synthetic browser mouse/wheel events and deliberately held outgoing confirmation. Not physical mouse-to-photon or retail-CS timing.',errors:[]};
@@ -11,10 +11,10 @@ try{
  await mkdir(new URL('../artifacts/',import.meta.url),{recursive:true});
  browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
  const page=await browser.newPage({viewport:{width:1280,height:800}});page.on('pageerror',e=>report.errors.push(e.message));
- await page.exposeFunction('toGame',m=>{if(m.type==='join'){if(m.grenadeProtocol)g.enableGrenadeIntents(p.id);joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='ping')return[{type:'pong',sent:m.sent}];return[];});
+ await page.exposeFunction('toGame',m=>{if(m.type==='join'){if(m.grenadeProtocol)g.enableGrenadeIntents(p.id);joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='equip')g.equip(p.id,m.weapon);else if(m.type==='secondary')g.secondary(p.id);else if(m.type==='ping')return[{type:'pong',sent:m.sent}];return[];});
  await page.addInitScript(()=>{
   window.audit={rows:[],commands:[],marks:[],label:null};
-  const raf=requestAnimationFrame.bind(window);window.requestAnimationFrame=cb=>raf(t=>{cb(t);if(cb.name==='frame'&&window.audit.label&&window.lanStrike){const d=window.lanStrike.getDiagnostics();window.audit.rows.push({t:performance.now(),label:window.audit.label,seq:d.inputSeq,rawYaw:d.input.yaw,model:d.weaponModel.sequence,frame:d.weaponModel.frame,predicted:d.shotFeedback.predicted,recoilYaw:d.recoilYaw,recoilPitch:d.recoilPitch,ack:d.ackInputSeq,muzzle:d.weaponModel.muzzleVisible,ammo:window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId()).ammo});}});
+  const raf=requestAnimationFrame.bind(window);window.requestAnimationFrame=cb=>raf(t=>{cb(t);if(cb.name==='frame'&&window.audit.label&&window.lanStrike){const d=window.lanStrike.getDiagnostics();window.audit.rows.push({t:performance.now(),label:window.audit.label,seq:d.inputSeq,rawYaw:d.input.yaw,model:d.weaponModel.sequence,frame:d.weaponModel.frame,predicted:d.shotFeedback.predicted,recoilYaw:d.recoilYaw,recoilPitch:d.recoilPitch,simulated:d.shotFeedback.recoil,ack:d.ackInputSeq,muzzle:d.weaponModel.muzzleVisible,ammo:window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId()).ammo});}});
   window.WebSocket=class{static OPEN=1;constructor(){this.readyState=1;this.bufferedAmount=0;window.auditSocket=this;setTimeout(()=>{this.onopen?.();this.emit({type:'hello',id:'local'});},0);}emit(m){this.onmessage?.({data:JSON.stringify(m)});}send(raw){const m=JSON.parse(raw);if(m.type==='inputBatch'||m.type==='inputCritical')window.audit.commands.push({t:performance.now(),label:window.audit.label,type:m.type,commands:m.commands});window.toGame(m).then(ms=>ms.forEach(m=>this.emit(m)));}};
  });
  await page.route('https://feel-audit.test/**',async route=>{const path=new URL(route.request().url()).pathname,name=path==='/'?'index.html':path.slice(1);if(name.includes('..'))return route.abort();const file=name.startsWith('vendor/')?root+'/node_modules/three/build/'+name.slice(7):root+'/public/'+name;try{await route.fulfill({contentType:name.endsWith('.js')?'text/javascript':name.endsWith('.json')?'application/json':name.endsWith('.css')?'text/css':name.endsWith('.png')?'image/png':name.endsWith('.wav')?'audio/wav':'text/html',body:await readFile(file)});}catch{await route.fulfill({status:404,body:'Missing local asset'});}});
@@ -40,6 +40,36 @@ try{
  assert.ok(gated.some(r=>r.t>=press.t&&r.t<press.t+120&&r.muzzle),'muzzle must appear before confirmation');
  const beforeAuthority=gated.filter(r=>r.t>=press.t&&r.t<press.t+200);assert.equal(new Set(beforeAuthority.map(r=>r.ammo)).size,1,'presentation must not write authoritative ammunition');
  for(let i=1;i<gated.length;i++){const a=gated[i-1],b=gated[i];if(a.model===b.model&&/shoot|fire/.test(b.model)&&a.predicted===b.predicted)assert.ok(b.frame>=a.frame,'confirmation restarted an already predicted shot');}
+ // Main weapons use the authoritative punch curve without an extra display tail.
+ assert.equal(await page.evaluate(()=>window.lanStrike.getState().ballisticsVersion),1);
+ const setup=async weapon=>{
+  joined=false;while(busy)await new Promise(r=>setTimeout(r,2));p.team=GUNS[weapon].teams[0];p.alive=false;g.begin();p.money=16000;g.buy(p.id,weapon);
+  Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});g.endAt=g.time+1000;g.events=[];heldEvents=[];
+  await page.evaluate(state=>window.auditSocket.emit(state),g.snapshot(p.id));joined=true;previous=performance.now();
+  await page.waitForFunction(weapon=>{const d=window.lanStrike.getDiagnostics();return d.locked&&d.weapon===weapon&&d.weaponModel.id===weapon&&!d.weaponModel.loading;},weapon);
+ };
+ report.mainWeapons=[];
+ for(const weapon of ['ak47','m4a1','mp5navy','p90','famas']){
+  await setup(weapon);await page.evaluate(weapon=>window.audit.label='recovery-'+weapon,weapon);await page.mouse.down();
+  await page.waitForFunction(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).shotsFired>=16;});await page.mouse.up();
+  await page.waitForFunction(()=>{const s=window.lanStrike,p=s.getState().players.find(p=>p.id===s.getId());return p.delayFire===false&&p.burstCount<=15;});
+  await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.shotFeedback.recoil?.pitch===0&&d.recoilPitch===0;});
+  await page.waitForFunction(()=>{const s=window.lanStrike,p=s.getState().players.find(p=>p.id===s.getId());return p.burstCount===0;});
+  const samples=await page.evaluate(()=>window.audit.rows.filter(r=>r.label===window.audit.label));assert.ok(samples.some(r=>r.recoilPitch>.005));
+  for(const r of samples)if(r.simulated?.weapon===weapon){assert.ok(Math.hypot(r.recoilYaw,r.recoilPitch)<=Math.hypot(r.simulated.yaw,r.simulated.pitch)+1e-10,'display lagged behind ballistic recovery');if(!r.simulated.pitch&&!r.simulated.yaw)assert.equal(Math.hypot(r.recoilYaw,r.recoilPitch),0);}
+  report.mainWeapons.push({weapon,sampledFrames:samples.length,releaseCap:true,recovered:true,cameraAligned:true});
+ }
+ await setup('famas');p.burstMode=true;p.inventory.famas.burstMode=true;await page.evaluate(state=>window.auditSocket.emit(state),g.snapshot(p.id));
+ await page.mouse.down();await page.waitForTimeout(50);await page.mouse.up();await page.waitForFunction(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).shotsFired===3;});
+ report.mainWeapons.push({weapon:'famas',mode:'burst',threeShotsAfterRelease:true});
+ await setup('awp');p.zoom=40;await page.evaluate(state=>window.auditSocket.emit(state),g.snapshot(p.id));await page.waitForFunction(()=>!document.querySelector('#scopeOverlay').hidden);
+ await page.evaluate(()=>window.audit.label='awp');await page.mouse.down();await page.waitForTimeout(60);await page.mouse.up();await page.waitForFunction(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).shotsFired===1;});
+ await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.shotFeedback.recoil?.pitch===0&&d.recoilPitch===0;});
+ await page.keyboard.press('Digit2');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weapon==='glock18');await page.keyboard.press('Digit1');
+ await page.waitForFunction(()=>{const s=window.lanStrike,p=s.getState().players.find(p=>p.id===s.getId());return p.weapon==='awp'&&s.getState().time>=p.nextAttackAt;});
+ assert.equal(await page.evaluate(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).zoom;}),90);
+ await page.mouse.down({button:'right'});await page.mouse.up({button:'right'});await page.waitForFunction(()=>!document.querySelector('#scopeOverlay').hidden);
+ report.mainWeapons.push({weapon:'awp',scopedShot:true,cameraRecovered:true,manualScopeAfterSwitch:true});
  assert.deepEqual(report.errors,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;console.error(e);process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/feel-regression-browser-report.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,summary:report.summary,errors:report.errors,failure:report.failure},null,2));}
+finally{closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/feel-regression-browser-report.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,summary:report.summary,mainWeapons:report.mainWeapons,errors:report.errors,failure:report.failure},null,2));}

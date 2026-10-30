@@ -2,15 +2,24 @@ import {RULES,WEAPONS,RIFLE_PATTERN} from './config.js';
 import {GUNS} from './arsenal.js';
 import {clamp,direction} from './math.js';
 import {isGrounded} from './map.js';
-import {baseAccuracy,advanceAccuracy,accuracySpread,applyKick,decayPunch} from './weapon-feel.js';
+import {baseAccuracy,advanceAccuracy,accuracySpread,applyKick,decayPunch,usesMainAutoRules} from './weapon-feel.js';
 import {PITCH_LIMIT} from './view-settings.js';
 const grounded=p=>Boolean(p.groundPlayer&&p.grounded)||isGrounded(p);
 export function resetWeapon(p,{keepPunch=false}={}){p.burstCount=0;p.accuracy=baseAccuracy(p.weapon);p.recoveryAt=0;p.recoilDirection=0;
+  if(usesMainAutoRules(p))p.delayFire=false;
   if(!keepPunch){p.recoilYaw=0;p.recoilPitch=0;}p.spread=weaponSpread(p);}
-export function updateWeapon(p,dt,now){
+export function updateWeapon(p,dt,now,preserveHeldTrigger=false){
   decayPunch(p,Math.max(0,dt));
   if(GUNS[p.weapon]?.category==='pistol'&&!p.input?.fire)p.burstCount=0;
-  if(!p.input?.fire&&p.burstCount>0&&now-p.lastShot>.4){
+  if(usesMainAutoRules(p)){
+    if(!p.input?.fire&&!(preserveHeldTrigger&&p.fireHeld)){
+      // Source weapon timers are floats and use a strict deadline comparison.
+      const clock=Math.fround(now);
+      if(p.delayFire){p.delayFire=false;p.burstCount=Math.min(15,p.burstCount||0);p.recoveryAt=Math.fround(clock+Math.fround(.4));}
+      if(p.burstCount>0&&clock>p.recoveryAt){p.burstCount--;p.recoveryAt=Math.fround(clock+Math.fround(.0225));
+        if(!p.burstCount)p.accuracy=baseAccuracy(p.weapon);}
+    }
+  }else if(!p.input?.fire&&p.burstCount>0&&now-p.lastShot>.4){
     const at=p.recoveryAt||p.lastShot+.4;
     if(now>=at){const count=1+Math.floor((now-at)/.0225);p.burstCount=Math.max(0,p.burstCount-count);p.recoveryAt=at+count*.0225;
       if(!p.burstCount)p.accuracy=baseAccuracy(p.weapon);}
@@ -34,7 +43,8 @@ export function shotProfile(p,random=Math.random,now=p.lastShot,follow=false,kic
   p.burstCount=(p.burstCount||0)+1;
   if(GUNS[p.weapon])applyKick(p,grounded(p),kickRandom);
   else{const next=p.weapon==='rifle'?RIFLE_PATTERN[Math.min(p.burstCount,RIFLE_PATTERN.length-1)]:[0,Math.min(.035,p.burstCount*.007)];p.recoilYaw=next[0];p.recoilPitch=next[1];}
-  p.recoveryAt=now+.4;p.burstSpread=spread;
+  if(usesMainAutoRules(p))p.delayFire=true;else p.recoveryAt=now+.4;
+  p.burstSpread=spread;
   }
   p.spread=spread;
   return {...profile,direction:d,burst:p.burstCount,recoilYaw:p.recoilYaw,recoilPitch:p.recoilPitch};

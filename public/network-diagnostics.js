@@ -16,7 +16,7 @@ export function createNetworkDiagnostics({now=()=>performance.now(),capacity=600
     reset,
     ping(sent){if(!finite(sent))return;for(const [key,at] of pings)if(sent-at>10000)pings.delete(key);if(pings.size<16)pings.set(sent,sent);},
     pong(m){if(!pings.has(m.sent))return false;const elapsed=now()-pings.get(m.sent);pings.delete(m.sent);record('applicationRttMs',elapsed);if(m.net){server={...m.net};record('serverLoopMaxMs',m.net.serverLoopMaxMs);record('serverTickGapMs',m.net.tickGapMaxMs);}return true;},
-    state(m,bytes=0){const at=now(),emitted=finite(m.net?.emittedAtMs)?m.net.emittedAtMs:null;
+    state(m,bytes=0,receivedAtMs=now()){const at=finite(receivedAtMs)?receivedAtMs:now(),emitted=finite(m.net?.emittedAtMs)?m.net.emittedAtMs:null;
       if(lastState){const arrival=at-lastState.at;record('stateArrivalIntervalMs',arrival);const source=emitted!==null&&lastState.emitted!==null?emitted-lastState.emitted:(m.time-lastState.time)*1000;if(finite(source)&&source>=0){record('stateSourceIntervalMs',source);record('deliveryVariationMs',Math.abs(arrival-source));}if(finite(m.net?.seq)&&finite(lastState.seq)&&m.net.seq>lastState.seq+1)record('snapshotSequenceGap',m.net.seq-lastState.seq-1);}
       lastState={at,emitted,time:m.time,seq:m.net?.seq};receivedStates++;receivedBytes+=Math.max(0,finite(bytes)?bytes:0);record('stateBytes',bytes);
       if(m.net){server={...server,...m.net};record('serverLoopMaxMs',m.net.serverLoopMaxMs);}

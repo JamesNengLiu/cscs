@@ -1,7 +1,9 @@
 // UI reads the canonical catalog and snapshots; only the server changes inventory or money.
 import {equipmentPrice} from './economy.js';
+import {createShopIcon} from './shop-icons.js';
 export const GRENADE_IDS=['hegrenade','flashbang','smokegrenade'];
-const labels={pistol:'手枪',pistols:'手枪',shotgun:'霰弹枪',shotguns:'霰弹枪',smg:'冲锋枪',rifle:'步枪',rifles:'步枪',sniper:'狙击步枪',snipers:'狙击步枪',machinegun:'机枪',machineguns:'机枪',equipment:'装备 / 投掷物'};
+const groups=[{id:'equipment',label:'装备 / 投掷物',categories:['equipment']},{id:'pistol',label:'手枪',categories:['pistol']},
+  {id:'mid',label:'冲锋枪 / 重型',categories:['smg','shotgun','machinegun']},{id:'rifle',label:'步枪',categories:['rifle']},{id:'sniper',label:'狙击步枪',categories:['sniper']}];
 const money=value=>Number.isFinite(value)?`$${value.toLocaleString('en-US')}`:'服务器定价';
 export function ownedWeapons(p,bomb){
   if(!p)return [];
@@ -30,14 +32,27 @@ export function purchaseStatus(item,p,guns){
   return '';
 }
 export function createShop({guns,equipment,economy,send,onOpenChange,onResume,root=document}){
-  const $=id=>root.getElementById(id),panel=$('buyMenu'),nav=$('buyCategories'),list=$('buyItems');
+  const $=id=>root.getElementById(id),panel=$('buyMenu'),list=$('buyItems');
   const catalog=Object.entries(guns).map(([id,item])=>({...item,id,category:item.category||'rifle'}));
   catalog.push(...Object.entries(equipment).map(([id,item])=>({...item,id,category:'equipment'})));
-  const categories=[...new Set(catalog.map(item=>item.category))];
-  let category=categories.includes('rifle')?'rifle':categories[0],open=false,player=null,state=null,signature='',pending=null;
-  const buttons=new Map(),rows=new Map();
+  let open=false,player=null,state=null,signature='',pending=null;
+  const rows=new Map();
   function node(tag,className,text){const el=root.createElement(tag);el.className=className;if(text!==undefined)el.textContent=text;return el;}
-  for(const id of categories){const button=node('button','buy-category',labels[id]||id);button.type='button';button.dataset.category=id;button.onclick=()=>{category=id;signature='';render();};nav.append(button);buttons.set(id,button);}
+  // Every card stays mounted while snapshots arrive: no category navigation and
+  // no lost mouse-up target when a purchase changes the balance or inventory.
+  for(const group of groups){
+    const column=node('section','buy-column');column.dataset.category=group.id;
+    const heading=node('h3','buy-column-title',group.label);heading.id=`buy-group-${group.id}`;column.setAttribute('aria-labelledby',heading.id);column.append(heading);
+    const items=catalog.filter(item=>group.categories.includes(item.category)).sort((a,b)=>Number(GRENADE_IDS.includes(a.id))-Number(GRENADE_IDS.includes(b.id))||a.price-b.price);
+    for(const item of items){
+      const button=node('button','shop-item');button.type='button';button.dataset.item=item.id;
+      const head=node('span','shop-item-head'),name=node('strong','shop-item-name'),price=node('strong','shop-item-price');head.append(name,price);
+      const detail=node('span','shop-item-detail'),owned=node('span','shop-item-owned'),action=node('span','shop-item-action'),status=node('span','shop-item-status');status.append(owned,action);
+      button.append(createShopIcon(root,item),head,detail,status);button.onclick=()=>purchase(item.id);column.append(button);
+      rows.set(item.id,{button,name,price,detail,owned,action,item});
+    }
+    list.append(column);
+  }
   function setOpen(value){
     if(open===value)return;open=value;panel.hidden=!open;signature='';
     onOpenChange(open);if(open){render();$('buyResume').focus();}
@@ -48,7 +63,7 @@ export function createShop({guns,equipment,economy,send,onOpenChange,onResume,ro
   function purchase(id){
     const item=rows.get(id)?.item;
     if(!open||!item||purchaseStatus(item,player,guns))return;
-    if(pending&&performance.now()-pending.at<180)return;
+    if(pending?.id===id&&performance.now()-pending.at<180)return;
     pending={id,at:performance.now(),before:JSON.stringify([player.money,player.inventory,player.grenades,player.armour,player.helmet,player.defuseKit,player.nightvision,player.shield])};
     status(`请求购买 ${item.name}，等待服务器确认…`);send({type:'buy',item:id});
   }
@@ -59,31 +74,21 @@ export function createShop({guns,equipment,economy,send,onOpenChange,onResume,ro
     const seconds=state?Math.max(0,Math.ceil((state.buyEndAt||0)-state.time)):0;
     $('buyAvailability').textContent=!player?.alive?'阵亡 · 仅浏览装备':player.canBuy?`可购买 · ${seconds} 秒`:'购买已关闭 · 需在购买区与购买时间内';
     $('buyAvailability').dataset.available=String(Boolean(player?.alive&&player.canBuy));
-    const next=JSON.stringify([category,player?.money,player?.weapon,player?.primary,player?.pistol,player?.alive,player?.canBuy,player?.team,player?.inventory,player?.reserve,player?.ammoPool,player?.grenades,player?.armour,player?.helmet,player?.defuseKit,player?.nightvision,player?.shield]);
+    const next=JSON.stringify([player?.money,player?.weapon,player?.primary,player?.pistol,player?.alive,player?.canBuy,player?.team,player?.inventory,player?.reserve,player?.ammoPool,player?.grenades,player?.armour,player?.helmet,player?.defuseKit,player?.nightvision,player?.shield]);
     if(next===signature)return;signature=next;
-    for(const [id,button] of buttons){button.setAttribute('aria-pressed',String(id===category));}
-    const items=catalog.filter(item=>item.category===category);
-    // Keep buttons stable while snapshots arrive so a mouse-down/up cannot lose its target.
-    if(list.dataset.category!==category){list.replaceChildren();rows.clear();list.dataset.category=category;}
-    for(const item of items){
-      let row=rows.get(item.id);
-      if(!row){
-        const button=node('button','shop-item');button.type='button';button.dataset.item=item.id;
-        const head=node('span','shop-item-head'),name=node('strong','shop-item-name'),price=node('strong','shop-item-price');head.append(name,price);
-        const detail=node('span','shop-item-detail'),owned=node('span','shop-item-owned'),action=node('span','shop-item-action');
-        button.append(head,detail,owned,action);button.onclick=()=>purchase(item.id);list.append(button);
-        row={button,name,price,detail,owned,action,item};rows.set(item.id,row);
-      }
+    for(const item of catalog){
+      const row=rows.get(item.id);
       const quote=equipmentPrice(item.id,player)??item.price;
       row.item=item;row.name.textContent=item.name;row.price.textContent=money(quote);
       const team=teamAllows(item,'T')&&teamAllows(item,'CT')?'双方可用':`${(item.teams||[]).join(' / ')} 专属`;
       row.detail.textContent=Object.hasOwn(guns,item.id)?`${team} · ${item.slot===2?'2 手枪':'1 主武器'} · ${item.clip} / ${item.reserve} 发 · 赠满备弹`:`${team} · 携带上限 ${item.limit||1}`;
       const count=player?(Object.hasOwn(guns,item.id)?Number(Object.hasOwn(player.inventory||{},item.id)):equipmentCount(player,item.id)):0;
       const equipped=player?.weapon===item.id;
-      row.owned.textContent=equipped?'当前装备':count?`已拥有${GRENADE_IDS.includes(item.id)?` ${count} / ${item.limit||1}`:''}`:'尚未拥有';
+      row.owned.textContent=equipped?'当前装备':count?`已拥有${GRENADE_IDS.includes(item.id)?` ${count} / ${item.limit||1}`:''}`:'';
       if(player&&['kevlar','assaultsuit'].includes(item.id))row.owned.textContent=`护甲 ${Math.ceil(player.armour||0)} / 100${player.helmet?' · 已有头盔':''}`;
       row.button.dataset.owned=String(count>0);row.button.dataset.equipped=String(equipped);
       const reason=purchaseStatus(item,player,guns);row.button.disabled=Boolean(reason);row.action.textContent=reason||'购买 +';
+      row.button.title=`${item.name} · ${row.detail.textContent} · ${row.action.textContent}`;
       row.button.setAttribute('aria-label',`${item.name} ${money(quote)} · ${row.owned.textContent} · ${row.action.textContent}`);
     }
   }

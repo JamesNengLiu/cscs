@@ -9,9 +9,6 @@ __pycache__/
 .DS_Store
 *.log
 
-# Private original/derived game resources stay local.
-/public/assets/
-/public/map-data.js
 
 
 # Local configuration and credentials

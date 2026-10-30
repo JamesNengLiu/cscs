@@ -20,7 +20,7 @@ export function createLagCompensation({maxRewindSeconds=.2,maxFrames=32}={}){
       let a=eligible[0],b=a;for(const f of eligible){if(f.time<=time)a=f;if(f.time>=time){b=f;break;}b=f;}
       const p=a.players.get(id),q=b.players.get(id);if(!p?.alive||!q?.alive||p.playedRound!==q.playedRound)return null;
       if(Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)>3)return null;
-      const t=a.time===b.time?0:clamp((time-a.time)/(b.time-a.time),0,1),pose={...p};for(const k of ['x','y','z','gaitDistance','airTime'])if(Number.isFinite(p[k])&&Number.isFinite(q[k])&&(k!=='airTime'||p.grounded===q.grounded))pose[k]=p[k]+(q[k]-p[k])*t;
+      const t=a.time===b.time?0:clamp((time-a.time)/(b.time-a.time),0,1),pose={...p};for(const k of ['x','y','z','pitch','gaitDistance','airTime'])if(Number.isFinite(p[k])&&Number.isFinite(q[k])&&(k!=='airTime'||p.grounded===q.grounded))pose[k]=p[k]+(q[k]-p[k])*t;
       pose.yaw=p.yaw+Math.atan2(Math.sin(q.yaw-p.yaw),Math.cos(q.yaw-p.yaw))*t;if(Number.isFinite(p.gaitYaw)&&Number.isFinite(q.gaitYaw))pose.gaitYaw=p.gaitYaw+Math.atan2(Math.sin(q.gaitYaw-p.gaitYaw),Math.cos(q.gaitYaw-p.gaitYaw))*t;rewinds++;return pose;
     },
     remove(id){clients.delete(id);},diagnostics(){return {maxRewindMs:maxRewindSeconds*1000,frames:frames.length,clients:clients.size,lookups,rewinds,rejectedTimes};},

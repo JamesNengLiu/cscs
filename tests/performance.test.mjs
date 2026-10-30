@@ -66,3 +66,9 @@ test('CPU reference rigid skinning still deforms positions and independent norma
 test('unsupported skinning modes fail explicitly instead of silently selecting another implementation',()=>{
   assert.throws(()=>createRigidSkinning(THREE,[new THREE.Matrix4()],'wasm'),/Unknown/);
 });
+
+test('frame telemetry exposes long frames and 1% lows instead of only a mean FPS',()=>{
+ const m=createFrameMetrics(100);for(let i=0;i<99;i++)m.add(16,1,.2,.3);m.add(100,8,2,3);
+ const r=m.snapshot();assert.equal(r.intervalMs.max,100);assert.equal(r.onePercentLowFps,10);assert.equal(r.cpuMs.max,8);assert.ok(r.estimatedFps>50);
+ m.reset();assert.equal(m.snapshot().onePercentLowFps,0);
+});

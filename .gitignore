@@ -11,6 +11,10 @@ __pycache__/
 
 
 
+# Private original/derived game resources stay local.
+/public/assets/
+/public/map-data.js
+
 # Local configuration and credentials
 .env
 .env.*

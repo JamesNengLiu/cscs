@@ -29,7 +29,9 @@ export function createFrameMetrics(capacity = 240) {
       for (let i = 0; i < fields.length; i++) {
         const samples = Array.from(rings[i].subarray(0, count)).sort((a, b) => a - b);
         result[fields[i]] = {median: samples[Math.floor((count - 1) * .5)] || 0, p95: samples[Math.floor((count - 1) * .95)] || 0,
+          p99:samples[Math.floor((count-1)*.99)]||0,max:samples.at(-1)||0,
           mean: count ? samples.reduce((a, b) => a + b, 0) / count : 0};
+        if(i===0){const tail=samples.slice(-Math.max(1,Math.ceil(count*.01))),mean=tail.reduce((a,b)=>a+b,0)/tail.length;result.onePercentLowFps=mean>0?1000/mean:0;}
       }
       result.estimatedFps = result.intervalMs.mean ? 1000 / result.intervalMs.mean : 0;
       return result;

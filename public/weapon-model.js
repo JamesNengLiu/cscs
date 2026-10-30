@@ -288,7 +288,9 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
       const variant=['m4a1','usp'].includes(id)&&!state.silenced?'_unsil':'';
       const named=name=>active.data.sequences.find(s=>s.tracks&&s.name===name);
       idle=named('idle'+variant)||named('idle1')||find(/^idle/i);
-      const shot=Number.isFinite(state.lastShot)&&Number.isFinite(previous.lastShot)&&state.lastShot>previous.lastShot;
+      const shot=state.weaponShotToken!=null
+        ?state.weaponShotToken!==previous.weaponShotToken&&Number.isFinite(time)&&Number.isFinite(state.weaponShotAt)&&time-state.weaponShotAt>=0&&time-state.weaponShotAt<.15
+        :Number.isFinite(state.lastShot)&&Number.isFinite(previous.lastShot)&&state.lastShot>previous.lastShot;
       if(previous.silenced!==undefined&&previous.silenced!==state.silenced&&['m4a1','usp'].includes(id))start(named(state.silenced?'add_silencer':'detach_silencer'));
       else if(previous.silenced===undefined&&variant)start(named('draw'+variant)||find(/^(draw|deploy)/i));
       else if(id==='shield'&&previous.shieldRaised!==state.shieldRaised)start(named(state.shieldRaised?'shield_up':'shield_down'));
@@ -302,7 +304,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
         else if(state.reloadAt!==previous.reloadAt)start(named('insert'));
       }else if(reloading&&!previous.reloading)start(named('reload'+variant)||find(/^reload/i));
       else if(!reloading&&previous.reloading&&['m3','xm1014'].includes(id))start(named('after_reload'));
-      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
+      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,weaponShotToken:state.weaponShotToken,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
     }
     explicitKey = key;
     // Arrival jitter can regress the estimated server clock. An unchanged
@@ -329,7 +331,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   function info() {
     return {
       ...(active ? active.data.metadata : {id, source: 'procedural-fallback', sourceSHA256: null, animationSupport: 'none'}),
-      id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,
+      id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,muzzleVisible:muzzle.visible,
       convertedSHA256Verified: active?.verified || false,
       availableSequences: active?.data.sequences.map(s => ({name: s.name, fps: s.fps, frames: s.frames, imported: !!s.tracks})) || [],
       transform: {goldSrcToCamera: '(Y,Z,-X)/40 (right hand)', legacyOrigin: [...LEGACY_ORIGIN], uniformScale: SCALE},

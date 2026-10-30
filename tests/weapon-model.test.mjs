@@ -123,6 +123,22 @@ const localFetch = async url => {
   catch { return new Response('missing', {status: 404}); }
 };
 
+test('predicted firearm token starts the real model before authority and never restarts on confirmation', {skip: !hasAssets && 'Private fixtures absent'}, async t => {
+  const old=globalThis.fetch;globalThis.fetch=localFetch;t.after(()=>{globalThis.fetch=old;});
+  const view=await createWeaponView(three,new THREE.PerspectiveCamera(),{skinning:'cpu'});t.after(()=>view.dispose());
+  await view.setWeapon('ak47');
+  const state={ammo:30,lastShot:-100,weaponShotToken:'base:1:ak47',weaponShotAt:-100};
+  view.update(.6,state,1);view.update(.01,{...state,ammo:29,weaponShotToken:'shot:1:1',weaponShotAt:1.01},1.01);
+  assert.match(view.info().sequence,/shoot|fire/);const frame=view.info().frame;
+  view.update(.04,{...state,ammo:29,lastShot:50,weaponShotToken:'shot:1:1',weaponShotAt:1.01},1.05);
+  assert.ok(view.info().frame>frame,'authority arrival must advance the existing animation');
+  view.update(.01,{...state,ammo:28,lastShot:50,weaponShotToken:'shot:1:2',weaponShotAt:1.06},1.06);
+  assert.ok(view.info().frame<frame+1,'a new logical shot restarts its firing animation');
+  // A delayed model load or weapon switch must not replay an old shot token.
+  await view.setWeapon('usp');view.update(.01,{ammo:11,lastShot:50,weaponShotToken:'shot:1:2',weaponShotAt:1.06},3);
+  assert.doesNotMatch(view.info().sequence,/shoot|fire/);
+});
+
 test('runtime loads all canonical weapons, samples real skeletal motion, preserves caller transforms and handles races', {skip: !hasAssets && 'Private fixtures absent'}, async t => {
   const old = globalThis.fetch;
   globalThis.fetch = localFetch;

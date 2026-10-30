@@ -22,6 +22,7 @@
     "test:round-end:browser": "node tests/round-end-browser.mjs",
     "test:shots": "node tests/shot-effects-browser.mjs",
     "test:player-feedback": "node tests/player-feedback-browser.mjs",
+    "test:feel:browser": "node tests/feel-regression-browser.mjs",
     "test:player-poses": "node tests/player-pose-browser.mjs",
     "test:utility": "node tests/utility-presentation-browser.mjs",
     "test:audio": "node --test --test-reporter=tap tests/audio-game.test.mjs tests/game-audio.test.mjs tests/audio-settings.test.mjs tests/sound-catalog.test.mjs",

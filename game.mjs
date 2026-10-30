@@ -1,6 +1,5 @@
-import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,shotProfile,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
+import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
-import {shotInterval,nextShotDeadline} from './public/weapon-feel.js';
 import {spreadDirection} from './public/weapons.js';
 import {rayPlayer,hitboxAnimation,hitboxDiagnostics} from './hitboxes.mjs';
 import {bulletProperties,materialAt,penetrationExit,materialDamage,groundSoundSurface,soundMaterialAt} from './ballistics.mjs';
@@ -15,6 +14,7 @@ import {createGrenade,stepGrenades,GRENADE_LIMITS} from './grenades.mjs';
 import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/input-protocol.js';
 import {GRENADE_TIMING,resetGrenadeThrow,grenadeActionPhase} from './public/grenade-state.js';
 import {GRENADE_PROTOCOL,normalizeGrenadeIntent} from './public/grenade-intent.js';
+import {consumeGunShot} from './public/gun-state.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
@@ -64,6 +64,7 @@ export class Game {
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     p.gaitDistance=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     this.#movementSounds.set(p.id,createMovementSoundState());p.radioCount=0;p.nextRadioAt=0;
+    p.recoilSeed=this.random===Math.random?Math.floor(Math.random()*0x100000000):null;
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeIntent:null});
     p.grenadeAckSeq=0;p.grenadeActionId=0;p.grenadeIntentStatus='';p.grenadeRejectedActionId=0;
@@ -309,11 +310,8 @@ export class Game {
     }
     const w=GUNS[p.weapon];if(!w||this.time<(p.nextAttackAt||0))return false;
     if(p.ammo<=0){if(!p.reloadAt&&this.time>=(p.nextDryFireAt||0)){p.nextDryFireAt=this.time+.2;this.sound(p,w.slot===2?'weapons/dryfire_pistol.wav':'weapons/dryfire_rifle.wav',{private:true,channel:'weapon',volume:.8});}return false;}
-    const interval=shotInterval(p);
-    if(!burstFollowup&&this.time<(p.nextShotAt||p.lastShot+interval)-1e-8)return false;
-    if(p.reloadAt){if(w.reloadStyle==='per-shell'&&p.ammo>0)p.reloadAt=0;else return false;}
-    p.ammo--;p.shotsFired=(p.shotsFired||0)+1;const profile=shotProfile(p,this.random,this.time,burstFollowup),damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
-    if(!burstFollowup){p.nextShotAt=nextShotDeadline(p.nextShotAt||0,this.time,interval,w.automatic&&!p.burstMode&&p.fireHeld);p.nextSecondaryAt=p.nextShotAt;}p.lastShot=this.time;
+    const profile=consumeGunShot(p,this.time,burstFollowup,this.random);if(!profile)return false;
+    const damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
     const shotId=`${this.round}:${p.id}:${p.lastAppliedInputSeq||0}:${this.time}`,rewindTime=this.lagComp?.targetTime(p.id,p.lastAppliedInputSeq,this.time,this.round)??null;
     for(let pellet=0;pellet<w.pellets;pellet++){
       const d=pellet?spreadDirection(profile,this.random):profile.direction;
@@ -335,7 +333,7 @@ export class Game {
           }
         }
       }
-      this.emit({type:'shot',id:p.id,weapon:p.weapon,silenced:!!p.silenced,burstMode:!!p.burstMode,shotId,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,...(hitImpact?{hitImpact}:{}),burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
+      this.emit({type:'shot',id:p.id,weapon:p.weapon,silenced:!!p.silenced,burstMode:!!p.burstMode,shotId,shotOrdinal:p.shotsFired,inputSeq:p.lastAppliedInputSeq||0,round:this.round,rewindMs:rewindTime===null?0:(this.time-rewindTime)*1000,from:ray.o,to:ray.to,hit:!!ray.target&&!blocked,impact:ray.impact,...(hitImpact?{hitImpact}:{}),burst:profile.burst,recoilYaw:profile.recoilYaw,recoilPitch:profile.recoilPitch,spread:profile.spread});
       if(blocked||travelled>properties.distance||(!ray.target&&!ray.impact))break;
       range=(range-ray.distance)*(ray.target?.75:.5);if(range<=.01)break;
       remaining*=Math.pow(w.rangeModifier,ray.distance*40/500);
@@ -344,8 +342,6 @@ export class Game {
       if(!origin||remaining<1)break;
       }
     }
-    if(p.burstMode&&!burstFollowup&&['glock18','famas'].includes(p.weapon)){p.burstRemaining=Math.min(2,p.ammo);p.nextBurstAt=this.time+(p.weapon==='glock18'?.1:.05);}
-    if(['awp','scout'].includes(p.weapon)&&p.zoom!==90){p.resumeZoom=p.zoom;p.zoom=90;p.resumeZoomAt=this.time+w.interval;}
     saveActive(p);return true;
   }
   updateGrenade(p,actualInput){

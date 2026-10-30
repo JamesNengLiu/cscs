@@ -26,13 +26,13 @@ export function spreadDirection(profile,random=Math.random){
   d.x+=x*Math.cos(yaw)+y*Math.sin(yaw)*Math.sin(pitch);d.y+=y*Math.cos(pitch);d.z-=x*Math.sin(yaw)-y*Math.cos(yaw)*Math.sin(pitch);
   const len=Math.hypot(d.x,d.y,d.z);return {x:d.x/len,y:d.y/len,z:d.z/len};
 }
-export function shotProfile(p,random=Math.random,now=p.lastShot,follow=false){
+export function shotProfile(p,random=Math.random,now=p.lastShot,follow=false,kickRandom=random){
   const spread=follow&&p.weapon==='glock18'?.05:follow&&Number.isFinite(p.burstSpread)?p.burstSpread:weaponSpread(p),yaw=p.yaw+(p.recoilYaw||0),pitch=clamp(p.pitch+(p.recoilPitch||0),-PITCH_LIMIT,PITCH_LIMIT);
   const profile={spread,yaw,pitch},d=spreadDirection(profile,random);
   advanceAccuracy(p,now,follow);
   if(!follow){
   p.burstCount=(p.burstCount||0)+1;
-  if(GUNS[p.weapon])applyKick(p,grounded(p),random);
+  if(GUNS[p.weapon])applyKick(p,grounded(p),kickRandom);
   else{const next=p.weapon==='rifle'?RIFLE_PATTERN[Math.min(p.burstCount,RIFLE_PATTERN.length-1)]:[0,Math.min(.035,p.burstCount*.007)];p.recoilYaw=next[0];p.recoilPitch=next[1];}
   p.recoveryAt=now+.4;p.burstSpread=spread;
   }

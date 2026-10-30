@@ -6,3 +6,12 @@ test('rewind time validated with measured RTT, interpolation delay and hard cap'
 test('no rewind across rounds, death or teleports',()=>{const h=createLagCompensation();h.record({time:1,round:1,players:[p()]});h.record({time:1.1,round:1,players:[p(8)]});assert.equal(h.pose('target',1.05,1),null);h.record({time:2,round:2,players:[p(0,{alive:false})]});assert.equal(h.pose('target',1.05,1),null);assert.equal(h.pose('target',2,2),null);});
 test('real map firearm hits historical target without moving current target or shooter',()=>{const g=new Game({random:()=>.5}),t=g.add('t','T','T'),ct=g.add('ct','CT','CT');g.begin();g.phase='live';g.endAt=1000;g.lagComp=createLagCompensation();
  const place=(p,x,z)=>Object.assign(p,{x,z,y:supportHeight(x,z,3.3),yaw:0,pitch:-.15,vx:0,vz:0,vy:0,grounded:true,hp:1000});place(t,-18.4,22);place(ct,-18.4,19);g.time=1;g.lagComp.record({time:1,round:g.round,players:[t,ct]});place(ct,-16.4,19);g.time=1.1;g.lagComp.record({time:1.1,round:g.round,players:[t,ct]});t.lastAppliedInputSeq=1;g.lagComp.view('t',[{seq:1}],{viewTime:1,interpDelayMs:100,now:g.time,round:g.round});const before={x:ct.x,y:ct.y,z:ct.z};assert.equal(g.shoot(t),true);assert.ok(ct.hp<1000,'rewound hitbox should be hit');assert.deepEqual({x:ct.x,y:ct.y,z:ct.z},before);const shot=g.events.find(e=>e.type==='shot');assert.ok(shot.rewindMs>0&&shot.rewindMs<=200);assert.equal(shot.inputSeq,1);});
+
+test('historical pitch matches the displayed interpolated pose while aiming up and down',async()=>{
+ const {createSnapshotBuffer}=await import('../public/snapshot-buffer.js'),{playerHitboxes,hitboxAnimation}=await import('../hitboxes.mjs');
+ const h=createLagCompensation(),b=createSnapshotBuffer({minDelayMs:0,maxDelayMs:0,clockSlewMsPerSecond:0});
+ const base={...p(0),weapon:'usp',z:-6,yaw:Math.PI,gaitYaw:Math.PI,vx:0,vz:0,grounded:true,lastShot:-100};
+ for(const [time,pitch]of [[1,0],[1.1,.6]]){const player={...base,pitch};h.record({time,round:1,players:[player]});b.push({time,round:1,players:[{...player,...hitboxAnimation(player,time)}]},time*1000);}
+ const visible=b.sample('target',1050),historic=h.pose('target',1.05,1);assert.ok(Math.abs(visible.pitch-historic.pitch)<1e-10);
+ const a=playerHitboxes(visible,1.05),c=playerHitboxes(historic,1.05);for(let i=0;i<a.length;i++)for(let j=0;j<16;j++)assert.ok(Math.abs(a[i].inverse[j]-c[i].inverse[j])<1e-8);
+});

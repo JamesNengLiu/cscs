@@ -70,7 +70,7 @@ Original entries and model metadata must both declare `source:'original-mdl'` an
 
 JSON is bounded during streaming, before parsing: 1 MiB manifest, 64 MiB model, and a 20-second fetch timeout. Structural limits include 128 bones/textures, 1,024 meshes/sequences, 500,000 total render vertices, 3,000,000 total indices, 10,000 frames/sequence, 16 blends/sequence, 24,000,000 serialized channel samples, 4,096-pixel texture dimensions, and 16,777,216 total texture pixels. Vertex/bone/skin/body references and finite samples are validated. Importer output beyond these runtime budgets fails visibly.
 
-Per-Three-namespace caches retain a bounded 16 parsed model assets and a manifest. Parsed model objects are deeply frozen and not exposed. Active instances share initialized texture objects through reference-counted leases. Last release disposes those textures; cached JSON remains reusable. Every instance has separate pose matrices, mutable position/normal/UV buffers, geometry, and materials. Pose calculations reuse vectors, quaternions, and channel buffers; they do not allocate arrays proportional to vertex count per frame.
+Per-Three-namespace caches retain at most 16 prepared render assets and a manifest. Structural objects are frozen; compact numerical views remain private and are copied into each instance's mutable mesh buffers. Active instances share initialized texture objects through reference-counted leases. Last release disposes those textures; cached JSON remains reusable. Every instance has separate pose matrices, mutable position/normal/UV buffers, geometry, and materials. Pose calculations reuse vectors, quaternions, and channel buffers; they do not allocate arrays proportional to vertex count per frame.
 
 ### Optional third-person weapons
 
@@ -132,3 +132,13 @@ Remote weapon model changes keep the old mesh while the requested valid asset lo
 同一模块供人物显示、当前与历史骨骼命中盒使用。快照采样和命中回溯插值相同权重，元数据复制只保留限定标量。合成器复用固定数量的局部采样器并按上下身遮罩求值，不建立无界姿势历史、不下发逐骨骼数组，也不添加 GPU 绘制批次。姿势稳定后的 idle、run、crouch、crouchrun、jump 与原始骨架端点对比通过。
 
 验证入口与边界见 [P2 第三批记录](cs16-sources.md)。`tests/locomotion-transitions.test.mjs` 包含真实渲染骨骼与回溯命中盒在换弹、射击及刀/M249 idle 跨站蹲边界时的矩阵对比；`tests/locomotion-browser.mjs` 为本地原始模型的静态原生光栅化检查；`tests/locomotion-performance-browser.mjs` 为生产客户端九角色重放。CPU、GPU、帧间隔和实体多人测试分开解释。
+
+## 2026-10-31：人物资源后台准备
+
+默认人物缓存未命中时，一个同源 module Worker 负责下载、原始字节 SHA256、UTF-8/JSON 解析、原完整模型校验及紧凑数值整理。`player-asset-validation.js` 共享原校验；`player-asset-format.js` 定义只在运行时使用的无损缓冲和分片还原；`player-asset-loader.js` 管理最多 32 项的单活动队列；`player-asset-worker.js` 只处理准备请求，不执行每帧动画。模型 JSON/PNG 文件、原有 sampler 和物理/命中源数据均保留。
+
+主线程收到有限描述和转移的缓冲后，按帧分片还原采样结构，之后仍在原渲染循环求姿势。Int16 动画值在转换前校验，几何数值使用 Float64。TypedArray 内容只供内部读取；几何属性和索引分别复制到实例，不能通过一个 actor 的可变 geometry 污染另一实例或缓存。原始来源、convertedSHA256Verified、缺失素材占位和纹理引用释放语义保留。
+
+现有小型第三人称武器不排在大型人物下载后面；超过 256 KiB 时转交后台，原 64 MiB 上限不变。Worker 不可用或失败时使用同一验证管线回退，回退不能保证 JSON.parse 不阻塞。`info().assetPreparation` 返回本模型准备方式和阶段耗时，`info().assetLoader` 返回有限队列统计；两者只读快照，不返回资源数组。`createPlayerActor` 的可选 `assetLoader` 是测试/内部适配入口，其输出必须遵守相同校验与准备契约。
+
+测试覆盖真实 Worker 的十二种人物、二十四把附着武器、缓冲所有权/精度、取消/替换、坏哈希与重试、Worker 异常及真实浏览器的首个/同时冷加入。性能测量、准备等待的取舍和复测命令见 [首次加载记录](cs16-sources.md)。

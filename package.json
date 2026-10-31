@@ -22,6 +22,7 @@
     "test:round-end:browser": "node tests/round-end-browser.mjs",
     "test:shots": "node tests/shot-effects-browser.mjs",
     "test:player-feedback": "node tests/player-feedback-browser.mjs",
+    "test:player-loading": "node tests/player-loading-browser.mjs",
     "test:feel:browser": "node tests/feel-regression-browser.mjs",
     "test:p2:presentation": "node tests/p2-presentation-browser.mjs",
     "test:p2:response": "node tests/p2-response-browser.mjs",

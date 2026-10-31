@@ -2,72 +2,20 @@ import {locomotionOrigin,copyLocomotion} from './player-locomotion.js';
 import {createBonePose} from './bone-pose.js';
 // GoldSrc player rendering. Assets are supplied separately; no retail mesh data here.
 import {createRigidSkinning} from './rigid-skinning.js';
-export const ORIGINAL_PLAYER_IDS = Object.freeze('terror leet arctic guerilla urban gsg9 sas gign'.split(' '));
-export const PLAYER_MODEL_IDS = Object.freeze([...ORIGINAL_PLAYER_IDS, ...ORIGINAL_PLAYER_IDS.slice(0, 4).map(id => `${id}_trump`)]);
-const BASE = '/assets/players/';
-const LIMIT = {json: 64 * 1024 * 1024, manifest: 1024 * 1024, vertices: 500000, samples: 24000000};
-const SHA = /^[a-f0-9]{64}$/;
-const check = (yes, message) => { if (!yes) throw new Error(message); };
-const index = (n, size) => Number.isInteger(n) && n >= 0 && n < size;
-const finite = (n, fallback = 0) => Number.isFinite(n) ? n : fallback;
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+import {ORIGINAL_PLAYER_IDS,PLAYER_MODEL_IDS,LIMIT,check,playerAssetPath,fetchPlayerBytes,freezePlayerMetadata,validatePlayerProvenance,validatePlayerModel} from './player-asset-validation.js';
+import {createPlayerAssetLoader} from './player-asset-loader.js';
+export {ORIGINAL_PLAYER_IDS,PLAYER_MODEL_IDS};
+const BASE='/assets/players/';
+const index=(n,size)=>Number.isInteger(n)&&n>=0&&n<size;
+const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
+const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 const caches = new WeakMap();
 function cacheFor(THREE) {
   if (!caches.has(THREE)) caches.set(THREE, {manifest: null, models: new Map(), textures: new Map()});
   return caches.get(THREE);
 }
-function array(value, max, label, min = 0) {
-  check(Array.isArray(value) && value.length >= min && value.length <= max, `Invalid ${label} array`);
-  return value;
-}
-function pathFor(file) {
-  check(typeof file === 'string' && file.length <= 240 && /^[a-zA-Z0-9_./-]+\.json$/.test(file)
-    && !file.startsWith('/') && !file.split('/').some(p => p === '..' || p === '.' || !p), 'Unsafe model path');
-  return BASE + file;
-}
-async function fetchJSON(url, max, expectedHash) {
-  if (expectedHash != null) check(SHA.test(expectedHash), 'Invalid converted SHA256');
-  const response = await fetch(url, {signal: AbortSignal.timeout(20000)});
-  check(response.ok, `${url}: HTTP ${response.status}`);
-  check(Number(response.headers?.get('content-length') || 0) <= max, 'JSON exceeds byte limit');
-  let bytes;
-  if (response.body?.getReader) {
-    const reader = response.body.getReader(), chunks = [];
-    let count = 0;
-    try {
-      for (;;) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        count += value.byteLength;
-        check(count <= max, 'JSON exceeds byte limit');
-        chunks.push(value);
-      }
-    } catch (error) { await reader.cancel().catch(() => {}); throw error; }
-    finally { reader.releaseLock(); }
-    bytes = new Uint8Array(count);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  } else {
-    bytes = new Uint8Array(await response.arrayBuffer());
-    check(bytes.byteLength <= max, 'JSON exceeds byte limit');
-  }
-  let verified = false;
-  if (expectedHash && globalThis.crypto?.subtle) {
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-    const actual = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-    check(actual === expectedHash, 'Converted model SHA256 mismatch');
-    verified = true;
-  }
-  return {data: JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes)), verified};
-}
-function freeze(value) {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    if (Array.isArray(value)) { for (const child of value) if (typeof child === 'object') freeze(child); }
-    else for (const key of Object.keys(value)) if (typeof value[key] === 'object') freeze(value[key]);
-  }
-  return value;
-}
+async function fetchJSON(url,max,expectedHash){const {bytes,verified}=await fetchPlayerBytes(url,max,expectedHash);return {data:JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)),verified};}
+const freeze=freezePlayerMetadata;
 function manifestFor(cache) {
   if (!cache.manifest) cache.manifest = fetchJSON(BASE + 'manifest.json', LIMIT.manifest).then(({data}) => {
     check(data.schema === 'goldsrc-players-v1' && data.models && typeof data.models === 'object'
@@ -78,101 +26,27 @@ function manifestFor(cache) {
   }).catch(error => { cache.manifest = null; throw error; });
   return cache.manifest;
 }
-function validate(data, id, entry, weapon) {
-  const schemas = weapon ? ['goldsrc-player-weapon-v1', 'goldsrc-worldmodel-v1', 'goldsrc-player-v1'] : ['goldsrc-player-v1'];
-  check(schemas.includes(data?.schema) && data.metadata?.id === id, 'Wrong player model schema/id');
-  const source = weapon || ORIGINAL_PLAYER_IDS.includes(id) ? 'original-mdl' : 'custom-trump-face';
-  check(entry.source === source && data.metadata.source === source, 'Inconsistent source provenance');
-  if (source === 'original-mdl') check(SHA.test(entry.sourceSHA256) && data.metadata.sourceSHA256 === entry.sourceSHA256, 'Invalid original MDL SHA256 provenance');
-  else {
-    check(SHA.test(entry.baseSourceSHA256) && data.metadata.baseSourceSHA256 === entry.baseSourceSHA256, 'Invalid custom baseSourceSHA256 provenance');
-    if (entry.sourceSHA256) check(SHA.test(entry.sourceSHA256) && data.metadata.sourceSHA256 === entry.sourceSHA256, 'Inconsistent custom sourceSHA256');
+async function prepareRenderAsset(cache,id,entry,weapon,url,assetLoader){
+  // Small p_weapon files retain their fast path, so a remote weapon switch
+  // never waits behind a large character download. Larger files go to Worker.
+  if(weapon){
+    const result=await fetchPlayerBytes(url,LIMIT.json,entry.convertedSHA256,{deferAbove:256*1024});
+    if(!result.deferred){const start=performance.now(),data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(result.bytes)),parsed=performance.now();validatePlayerModel(data,id,entry,true);const validated=performance.now();freeze(data);return {data,verified:result.verified,processing:{lane:'main-small-weapon',sourceBytes:result.bytes.byteLength,parseMs:parsed-start,validateMs:validated-parsed,freezeMs:performance.now()-validated}};}
   }
-  array(data.bones, 128, 'bones', 1);
-  array(data.controllers || [], 64, 'controllers');
-  for (const c of data.controllers || []) check(index(c.bone, data.bones.length) && [c.type, c.start, c.end, c.rest].every(Number.isFinite), 'Invalid bone controller');
-  for (let i = 0; i < data.bones.length; i++) {
-    const b = data.bones[i];
-    check(typeof b.name === 'string' && b.name.length <= 128 && Number.isInteger(b.parent) && b.parent >= -1 && b.parent < i, 'Invalid bone hierarchy');
-    for (const key of ['value', 'scale']) check(array(b[key], 6, `bone ${key}`, 6).every(Number.isFinite), 'Invalid bone transform');
-    check(array(b.controllers || [-1, -1, -1, -1, -1, -1], 6, 'bone controllers', 6).every(c => c === -1 || index(c, (data.controllers || []).length)), 'Invalid bone controller index');
-  }
-  array(data.textures, 128, 'textures', 1);
-  let pixels = 0;
-  for (const t of data.textures) {
-    check(/^texture-\d+\.png$/.test(t.file) && Number.isInteger(t.width) && Number.isInteger(t.height)
-      && t.width > 0 && t.height > 0 && t.width <= 4096 && t.height <= 4096 && Number.isInteger(t.flags), 'Invalid texture');
-    pixels += t.width * t.height;
-  }
-  check(pixels <= 16777216, 'Texture pixel budget exceeded');
-  array(data.skins, 256, 'skins', 1);
-  const skinSize = array(data.skins[0], 256, 'skin references', 1).length;
-  for (const skin of data.skins) check(array(skin, skinSize, 'skin', skinSize).every(t => index(t, data.textures.length)), 'Invalid skin texture');
-  array(data.bodyparts, 64, 'bodyparts', 1);
-  for (const b of data.bodyparts) {
-    array(b.models, 64, 'bodypart models', 1);
-    check(Number.isInteger(b.base) && b.base > 0, 'Invalid bodypart base');
-  }
-  array(data.meshes, 1024, 'meshes', 1);
-  let vertices = 0, indices = 0;
-  for (const m of data.meshes) {
-    const n = array(m.vertexBones, LIMIT.vertices, 'vertex bones', 1).length;
-    vertices += n;
-    check(vertices <= LIMIT.vertices, 'Vertex budget exceeded');
-    for (const [key, stride] of [['positions', 3], ['normals', 3], ['uvPixels', 2]]) check(array(m[key], n * stride, key, n * stride).every(Number.isFinite), 'Invalid geometry samples');
-    check(array(m.normalBones, n, 'normal bones', n).every(b => index(b, data.bones.length))
-      && m.vertexBones.every(b => index(b, data.bones.length)), 'Invalid vertex bone');
-    indices += array(m.indices, 3000000, 'indices', 3).length;
-    check(indices <= 3000000 && m.indices.length % 3 === 0 && m.indices.every(v => index(v, n)), 'Invalid triangle index');
-    check(index(m.bodypart, data.bodyparts.length) && index(m.model, data.bodyparts[m.bodypart].models.length)
-      && index(m.skinref, skinSize), 'Invalid mesh body/skin reference');
-  }
-  for (const a of array(data.attachments || [], 64, 'attachments')) check(index(a.bone, data.bones.length)
-    && array(a.origin, 3, 'attachment origin', 3).every(Number.isFinite), 'Invalid attachment');
-  array(data.sequences, 1024, 'sequences');
-  let samples = 0;
-  for (const s of data.sequences) {
-    check(typeof s.name === 'string' && s.name.length <= 128 && Number.isInteger(s.frames) && s.frames > 0 && s.frames <= 10000
-      && Number.isFinite(s.fps) && s.fps > 0 && s.fps <= 1000 && Number.isInteger(s.blendCount) && s.blendCount > 0 && s.blendCount <= 16, 'Invalid sequence');
-    if (s.motionBone != null) check(index(s.motionBone, data.bones.length), 'Invalid motion bone');
-    for (const key of ['blendStart', 'blendEnd', 'blendType']) if (s[key]) check(array(s[key], 2, key, 2).every(Number.isFinite), 'Invalid blend range');
-    const validateTracks = tracks => {
-      array(tracks, data.bones.length, 'animation bones', data.bones.length);
-      for (const channels of tracks) for (const c of array(channels, 6, 'animation channels', 6)) {
-        if (c == null) continue;
-        samples += array(c.values, s.frames, 'animation samples', s.frames).length;
-        check(samples <= LIMIT.samples, 'Animation sample budget exceeded');
-        check(c.values.every(v => Number.isInteger(v) && v >= -32768 && v <= 32767), 'Invalid animation sample');
-        if (c.positionHold) check(array(c.positionHold, s.frames, 'positionHold').every(v => index(v, s.frames)), 'Invalid positionHold');
-      }
-    };
-    if (s.tracks) validateTracks(s.tracks);
-    if (s.blendTracks) {
-      array(s.blendTracks, s.blendCount, 'blend tracks', s.blendCount);
-      for (const tracks of s.blendTracks) validateTracks(tracks);
-    }
-  }
+  const loader=assetLoader||(cache.assetLoader||=createPlayerAssetLoader());return loader.load({url,id,entry,weapon});
 }
-async function modelFor(cache, id, entry, weapon = false) {
+async function modelFor(cache, id, entry, weapon = false, assetLoader=null) {
   check(entry?.file, weapon ? 'Third-person weapon asset missing' : 'Player asset not imported');
-  const url = pathFor(entry.file), key = `${url}:${entry.convertedSHA256 || ''}`;
+  const url = playerAssetPath(entry.file), key = `${url}:${entry.convertedSHA256 || ''}`;
   if (!cache.models.has(key)) {
     if (cache.models.size >= 16) cache.models.delete(cache.models.keys().next().value);
-    const promise = fetchJSON(url, LIMIT.json, entry.convertedSHA256).then(result => {
-      validate(result.data, id, entry, weapon);
-      return {...result, data: freeze(result.data), url, key, entry: freeze({...entry})};
-    }).catch(error => { cache.models.delete(key); throw error; });
+    const promise = prepareRenderAsset(cache,id,entry,weapon,url,assetLoader).then(result=>({...result,url,key,entry:freeze({...entry})})).catch(error => { if(cache.models.get(key)===promise)cache.models.delete(key); throw error; });
     cache.models.set(key, promise);
   }
   const asset = await cache.models.get(key);
   // A changed manifest entry cannot inherit a previous identity from the cache.
-  validateProvenance(asset, id, entry);
+  validatePlayerProvenance(asset, id, entry);
   return asset;
-}
-function validateProvenance(asset, id, entry) {
-  check(asset.data.metadata.id === id && asset.data.metadata.source === entry.source
-    && (entry.sourceSHA256 == null || asset.data.metadata.sourceSHA256 === entry.sourceSHA256)
-    && asset.data.metadata.baseSourceSHA256 === entry.baseSourceSHA256, 'Cached asset provenance mismatch');
 }
 async function texturesFor(THREE, cache, asset) {
   let shared = cache.textures.get(asset.key);
@@ -242,7 +116,7 @@ function buildPose(THREE, asset, shared, skinningMode) {
     const geometry = new THREE.BufferGeometry();
     skinning.geometry(geometry, spec);
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(spec.uvPixels.length), 2));
-    geometry.setIndex(spec.indices);
+    geometry.setIndex(ArrayBuffer.isView(spec.indices)?new THREE.BufferAttribute(spec.index32?spec.indices.slice():new Uint16Array(spec.indices),1):spec.indices);
     const mesh = new THREE.Mesh(geometry, materials[0]); root.add(mesh); return mesh;
   });
   root.traverse(world);
@@ -296,7 +170,7 @@ function selector(data) {
  * Call setCharacter(id), attach group to scene, then update(dt, state) in seconds.
  * See docs/player-renderer.md for explicit animation controls and provenance.
  */
-export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'} = {}) {
+export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu',assetLoader=null} = {}) {
   const group = new THREE.Group(); group.name = 'goldsrc-player'; group.layers.set(0);
   const cache = cacheFor(THREE);
   let id = null, active = null, missing = null, manifest = null, generation = 0, pending = null, disposed = false, error = null;
@@ -323,7 +197,7 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
     const owner = active;
     weaponStatus = `Loading third-person weapon: ${next}`;
     (async () => {
-      const asset = await modelFor(cache, next, entry, true);
+      const asset = await modelFor(cache, next, entry, true,assetLoader);
       if (disposed || ticket !== weaponGeneration || owner !== active) return;
       const shared = await texturesFor(THREE, cache, asset);
       if (disposed || ticket !== weaponGeneration || owner !== active) { shared.release(); return; }
@@ -350,7 +224,7 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
       const loadedManifest = await manifestFor(cache);
       if (ticket !== generation || disposed) return info();
       manifest = loadedManifest;
-      const asset = await modelFor(cache, nextId, manifest.models[nextId]);
+      const asset = await modelFor(cache, nextId, manifest.models[nextId],false,assetLoader);
       if (ticket !== generation || disposed) return info();
       const shared = await texturesFor(THREE, cache, asset);
       if (ticket !== generation || disposed) { shared.release(); return info(); }
@@ -424,6 +298,8 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
       sourceURL: active?.data.metadata.sourceURL || null,
       retailHashVerified: active?.data.metadata.retailHashVerified === true,
       sourceAuthenticity: active?.data.metadata.sourceAuthenticity || 'Not independently authenticated by renderer',
+      assetPreparation:active?.asset.processing?{...active.asset.processing}:null,
+      assetLoader:(assetLoader||cache.assetLoader)?.diagnostics()||null,
       counts: active?.data.metadata.counts ? {...active.data.metadata.counts} : null,
       sourceHashStatus: active ? 'MDL provenance declared by manifest; raw MDL not fetched by renderer' : 'no loaded source',
       customCosmetic: active?.data.metadata.source === 'custom-trump-face',

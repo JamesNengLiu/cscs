@@ -1,0 +1,28 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {createPlayerAssetLoader} from '../public/player-asset-loader.js';import {packPlayerAsset,playerTransferList} from '../public/player-asset-format.js';import {playerAssetFixture,FIXTURE_PLAYER_SHA} from './fixtures/player-asset-model.mjs';
+const raw=playerAssetFixture(),text=JSON.stringify(raw),request={url:'/assets/players/terror/model.json',id:'terror',entry:{source:'original-mdl',sourceSHA256:FIXTURE_PLAYER_SHA,convertedSHA256:createHash('sha256').update(text).digest('hex')}};
+class FakeWorker{listeners=new Map();messages=[];terminated=false;addEventListener(k,f){this.listeners.set(k,f);}postMessage(m){this.messages.push(m);}emit(k,m){this.listeners.get(k)?.(k==='message'?{data:m}:m);}reply(index=0){const id=this.messages[index].id,packed=packPlayerAsset(raw);this.emit('message',structuredClone({type:'prepared-player',id,packed,verified:true,metrics:{sourceBytes:text.length}},{transfer:playerTransferList(packed)}));}terminate(){this.terminated=true;}}
+const immediate=()=>Promise.resolve();
+test('one worker serializes preparation/hydration, ignores stale replies and services queued assets',async t=>{
+ const worker=new FakeWorker();let created=0;const loader=createPlayerAssetLoader({workerFactory:()=>{created++;return worker;},yieldTask:immediate});t.after(()=>loader.dispose());const a=loader.load(request),b=loader.load(request);assert.equal(created,1);assert.equal(worker.messages.length,1);worker.emit('message',{id:999,type:'player-asset-error',message:'stale'});worker.reply();assert.equal((await a).processing.lane,'worker');assert.equal(worker.messages.length,2);worker.reply(1);assert.equal((await b).processing.lane,'worker');assert.equal(loader.diagnostics().completed,2);assert.equal(loader.diagnostics().peak,2);
+});
+test('small third-person weapon jobs take priority over queued large characters',async t=>{
+ const worker=new FakeWorker(),loader=createPlayerAssetLoader({workerFactory:()=>worker,yieldTask:immediate});t.after(()=>loader.dispose());const a=loader.load(request),b=loader.load(request),c=loader.load({...request,weapon:true});worker.reply();await a;assert.equal(worker.messages[1].request.weapon,true);worker.reply(1);await c;assert.equal(worker.messages[2].request.weapon,false);worker.reply(2);await b;
+});
+test('queue size is bounded, disposal rejects every wait and late replies cannot restart it',async()=>{
+ const worker=new FakeWorker(),loader=createPlayerAssetLoader({workerFactory:()=>worker,capacity:2,yieldTask:immediate});const a=loader.load(request),b=loader.load(request);await assert.rejects(loader.load(request),/queue full/);const waits=Promise.allSettled([a,b]);loader.dispose();const results=await waits;assert.ok(results.every(r=>r.status==='rejected'));assert.equal(worker.terminated,true);worker.reply();assert.equal(loader.diagnostics().disposed,true);assert.equal(worker.messages.length,1);
+});
+test('worker-reported bad assets fail without reparsing them on the main thread',async t=>{
+ const old=globalThis.fetch;let fetched=0;globalThis.fetch=async()=>{fetched++;throw Error('Must not fetch');};t.after(()=>globalThis.fetch=old);const worker=new FakeWorker(),loader=createPlayerAssetLoader({workerFactory:()=>worker});t.after(()=>loader.dispose());const result=loader.load(request);worker.emit('message',{type:'player-asset-error',id:1,message:'Converted model SHA256 mismatch'});await assert.rejects(result,/SHA256 mismatch/);assert.equal(fetched,0);
+});
+for(const kind of ['unavailable','constructor','crash','timeout','messageerror'])test(`${kind} worker falls back through the same verified pipeline`,async t=>{
+ const old=globalThis.fetch;globalThis.fetch=async()=>new Response(text);t.after(()=>globalThis.fetch=old);const worker=new FakeWorker();const loader=createPlayerAssetLoader({workerFactory:kind==='unavailable'?null:kind==='constructor'?()=>{throw Error('CSP blocked');}:()=>worker,timeoutMs:kind==='timeout'?1:30000,yieldTask:immediate});t.after(()=>loader.dispose());const result=loader.load(request);
+ if(kind==='crash')worker.emit('error',{message:'crash'});if(kind==='messageerror')worker.emit('messageerror',{});
+ const prepared=await result;assert.equal(prepared.verified,true);assert.equal(prepared.processing.lane,'inline-fallback');assert.ok(prepared.processing.fallbackReason);assert.equal(prepared.data.metadata.id,'terror');
+});
+test('fallback never bypasses hash validation and releases failed queue slots for retry',async t=>{
+ const old=globalThis.fetch;globalThis.fetch=async()=>new Response(text+' ');t.after(()=>globalThis.fetch=old);const loader=createPlayerAssetLoader({workerFactory:null,yieldTask:immediate});t.after(()=>loader.dispose());await assert.rejects(loader.load(request),/SHA256 mismatch/);globalThis.fetch=async()=>new Response(text);assert.equal((await loader.load(request)).verified,true);assert.equal(loader.diagnostics().rejected,1);assert.equal(loader.diagnostics().completed,1);
+});
+
+test('malformed prepared data is rejected and does not block later queue entries',async t=>{
+ const worker=new FakeWorker(),loader=createPlayerAssetLoader({workerFactory:()=>worker,yieldTask:immediate});t.after(()=>loader.dispose());const a=loader.load(request),b=loader.load(request),bad=packPlayerAsset(raw);bad.entries[1]=999999;worker.emit('message',{type:'prepared-player',id:1,packed:bad,verified:true,metrics:{}});await assert.rejects(a,/Invalid track/);worker.reply(1);assert.equal((await b).processing.lane,'worker');assert.equal(loader.diagnostics().completed,1);
+});

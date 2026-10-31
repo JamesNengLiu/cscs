@@ -1,5 +1,6 @@
+import {interpolateLocomotion} from './player-locomotion.js';
 /**
- * Timestamped REMOTE render-state buffer. No dependencies or simulation writes.
+ * Timestamped REMOTE render-state buffer. No simulation writes.
  *
  * Integration:
  *   const remotes = createSnapshotBuffer();
@@ -42,7 +43,8 @@
  * unmarked teleports below the distance threshold cannot be inferred reliably.
  * x/y/z, yaw (shortest arc), pitch, vx/vy/vz and gait distance are blended.
  * Compatible animation frames interpolate, wrapping forward for declared loops;
- * nonlooping gait frames interpolate without crossing resets. Other fields
+ * nonlooping gait frames interpolate without crossing resets. Authoritative
+ * locomotion weights/origin use the same interpolation as historical hitboxes. Other fields
  * use the earlier timestamp's state until the later timestamp is reached.
  * Outputs and inputs are isolated copies, including nested metadata.
  *
@@ -342,6 +344,13 @@ export function createSnapshotBuffer(options = {}) {
         result.playerGaitFrame=a.player.playerGaitFrame*(1-alpha)+b.player.playerGaitFrame*alpha;
       if(a.player.playerSequence===b.player.playerSequence&&a.player.playerPoseFromSequence===b.player.playerPoseFromSequence&&Number.isFinite(a.player.playerPoseBlend)&&Number.isFinite(b.player.playerPoseBlend))
         result.playerPoseBlend=a.player.playerPoseBlend*(1-alpha)+b.player.playerPoseBlend*alpha;
+      // Stance counterparts share an action timeline even when their clip
+      // names or loop lengths differ (e.g. standing vs crouching knife idle).
+      const clip=name=>typeof name==='string'?name.replace(/^(ref|crouch)_/,''):name;
+      if(clip(a.player.playerSequence)===clip(b.player.playerSequence)&&a.player.lastShot===b.player.lastShot&&a.player.reloadStartedAt===b.player.reloadStartedAt&&a.player.flinchAt===b.player.flinchAt&&Number.isFinite(a.player.playerAnimationTime)&&Number.isFinite(b.player.playerAnimationTime))
+        result.playerAnimationTime=a.player.playerAnimationTime*(1-alpha)+b.player.playerAnimationTime*alpha;
+      if(Number.isFinite(a.player.playerGroundTime)&&Number.isFinite(b.player.playerGroundTime))result.playerGroundTime=a.player.playerGroundTime*(1-alpha)+b.player.playerGroundTime*alpha;
+      result.playerLocomotion=interpolateLocomotion(a.player.playerLocomotion,b.player.playerLocomotion,alpha);
       stats.interpolations++;
       return result;
     }

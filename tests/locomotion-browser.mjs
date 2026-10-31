@@ -1,0 +1,24 @@
+// Native rasterization of actual local models on a neutral floor. Static visual
+// comparison only; production GPU/frame timing is checked separately.
+import assert from 'node:assert/strict';import {chromium} from 'playwright';import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {locomotionTrace} from './fixtures/locomotion-scenarios.mjs';import {auditTrace} from './fixtures/locomotion-audit.mjs';
+const report={scope:'Native Chrome GPU rasterization, static CPU-skinned original local models. Legacy layer ablation and current pose share identical physics inputs; no FPS claim.',errors:[],cases:[]},items=[];
+for(const [scenario,kind,label]of [['start-stop','start','起步'],['start-stop','stop','停步'],['crouch-rise','rise','起身'],['jump-land','land','落地']]){
+ const rows=locomotionTrace(scenario),event=auditTrace(rows).events.find(e=>e.kind===kind),index=event.index;
+ const old=structuredClone(rows[index].player);delete old.playerLocomotion;
+ for(const [title,p]of [[label+' · 旧切换帧',old],[label+' · 新切换帧',rows[index].player],[label+' · 新 +50ms',rows[index+3].player],[label+' · 新 +117ms',rows[index+7].player]])items.push({title,p:{...p,x:0,z:0,y:p.y-rows[0].player.y}});
+ report.cases.push({scenario,kind,frame:index,delta:event.delta});
+}
+let browser;
+try{
+ await mkdir('artifacts',{recursive:true});browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding']});
+ const page=await browser.newPage({viewport:{width:1600,height:1280}});page.on('pageerror',e=>report.errors.push(e.message));
+ await page.route('https://locomotion-audit.test/**',async route=>{const name=new URL(route.request().url()).pathname.slice(1);if(!name)return route.fulfill({contentType:'text/html',body:'<html><meta charset="utf-8"><style>body{margin:0;background:#c8ccc6;font:18px system-ui}canvas{display:block}h3{position:absolute;margin:0;padding:10px 16px;font-size:18px;color:#18291f;background:#d9e2d8bb}</style><canvas></canvas></html>'});if(name.includes('..'))return route.abort();const file=name.startsWith('vendor/')?new URL('../node_modules/three/build/'+name.slice(7),import.meta.url):new URL('../public/'+name,import.meta.url);try{await route.fulfill({contentType:name.endsWith('.js')?'text/javascript':name.endsWith('.json')?'application/json':name.endsWith('.png')?'image/png':'application/octet-stream',body:await readFile(file)});}catch{await route.fulfill({status:404,body:'Missing local fixture asset'});}});
+ await page.goto('https://locomotion-audit.test/');await page.evaluate(async items=>{
+  const THREE=await import('/vendor/three.module.js'),{createPlayerActor}=await import('/player-model.js'),renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true});renderer.setPixelRatio(1);renderer.setSize(1600,1280);renderer.setScissorTest(true);window.review={renderer,items:[]};
+  for(let i=0;i<items.length;i++){const item=items[i],scene=new THREE.Scene();scene.background=new THREE.Color('#c8ccc6');const grid=new THREE.GridHelper(4,16,0x647362,0xa8b2a1);scene.add(grid);const camera=new THREE.PerspectiveCamera(32,400/320,.05,20);camera.position.set(2.3,1.7,-3.5);camera.lookAt(0,.78,0);const actor=createPlayerActor(THREE,{skinning:'cpu'});scene.add(actor.group);await actor.setCharacter('urban');actor.update(0,item.p);const title=document.createElement('h3');title.textContent=item.title;title.style.left=(i%4*400)+'px';title.style.top=(Math.floor(i/4)*320)+'px';document.body.append(title);window.review.items.push({...item,actor,scene,camera});}
+ },items);
+ await page.waitForFunction(()=>window.review.items.every(i=>i.actor.info().thirdPersonWeapon.loaded));await page.evaluate(()=>{const {renderer,items}=window.review;items.forEach((item,i)=>{item.actor.update(0,item.p);renderer.setViewport(i%4*400,(3-Math.floor(i/4))*320,400,320);renderer.setScissor(i%4*400,(3-Math.floor(i/4))*320,400,320);renderer.render(item.scene,item.camera);});});
+ report.poses=await page.evaluate(()=>window.review.items.map(item=>({title:item.title,sequence:item.actor.info().sequence,locomotion:item.actor.info().locomotion,weapon:item.actor.info().thirdPersonWeapon.loaded})));assert.equal(report.poses.length,16);assert.ok(report.poses.every(p=>p.weapon));assert.deepEqual(report.errors,[]);await page.screenshot({path:'artifacts/locomotion-transitions.png'});report.status='passed';
+}catch(e){report.status='failed';report.failure=e.stack;process.exitCode=1;}
+finally{await browser?.close();await writeFile('artifacts/locomotion-browser-report.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,cases:report.cases,errors:report.errors,failure:report.failure},null,2));}

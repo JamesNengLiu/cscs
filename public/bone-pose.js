@@ -1,7 +1,8 @@
+import {createLocomotionPose} from './locomotion-pose.js';
 // Shared source bone evaluation for rendering and authoritative hitboxes.
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-export function createBonePose(THREE,data,matrices=data.bones.map(()=>new THREE.Matrix4()),captureLocals=false){
+export function createBonePose(THREE,data,matrices=data.bones.map(()=>new THREE.Matrix4()),captureLocals=false,onlyBones=null){
   const unit = new THREE.Vector3(1, 1, 1);
   const euler = new THREE.Euler(0, 0, 0, 'ZYX'), nextQ = new THREE.Quaternion();
   const positions = Array.from({length: 4}, () => new THREE.Vector3());
@@ -16,7 +17,12 @@ export function createBonePose(THREE,data,matrices=data.bones.map(()=>new THREE.
   const locals=captureLocals?data.bones.map(()=>({position:new THREE.Vector3(),rotation:new THREE.Quaternion()})):null;
   let previousPose=null;
   for(let i=0;i<data.bones.length;i++)upper[i]=data.bones[i].name==='Bip01 Spine'||(data.bones[i].parent>=0&&upper[data.bones[i].parent]);
+  let locomotion=null;
   function pose(sequence,frame,p={},merged=null,mapping=null){
+    if(!captureLocals&&!merged&&p.playerLocomotion){
+      locomotion||=createLocomotionPose(THREE,data,matrices,upper,mask=>createBonePose(THREE,data,undefined,true,mask));
+      if(locomotion.pose(sequence,frame,p,gaitDescription)){blendDescription='shared locomotion layers';return;}
+    }
     const previous=sequences.get(p.playerPoseFromSequence),blend=clamp(finite(p.playerPoseBlend,1),0,1);
     const transitioning=!captureLocals&&previous&&blend<1;
     if(transitioning){
@@ -61,6 +67,7 @@ export function createBonePose(THREE,data,matrices=data.bones.map(()=>new THREE.
     } else blendDescription = count > 1 ? `blend 0 only: ${count} source blends unavailable/unsupported` : 'single source blend';
     for (let i = 0; i < data.bones.length; i++) {
       if (merged && mapping[i] >= 0) { matrices[i].copy(merged[mapping[i]]); continue; }
+      if(onlyBones&&!onlyBones[i])continue;
       const bone = data.bones[i];
       const walking=gait&&(stride>0||Number.isFinite(p.playerGaitFrame))&&!upper[i],source=walking?gait:sequence;
       const from=walking?gaitFirst:first,to=walking?gaitNext:next,part=walking?gaitFraction:fraction,boneBlends=walking?1:used;
@@ -88,6 +95,7 @@ export function createBonePose(THREE,data,matrices=data.bones.map(()=>new THREE.
         nextQ.copy(rotations[0]);rotations[0].copy(previousPose.locals[i].rotation).slerp(nextQ,blend);
       }
       if(locals){locals[i].position.copy(positions[0]);locals[i].rotation.copy(rotations[0]);}
+      if(captureLocals)continue;
       matrices[i].compose(positions[0], rotations[0], unit);
       if (bone.parent >= 0) matrices[i].premultiply(matrices[bone.parent]);
     }

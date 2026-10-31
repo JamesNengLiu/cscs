@@ -16,11 +16,13 @@ import {GRENADE_TIMING,resetGrenadeThrow,grenadeActionPhase} from './public/gren
 import {GRENADE_PROTOCOL,normalizeGrenadeIntent} from './public/grenade-intent.js';
 import {consumeGunShot} from './public/gun-state.js';
 import {SCOPE_VIEW_PROTOCOL} from './public/awp-view.js';
+import {createLocomotionState,stepLocomotion,copyLocomotion} from './public/player-locomotion.js';
 import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
   #inputs=new Map();
+  #locomotion=new WeakMap();
   #movementSounds=new Map();
   #bombSounds=null;
   constructor({random=Math.random,audioRandom=Math.random,friendlyFire=false}={}){this.random=random;this.audioRandom=audioRandom;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
@@ -43,7 +45,7 @@ export class Game {
     const before=transition&&p.alive&&p.weapon!==key?hitboxAnimation(p,now):null;
     this.cancelGrenadeIntent(p);
     activate(p,key,now);
-    p.poseFromSequence=before?.playerSequence||null;p.poseFromFrame=before?.playerFrame||0;p.poseChangedAt=now;
+    p.poseFromSequence=before?.playerSequence||null;p.poseFromFrame=before?.playerFrame||0;p.poseChangedAt=now;p.poseFromTime=before?.playerAnimationTime??null;
     if(changed&&transition&&key==='knife')this.sound(p,'weapons/knife_deploy1.wav',{private:true,channel:'item'});
   }
   hasBothTeams(){return new Set([...this.players.values()].map(p=>p.team)).size===2;}
@@ -64,6 +66,7 @@ export class Game {
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
+    delete p.playerLocomotion;this.#locomotion.delete(p);
     p.gaitDistance=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     this.#movementSounds.set(p.id,createMovementSoundState());p.radioCount=0;p.nextRadioAt=0;
     p.recoilSeed=this.random===Math.random?Math.floor(Math.random()*0x100000000):null;
@@ -409,7 +412,9 @@ export class Game {
     for(const p of all)if(p.alive){
       const command=this.#nextInput(p);p.input=command.input||command;
       const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld,heldFire=p.fireHeld;
+      const locomotion=this.#locomotion.get(p)||createLocomotionState(p);
       const beforeMove={x:p.x,y:p.y,z:p.z,vx:p.vx,vy:p.vy,vz:p.vz,grounded:p.grounded};movePlayer(p,p.input,dt,all);
+      const presentation=stepLocomotion(locomotion,p,dt);this.#locomotion.set(p,presentation.state);p.playerLocomotion=presentation.pose;
       for(const e of movementSoundStep(this.#movementSounds.get(p.id),{before:beforeMove,after:p,input:p.input,dt,surface:groundSoundSurface(p),random:this.audioRandom}))this.emit({...e,id:p.id,inputSeq:command.seq||0});
       if(p.landedSpeed>580/40)this.damage(p,(p.landedSpeed*40-580)*100/(1024-580),null,{kind:'fall',hitgroup:'legs'});
       // Synthetic idle is not a real button release. Preserve the edge latches
@@ -438,6 +443,7 @@ export class Game {
   snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(player=>{
         const {input,lastInput,lastInputSeq,pendingMoney,...p}=player,animation=hitboxAnimation(player,this.time);
+        if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);
         if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return {...visible,...animation};}
         return {...p,...animation,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}

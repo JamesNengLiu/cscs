@@ -29,7 +29,7 @@ Supported IDs:
 
 ```text
 worldLocal = (-sourceY, sourceZ, -sourceX) / 40
-worldLocal.y += crouch ? 0.45 : 0.9
+worldLocal.y += locomotionOrigin(playerState)  // version 1 origin, otherwise crouch ? 0.45 : 0.9
 world = groupTransform(worldLocal)
 ```
 
@@ -122,3 +122,13 @@ Shared movement now records `gaitYaw`. The rendered root and canonical bone hitb
 Remote weapon model changes keep the old mesh while the requested valid asset loads, then atomically swap. Stale requests cannot install themselves; a missing/failed asset still reports its failure and has no fabricated substitute. `thirdPersonWeapon.displayedId` and `visible` distinguish the displayed model from the requested model during loading.
 
 `node tests/player-pose-browser.mjs` renders nine neutral-scene cases using actual local models and shared Game metadata: stationary AK, M4 up/down aim, forward run, aimed strafe, backwards motion and three weapon-switch times. `POSE_LEGACY_BLEND=1` produces a diagnostic comparison using the old axis calculation; it does not modify production files. Screenshots/reports remain under ignored `artifacts/`. Tests additionally verify physical aim direction, backward/strafe orientation, transition endpoint/midpoint and atomic asset replacement.
+
+## 2026-10-30：起停、蹲起与落地的共享过渡
+
+可选的 `playerLocomotion` 版本 1 提供六个有限标量：`duck`、`move`、`walk`、`air`、`airTime`、`origin`。前四项在 0–1 内，后两项分别表示跳跃显示相位与源模型的局部竖直原点。`playerGroundSequence` 指定当前武器的地面 aim 基础序列；`playerAnimationTime` / `playerGroundTime` 保留动作与世界时间，`playerPoseFromTime` 保留切枪前的动作相位。缺失或不合法的描述继续使用原先的序列、gait 和 .9/.45 原点。
+
+新版描述存在时，外层 group 仍直接使用权威/插值的脚底坐标，实际碰撞体不变；内层模型和 p_weapon 使用 `locomotionOrigin(p)`。局部原点随地面蹲起衔接，空中 hull 原点变化单独补偿。局部骨骼合成将 idle/行走/蹲姿/跳跃分层混合，再一次性构建世界骨骼矩阵；开枪、换弹、受击和原有切枪混合保留。站姿/蹲姿对应动作各自按原始 FPS、帧数和循环标记取样，避免重载序列切换时冻结或用长周期站姿的帧号硬套短周期蹲姿。
+
+同一模块供人物显示、当前与历史骨骼命中盒使用。快照采样和命中回溯插值相同权重，元数据复制只保留限定标量。合成器复用固定数量的局部采样器并按上下身遮罩求值，不建立无界姿势历史、不下发逐骨骼数组，也不添加 GPU 绘制批次。姿势稳定后的 idle、run、crouch、crouchrun、jump 与原始骨架端点对比通过。
+
+验证入口与边界见 [P2 第三批记录](cs16-sources.md)。`tests/locomotion-transitions.test.mjs` 包含真实渲染骨骼与回溯命中盒在换弹、射击及刀/M249 idle 跨站蹲边界时的矩阵对比；`tests/locomotion-browser.mjs` 为本地原始模型的静态原生光栅化检查；`tests/locomotion-performance-browser.mjs` 为生产客户端九角色重放。CPU、GPU、帧间隔和实体多人测试分开解释。

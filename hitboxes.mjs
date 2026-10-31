@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {createBonePose} from './public/bone-pose.js';
+import {locomotionOrigin} from './public/player-locomotion.js';
 import {rayBox} from './public/math.js';
 // One canonical original rig keeps cosmetic character/face selection out of combat rules.
 let rig=null,error=null;
@@ -17,7 +18,7 @@ const cache=new WeakMap(),animations=new WeakMap();
 let poseEvaluations=0,animationSelections=0,animationCacheHits=0,poseCacheHits=0;
 function animationState(p,time){
   if(!rig)return null;
-  const key=[time,p.crouch,p.weapon,p.lastShot,p.reloadAt,p.reloadStartedAt,p.vx,p.vz,p.grounded,p.walk,p.alive,p.diedAt,p.gaitDistance,p.airTime,p.flinchAt,p.flinchHead,p.poseFromSequence,p.poseFromFrame,p.poseChangedAt].join(':');
+  const key=[time,p.crouch,p.weapon,p.lastShot,p.reloadAt,p.reloadStartedAt,p.vx,p.vz,p.grounded,p.walk,p.alive,p.diedAt,p.gaitDistance,p.airTime,p.flinchAt,p.flinchHead,p.poseFromSequence,p.poseFromFrame,p.poseChangedAt,p.poseFromTime,JSON.stringify(p.playerLocomotion)].join(':');
   const old=animations.get(p);if(old?.key===key){animationCacheHits++;return old.animation;}
   const prefix=p.crouch?'crouch':'ref',weapon=suffix(p.weapon),age=time-(p.lastShot??-100);
   let names,elapsed=time,gait=null;
@@ -36,22 +37,23 @@ function animationState(p,time){
   const frame=sequence.flags&1?(elapsed*sequence.fps)%Math.max(1,sequence.frames-1):Math.min(elapsed*sequence.fps,sequence.frames-1);
   const gaitFrame=gait&&!(gait.flags&1)?Math.min((p.airTime||0)*gait.fps,gait.frames-1):null;
   const previous=available.get(p.poseFromSequence),blend=previous?Math.max(0,Math.min(1,(time-p.poseChangedAt)/.2)):1;
-  const animation={sequence,frame,gait,gaitFrame,previous:blend<1?previous:null,previousFrame:p.poseFromFrame||0,blend};animations.set(p,{key,animation});animationSelections++;return animation;
+  const groundSequence=available.get(`ref_aim_${weapon}`)||available.get('ref_aim_ak47');
+  const animation={elapsed,groundSequence,sequence,frame,gait,gaitFrame,previous:blend<1?previous:null,previousFrame:p.poseFromFrame||0,blend};animations.set(p,{key,animation});animationSelections++;return animation;
 }
 export function playerHitboxes(p,time=0){
   if(!evaluator)return null;
   const animation=animationState(p,time);if(!animation)return null;const {sequence,frame,gait,gaitFrame,previous,previousFrame,blend}=animation;
-  const key=[time,p.x,p.y,p.z,p.yaw,p.gaitYaw,p.pitch,p.crouch,p.aimYaw,p.blendX,p.blendY,sequence.name,frame,gait?.name,p.gaitDistance,gaitFrame,previous?.name,previousFrame,blend].join(':');
+  const key=[time,p.x,p.y,p.z,p.yaw,p.gaitYaw,p.pitch,p.crouch,p.aimYaw,p.blendX,p.blendY,sequence.name,frame,gait?.name,p.gaitDistance,gaitFrame,previous?.name,previousFrame,blend,p.poseFromTime,JSON.stringify(p.playerLocomotion)].join(':');
   const cached=cache.get(p);if(cached?.key===key){poseCacheHits++;return cached.boxes;}
   poseEvaluations++;
-  evaluator.pose(sequence,frame,{...p,playerGaitSequence:gait?.name,playerGaitFrame:gaitFrame,playerPoseFromSequence:previous?.name,playerPoseFromFrame:previousFrame,playerPoseBlend:blend});
+  evaluator.pose(sequence,frame,{...p,playerGaitSequence:gait?.name,playerGaitFrame:gaitFrame,playerPoseFromSequence:previous?.name,playerPoseFromFrame:previousFrame,playerPoseBlend:blend,playerGroundSequence:animation.groundSequence?.name,playerAnimationTime:animation.elapsed,playerGroundTime:time,playerPoseFromTime:p.poseFromTime});
   const root=new THREE.Matrix4().makeRotationY(Number.isFinite(p.gaitYaw)?p.gaitYaw:p.yaw||0);root.setPosition(p.x,p.y,p.z);
-  const source=new THREE.Matrix4().set(0,-1/40,0,0,0,0,1/40,p.crouch?.45:.9,-1/40,0,0,0,0,0,0,1);root.multiply(source);
+  const source=new THREE.Matrix4().set(0,-1/40,0,0,0,0,1/40,locomotionOrigin(p),-1/40,0,0,0,0,0,0,1);root.multiply(source);
   const boxes=rig.hitboxes.map(b=>({group:groupName(b.group),min:b.min,max:b.max,inverse:new THREE.Matrix4().multiplyMatrices(root,evaluator.matrices[b.bone]).invert().elements.slice()}));
   cache.set(p,{key,boxes,sequence:sequence.name,frame});return boxes;
 }
 export function hitboxAnimation(p,time){const a=animationState(p,time);return a?{playerSequence:a.sequence.name,playerFrame:a.frame,
-  playerFrameSpan:Math.max(1,a.sequence.frames-1),playerLooping:Boolean(a.sequence.flags&1),playerGaitSequence:a.gait?.name||null,playerGaitFrame:a.gaitFrame,
+  playerGroundSequence:a.groundSequence?.name||null,playerAnimationTime:a.elapsed,playerGroundTime:time,playerPoseFromTime:p.poseFromTime,playerFrameSpan:Math.max(1,a.sequence.frames-1),playerLooping:Boolean(a.sequence.flags&1),playerGaitSequence:a.gait?.name||null,playerGaitFrame:a.gaitFrame,
   playerPoseFromSequence:a.previous?.name||null,playerPoseFromFrame:a.previousFrame,playerPoseBlend:a.blend}:{};}
 export function rayPlayer(o,d,p,time=0,expand=0){
   const boxes=playerHitboxes(p,time);if(!boxes)return null;

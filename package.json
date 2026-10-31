@@ -25,6 +25,8 @@
     "test:feel:browser": "node tests/feel-regression-browser.mjs",
     "test:p2:presentation": "node tests/p2-presentation-browser.mjs",
     "test:p2:response": "node tests/p2-response-browser.mjs",
+    "test:p2:locomotion": "node tests/locomotion-browser.mjs",
+    "test:p2:locomotion:performance": "node tests/locomotion-performance-browser.mjs",
     "test:player-poses": "node tests/player-pose-browser.mjs",
     "test:utility": "node tests/utility-presentation-browser.mjs",
     "test:audio": "node --test --test-reporter=tap tests/audio-game.test.mjs tests/game-audio.test.mjs tests/audio-settings.test.mjs tests/sound-catalog.test.mjs",

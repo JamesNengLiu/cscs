@@ -1,3 +1,4 @@
+import {locomotionOrigin,copyLocomotion} from './player-locomotion.js';
 import {createBonePose} from './bone-pose.js';
 // GoldSrc player rendering. Assets are supplied separately; no retail mesh data here.
 import {createRigidSkinning} from './rigid-skinning.js';
@@ -249,7 +250,7 @@ function buildPose(THREE, asset, shared, skinningMode) {
   let currentSkin = -1, currentBody = -1;
   function pose(sequence, frame, p, merged = null, mapping = null) {
     const skin = index(p.skin, data.skins.length) ? p.skin : 0, body = Math.max(0, Math.floor(finite(p.body)));
-    root.matrix.elements[13] = p.crouch ? 0.45 : 0.9;
+    root.matrix.elements[13] = locomotionOrigin(p);
     root.matrixWorldNeedsUpdate = true;
     if (skin !== currentSkin || body !== currentBody) {
       for (let i = 0; i < meshes.length; i++) {
@@ -373,7 +374,8 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
     if (disposed) return;
     p ||= {};
     // Copy only supported fields: no external objects or arbitrarily large state retained.
-    for (const key of ['x', 'y', 'z', 'yaw', 'gaitYaw', 'pitch', 'aimYaw', 'vx', 'vz', 'crouch', 'grounded', 'alive', 'dead', 'walk', 'weapon', 'reloading', 'reloadAt', 'lastShot', 'ammo', 'skin', 'body', 'playerSequence', 'playerFrame', 'playerGaitSequence', 'playerGaitFrame', 'gaitDistance', 'playerPoseFromSequence', 'playerPoseFromFrame', 'playerPoseBlend', 'animation', 'animationToken', 'blendX', 'blendY']) state[key] = p[key];
+    for (const key of ['x', 'y', 'z', 'yaw', 'gaitYaw', 'pitch', 'aimYaw', 'vx', 'vz', 'crouch', 'grounded', 'alive', 'dead', 'walk', 'weapon', 'reloading', 'reloadAt', 'lastShot', 'ammo', 'skin', 'body', 'playerGroundSequence', 'playerGroundTime', 'playerAnimationTime', 'playerPoseFromTime', 'playerSequence', 'playerFrame', 'playerGaitSequence', 'playerGaitFrame', 'gaitDistance', 'playerPoseFromSequence', 'playerPoseFromFrame', 'playerPoseBlend', 'animation', 'animationToken', 'blendX', 'blendY']) state[key] = p[key];
+    state.playerLocomotion=copyLocomotion(p.playerLocomotion);
     if (Number.isFinite(p.x)) group.position.x = p.x;
     if (Number.isFinite(p.y)) group.position.y = p.y;
     if (Number.isFinite(p.z)) group.position.z = p.z;
@@ -425,13 +427,13 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu'}
       counts: active?.data.metadata.counts ? {...active.data.metadata.counts} : null,
       sourceHashStatus: active ? 'MDL provenance declared by manifest; raw MDL not fetched by renderer' : 'no loaded source',
       customCosmetic: active?.data.metadata.source === 'custom-trump-face',
-      sequence: sequence?.name || null, action, frame, animationWarning, skinning,gait:active?.gaitInfo()||null,
+      sequence: sequence?.name || null, action, frame, animationWarning, skinning,gait:active?.gaitInfo()||null,locomotion:state.playerLocomotion?{...state.playerLocomotion}:null,
       blendSupport: active?.blendInfo() || 'none',
       availableSequences: active?.data.sequences.map((s, index) => ({index, name: s.name, frames: s.frames, fps: s.fps, blendCount: s.blendCount,
         imported: !!(s.tracks || s.blendTracks), allBlends: !!s.blendTracks || s.blendCount === 1})) || [],
       thirdPersonWeapon: {id: weaponId,displayedId:weaponDisplayedId,loaded:!!weapon&&weaponDisplayedId===weaponId,visible:!!weapon,status: weaponStatus,
         unmatchedBones: weapon ? weapon.data.bones.filter((b, i) => weaponMapping[i] < 0).map(b => b.name) : []},
-      transform: {goldSrcToWorld: '(-Y,Z,-X)/40', scale: 1 / 40, origin: 'feet + (crouch ? 0.45 : 0.9)', yawZero: '-Z', layer: 0},
+      transform: {goldSrcToWorld: '(-Y,Z,-X)/40', scale: 1 / 40, origin: 'feet + authoritative locomotion origin; legacy crouch 0.45 / stand 0.9', yawZero: '-Z', layer: 0},
       limitations: ['Server-authored upper-body/gait layers when supplied; retail gait yaw and controller behavior remain approximate.',
         '1, 2, 4 and 9 source blends supported; other/missing blends expose blend-0 fallback.',
         'Palette textures use unlit materials; controller rest values only; no source engine lighting.'],

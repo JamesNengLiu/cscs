@@ -1,4 +1,4 @@
-import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,MAP_VERSION,buyZoneAt,direction} from './public/shared.js';
+import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,MAP_VERSION,buyZoneAt,direction,HIT_SLOWDOWN_VERSION} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
 import {spreadDirection} from './public/weapons.js';
 import {rayPlayer,hitboxAnimation,hitboxDiagnostics} from './hitboxes.mjs';
@@ -274,8 +274,8 @@ export class Game {
         if(!reacting||(head&&!p.flinchHead)){p.flinchAt=this.time;p.flinchHead=head;}
       }
       const large=!p.crouch&&options.hitgroup!=='legs'&&['scout','aug','sg550','galil','famas','awp','m3','m4a1','g3sg1','deagle','sg552','ak47'].includes(options.kind);
-      p.velocityModifier=large?.65:.5;
-      if(large&&Math.hypot(p.vx||0,p.vz||0,p.vy||0)<300/40){const dx=p.x-killer.x,dy=p.y-killer.y,dz=p.z-killer.z,len=Math.hypot(dx,dy,dz)||1;p.vx+=dx/len*170/40;p.vz+=dz/len*170/40;}
+      if(!large)p.velocityModifier=.5;
+      else if(Math.hypot(p.vx||0,p.vz||0,p.vy||0)<300/40){p.velocityModifier=.65;const dx=p.x-killer.x,dy=p.y-killer.y,dz=p.z-killer.z,len=Math.hypot(dx,dy,dz)||1;p.vx+=dx/len*170/40;p.vz+=dz/len*170/40;}
       const unprotected=options.hitgroup==='head'?!p.helmet:!p.armour;
       if(unprotected&&['head','chest','stomach'].includes(options.hitgroup))p.recoilPitch=Math.min(options.hitgroup==='head'?12:4,amount*(options.hitgroup==='head'?.5:.1))*Math.PI/180;
     }
@@ -440,7 +440,7 @@ export class Game {
     const present=team=>all.some(p=>p.team===team),alive=team=>all.some(p=>p.alive&&p.team===team);
     if(present('CT')&&!alive('CT'))this.finish('T','对方全灭');else if(present('T')&&!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
+  snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,hitSlowdownVersion:HIT_SLOWDOWN_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(player=>{
         const {input,lastInput,lastInputSeq,pendingMoney,...p}=player,animation=hitboxAnimation(player,this.time);
         if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);

@@ -147,6 +147,7 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
     state=m;stateReceivedAt=receivedAt;const me=m.players.find(p=>p.id===myId);
     if(me){
       me.ballisticsVersion=m.ballisticsVersion??0;
+      me.hitSlowdownVersion=m.hitSlowdownVersion??0;
       if(!local||lastRound!==m.round){resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};playerCamera.reset(local);yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;}
       else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){local={...me};playerCamera.reset(local);pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};}
       else {const result=reconcileMovement(me,pendingCommands,m.round,m.players);lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction);playerCamera.rebase(local,result.player);local=result.player;pendingCommands=result.pending;}

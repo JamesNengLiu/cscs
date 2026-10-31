@@ -2,6 +2,7 @@ import {RULES,WEAPONS} from './config.js';
 import {clamp} from './math.js';
 import {groundHeight,collides,isGrounded,trace} from './map.js';
 import {PITCH_LIMIT} from './view-settings.js';
+export const HIT_SLOWDOWN_VERSION=1;
 export function eyeHeight(p){return p.crouch?.75:RULES.eye-(RULES.eye-.75)*(p.duckAmount||0);}
 export function bodyHeight(p){return p.crouch?RULES.crouchHeight:RULES.bodyHeight;}
 export function maxMoveSpeed(p){
@@ -67,7 +68,8 @@ function slide(start,velocity,dt,height,players,self){
   }
   return {pos,velocity:v};
 }
-function substep(p,input,dt,players){
+function applyHitSlowdown(p,dt){const mod=Math.min(1,p.velocityModifier+dt*.6);p.vx*=mod**(dt*60);p.vz*=mod**(dt*60);p.velocityModifier=mod;}
+function substep(p,input,dt,players,commandDuration,jumpSlowed){
   const height=bodyHeight(p),contact=groundContact(p,players,height);let grounded=Boolean(contact);
   // The contact tolerance must agree with the actual feet position before a
   // fresh jump impulse, including a new wheel pulse on the landing tick.
@@ -77,6 +79,9 @@ function substep(p,input,dt,players){
   const speed=maxMoveSpeed(p)*(p.crouch||p.ducking?.333:input.walk?.52:1),wish=Math.hypot(wx,wz);
   p.jumpFatigue=Math.max(0,(p.jumpFatigue||0)-dt*1000);
   if(input.jump&&!p.jumpHeld&&grounded){
+    // The grounded takeoff command consumes one whole command of tagging
+    // before the jump/cap. Collision substeps must not skip or apply it twice.
+    if(!jumpSlowed&&p.velocityModifier<1&&p.hitSlowdownVersion!==0){applyHitSlowdown(p,commandDuration);jumpSlowed=true;}
     const current=Math.hypot(p.vx,p.vz),limit=maxMoveSpeed(p)*1.2;
     if(current>limit){p.vx*=limit*.8/current;p.vz*=limit*.8/current;}
     p.vy=RULES.jumpSpeed*(1-p.jumpFatigue*.00019);p.jumpFatigue=1315.789429;grounded=false;
@@ -84,7 +89,7 @@ function substep(p,input,dt,players){
   if(grounded){
     const current=Math.hypot(p.vx,p.vz),drop=Math.max(current,RULES.stopSpeed)*RULES.friction*dt;
     const factor=current?Math.max(0,current-drop)/current:0;p.vx*=factor;p.vz*=factor;
-    if(p.velocityModifier<1){const mod=Math.min(1,p.velocityModifier+dt*.6);p.vx*=mod**(dt*60);p.vz*=mod**(dt*60);p.velocityModifier=mod;}
+    if(!jumpSlowed&&p.velocityModifier<1)applyHitSlowdown(p,dt);
   }
   if(wish>1e-6){
     const nx=wx/wish,nz=wz/wish,wishSpeed=speed*wish*(grounded?1-p.jumpFatigue*.00019:1);
@@ -122,6 +127,7 @@ function substep(p,input,dt,players){
   if(p.grounded)p.gaitDistance=(p.gaitDistance||0)+travel*(forward<-travel*.5?-1:1);
   p.airTime=p.grounded?0:(p.airTime||0)+dt;
   p.groundPlayer=p.grounded? support.player||null:null;p.moving=Math.hypot(p.vx,p.vz)>.12;
+  return jumpSlowed;
 }
 export function movePlayer(p,input,dt,players=[]){
   p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw||0;p.pitch=clamp(Number.isFinite(input.pitch)?input.pitch:p.pitch||0,-PITCH_LIMIT,PITCH_LIMIT);
@@ -129,5 +135,6 @@ export function movePlayer(p,input,dt,players=[]){
   updateStance(p,!!input.crouch,clamp(dt,0,.1),players);
   const duration=clamp(dt,0,.1),count=Math.max(1,Math.ceil(duration*120));
   p.landedSpeed=0;
-  for(let i=0;i<count;i++)substep(p,input,duration/count,players);
+  let jumpSlowed=false;
+  for(let i=0;i<count;i++)jumpSlowed=substep(p,input,duration/count,players,duration,jumpSlowed);
 }

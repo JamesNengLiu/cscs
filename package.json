@@ -40,6 +40,7 @@
     "test:equipment": "node --test tests/equipment-game.test.mjs tests/arsenal.test.mjs tests/grenades.test.mjs tests/weapon-model.test.mjs",
     "test:downhill": "node --test tests/downhill.test.mjs && node tools/verify-downhill.mjs",
     "test:downhill:browser": "node tests/downhill-browser.mjs",
+    "test:hit-slowdown:browser": "node tests/hit-slowdown-browser.mjs",
     "test:wheel-jump": "node --test tests/wheel-jump.test.mjs",
     "test:wheel-jump:browser": "node tests/wheel-jump-browser.mjs",
     "test:tuning": "node tests/evaluate-tuning.mjs",

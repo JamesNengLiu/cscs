@@ -8,8 +8,8 @@ export const slowdownCases=[
  ...DOWNHILL_CASES.map(route=>({name:route.name,mode:'slope-wheel',route})),
  ...[.5,.65].map(modifier=>({name:'legacy-hit-jump-'+modifier,mode:'legacy-hit-jump',modifier})),
 ];
-export function slowdownCaseTrace(move,c){
- const p=flatSlowdownPose(c.route?slopeStart(c.route):{});if(c.modifier)Object.assign(p,{velocityModifier:c.modifier,vz:-6.25,hitSlowdownVersion:0});const rows=[];
+export function slowdownCaseTrace(move,c,collisionVersion=1,jumpFatigueVersion=1){
+ const p=flatSlowdownPose(c.route?slopeStart(c.route):{});Object.assign(p,{collisionVersion,jumpFatigueVersion});if(c.modifier)Object.assign(p,{velocityModifier:c.modifier,vz:-6.25,hitSlowdownVersion:0});const rows=[];
  for(let frame=0;frame<120;frame++){
   const input={yaw:p.yaw,pitch:0,f:c.mode==='stop'&&frame>=50?0:1};
   if(c.mode==='strafe')Object.assign(input,{f:0,s:frame<60?1:-1});

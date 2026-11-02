@@ -130,7 +130,13 @@ test('deterministic UDP loss/reorder/duplication/bursts: redundant history drain
   for(let tick=1;tick<=total+12;tick++){
     if(tick<=total){history.push(command(g,tick,{f:tick===45?0:1,yaw,jump:tick===20,fire:tick===30}));if(tick%7!==0){const payload=buildInputBatch(history.filter(c=>c.seq>p.ackInputSeq),g.round,p.ackInputSeq);packets.push({at:tick+[2,0,1,0][tick%4],payload});if(tick%5===0)packets.push({at:tick+3,payload});}}
     const due=packets.filter(packet=>packet.at<=tick).reverse();for(const packet of due){g.inputBatch('t',packet.payload.commands);packets.splice(packets.indexOf(packet),1);}
-    const before={...p};g.step();assert.ok(Math.hypot(p.x-before.x,p.z-before.z)<=RULES.speed*INPUT_DT+1e-9);
+    const before={...p},others=[...g.players.values()].filter(q=>q!==p).map(q=>({...q}));g.step();
+    // A downhill landing can convert falling velocity into horizontal motion.
+    // Compare one legitimate physics command, rather than a flat-ground cap:
+    // duplicate/reordered packets must never simulate extra movement steps.
+    const singleStep={...before};movePlayer(singleStep,p.input,INPUT_DT,others);
+    for(const k of ['x','y','z','vx','vy','vz'])assert.equal(p[k],singleStep[k],`${k} at network tick ${tick}`);
+    assert.ok(p.appliedInputCommands-before.appliedInputCommands<=1);
     observedJump||=p.lastAppliedInputSeq===20&&p.input.jump;observedFire||=p.lastAppliedInputSeq===30&&p.input.fire;observedRelease||=p.lastAppliedInputSeq===45&&p.input.f===0;
     const unacked=history.filter(c=>c.seq>p.ackInputSeq);maximumPending=Math.max(maximumPending,unacked.length);const predicted=reconcileMovement(g.snapshot('t').players.find(a=>a.id==='t'),unacked,g.round);assert.ok(Number.isFinite(predicted.player.y));
   }

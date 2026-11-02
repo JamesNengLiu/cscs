@@ -39,8 +39,14 @@ for(const profile of baseline.groundProfiles)test(`grounded ${profile.modifier} 
  const p=flatSlowdownPose({velocityModifier:profile.modifier,vz:-6.25});let recovered=null;for(let tick=1;tick<=60;tick++){movePlayer(p,{f:1,yaw:0},1/60);if(recovered===null&&p.velocityModifier===1)recovered=tick;const expected=profile.rows.find(r=>r.tick===tick);if(expected)assert.deepEqual(slowdownColumns.map(k=>p[k]===0?0:p[k]??null),expected.values);}
  assert.equal(recovered,profile.recoveryTick);
 });
-for(const fixture of slowdownCases)test(`unchanged full movement trajectory: ${fixture.name}`,()=>{
- const expected=baseline.cases.find(c=>c.name===fixture.name),rows=slowdownCaseTrace(movePlayer,fixture);assert.equal(rows.length,expected.frames);assert.equal(createHash('sha256').update(JSON.stringify(rows)).digest('hex'),expected.sha256);
+for(const fixture of slowdownCases)test(`preserved pre-collision / old-fatigue compatibility trajectory: ${fixture.name}`,()=>{
+ const expected=baseline.cases.find(c=>c.name===fixture.name),rows=slowdownCaseTrace(movePlayer,fixture,0,0);assert.equal(rows.length,expected.frames);assert.equal(createHash('sha256').update(JSON.stringify(rows)).digest('hex'),expected.sha256);
+});
+for(const fixture of slowdownCases.filter(c=>c.name.startsWith('flat-')&&c.mode!=='duck-jump'))test(`new collision and fatigue keep ordinary flat movement exactly unchanged: ${fixture.name}`,()=>{
+ const expected=baseline.cases.find(c=>c.name===fixture.name),rows=slowdownCaseTrace(movePlayer,fixture);assert.equal(createHash('sha256').update(JSON.stringify(rows)).digest('hex'),expected.sha256);
+});
+test('old-fatigue compatibility retains the saved duck-jump trajectory with modern collision',()=>{
+ const fixture=slowdownCases.find(c=>c.mode==='duck-jump'),expected=baseline.cases.find(c=>c.name===fixture.name),rows=slowdownCaseTrace(movePlayer,fixture,1,0);assert.equal(createHash('sha256').update(JSON.stringify(rows)).digest('hex'),expected.sha256);
 });
 test('new snapshots advertise the shared rule; old-server prediction keeps legacy jump behavior',()=>{
  const {g}=match();assert.equal(g.snapshot('victim').hitSlowdownVersion,HIT_SLOWDOWN_VERSION);const modern=flatSlowdownPose({vx:6.25,velocityModifier:.5,hitSlowdownVersion:1}),legacy=flatSlowdownPose({vx:6.25,velocityModifier:.5,hitSlowdownVersion:0});

@@ -2,7 +2,11 @@ import {RULES,WEAPONS} from './config.js';
 import {clamp} from './math.js';
 import {groundHeight,collides,isGrounded,trace} from './map.js';
 import {PITCH_LIMIT} from './view-settings.js';
+import {slideMove,edgeFrictionMultiplier} from './movement-collision.js';
 export const HIT_SLOWDOWN_VERSION=1;
+export const COLLISION_VERSION=1;
+export const JUMP_FATIGUE_VERSION=1;
+const FATIGUE_REFERENCE_HZ=100;
 export function eyeHeight(p){return p.crouch?.75:RULES.eye-(RULES.eye-.75)*(p.duckAmount||0);}
 export function bodyHeight(p){return p.crouch?RULES.crouchHeight:RULES.bodyHeight;}
 export function maxMoveSpeed(p){
@@ -28,13 +32,25 @@ function updateStance(p,crouch,dt,players){
   const bodyBlocked=players.some(q=>q.alive&&q.id!==p.id&&Math.abs(p.x-q.x)<RULES.radius*2-.001&&Math.abs(p.z-q.z)<RULES.radius*2-.001&&y<q.y+bodyHeight(q)-.001&&y+height>q.y+.001);
   if(!bodyBlocked&&!collides(p.x,p.z,RULES.radius,y,height)){p.y=y;p.crouch=crouch;p.duckAmount=crouch?1:0;p.ducking=false;}
 }
-export function traceMovement(start,end,height,players=[],self=null){
+export function traceMovement(start,end,height,players=[],self=null,overlapsBlock=false){
+  if(self?.jumpFatigueVersion!==0){
+    // Suppress sub-picounit drift left by clipping an almost-zero component;
+    // rounding onto an exact BSP boundary can otherwise enter a solid leaf.
+    const stable=(a,b)=>Math.abs(b-a)<=1e-12?a:b;
+    end={x:stable(start.x,end.x),y:stable(start.y,end.y),z:stable(start.z,end.z)};
+  }
   let best=trace(start,end,height);
+  if(self?.jumpFatigueVersion!==0&&!best.startSolid&&best.fraction<1){
+    const normalTravel=Math.abs((end.x-start.x)*best.normal[0]+(end.y-start.y)*best.normal[1]+(end.z-start.z)*best.normal[2]);
+    // The BSP sweep skips its skin backoff below this threshold. At a nearly
+    // parallel wall, its exact boundary can round into solid space instead.
+    if(normalTravel>0&&normalTravel<=1e-9)best={...best,fraction:0,end:{x:start.x,y:start.y,z:start.z}};
+  }
   for(const q of players){
     if(!q.alive||q===self||(self?.id!=null&&q.id===self.id))continue;
     const min=[q.x-RULES.radius*2,q.y-height,q.z-RULES.radius*2],max=[q.x+RULES.radius*2,q.y+bodyHeight(q),q.z+RULES.radius*2];
     const a=[start.x,start.y,start.z],b=[end.x,end.y,end.z];
-    if(a.every((v,i)=>v>min[i]+.001&&v<max[i]-.001))continue; // Existing overlaps may separate.
+    if(a.every((v,i)=>v>min[i]+.001&&v<max[i]-.001)){if(overlapsBlock)return {fraction:0,normal:[0,0,0],startSolid:true,model:null,player:q.id,end:{...start}};continue;} // Existing overlaps may separate.
     let lo=0,hi=1,normal=[0,0,0];
     for(let i=0;i<3;i++){
       const d=b[i]-a[i];if(Math.abs(d)<1e-9){if(a[i]<min[i]||a[i]>max[i]){hi=-1;break;}continue;}
@@ -47,8 +63,8 @@ export function traceMovement(start,end,height,players=[],self=null){
     }
   }return best;
 }
-function groundContact(p,players,height=bodyHeight(p)){
-  if((p.vy||0)>.01)return null;
+function groundContact(p,players,height=bodyHeight(p),floorImpact=false){
+  if(!floorImpact&&(p.vy||0)>.01)return null;
   const hit=traceMovement(p,{...p,y:p.y-.04},height,players,p);
   return !hit.startSolid&&hit.fraction<1&&hit.normal[1]>.7?hit:null;
 }
@@ -70,6 +86,7 @@ function slide(start,velocity,dt,height,players,self){
 }
 function applyHitSlowdown(p,dt){const mod=Math.min(1,p.velocityModifier+dt*.6);p.vx*=mod**(dt*60);p.vz*=mod**(dt*60);p.velocityModifier=mod;}
 function substep(p,input,dt,players,commandDuration,jumpSlowed){
+  const modern=p.collisionVersion!==0;
   const height=bodyHeight(p),contact=groundContact(p,players,height);let grounded=Boolean(contact);
   // The contact tolerance must agree with the actual feet position before a
   // fresh jump impulse, including a new wheel pulse on the landing tick.
@@ -87,36 +104,52 @@ function substep(p,input,dt,players,commandDuration,jumpSlowed){
     p.vy=RULES.jumpSpeed*(1-p.jumpFatigue*.00019);p.jumpFatigue=1315.789429;grounded=false;
   }p.jumpHeld=!!input.jump;
   if(grounded){
-    const current=Math.hypot(p.vx,p.vz),drop=Math.max(current,RULES.stopSpeed)*RULES.friction*dt;
+    const current=Math.hypot(p.vx,p.vz),edge=modern?edgeFrictionMultiplier(p,height,(a,b)=>traceMovement(a,b,height,players,p,true)):1,drop=Math.max(current,RULES.stopSpeed)*RULES.friction*edge*dt;
     const factor=current?Math.max(0,current-drop)/current:0;p.vx*=factor;p.vz*=factor;
     if(!jumpSlowed&&p.velocityModifier<1)applyHitSlowdown(p,dt);
+    if(p.jumpFatigueVersion!==0&&p.jumpFatigue>0){
+      // PM_WalkMove damps existing momentum before accelerating again.
+      // Anchor its per-command ratio to 100 Hz, independent of collision steps.
+      const factor=Math.max(0,1-p.jumpFatigue*.00019)**(dt*FATIGUE_REFERENCE_HZ);
+      p.vx*=factor;p.vz*=factor;
+    }
   }
   if(wish>1e-6){
-    const nx=wx/wish,nz=wz/wish,wishSpeed=speed*wish*(grounded?1-p.jumpFatigue*.00019:1);
+    const nx=wx/wish,nz=wz/wish,wishSpeed=speed*wish*(grounded&&p.jumpFatigueVersion===0?1-p.jumpFatigue*.00019:1);
     const add=(grounded?wishSpeed:Math.min(30/40,wishSpeed))-(p.vx*nx+p.vz*nz);
     if(add>0){const acceleration=(grounded?RULES.groundAcceleration:RULES.airAcceleration)*wishSpeed*dt,change=Math.min(add,acceleration);p.vx+=nx*change;p.vz+=nz*change;}
   }
   p.walk=!!input.walk;
-  const start={x:p.x,y:p.y,z:p.z},velocity=[p.vx,0,p.vz];let horizontal=slide(start,velocity,dt,height,players,p);
-  if(grounded){
-    const up=traceMovement(start,{...start,y:start.y+RULES.stepHeight},height,players,p);
-    if(!up.startSolid&&up.fraction===1){const step=slide(up.end,velocity,dt,height,players,p);
-      const down=traceMovement(step.pos,{...step.pos,y:start.y-.04},height,players,p);
-      if(!down.startSolid&&down.fraction<1&&down.normal[1]>.7){
-        const progress=r=>Math.hypot(r.pos.x-start.x,r.pos.z-start.z);
-        if(progress(step)>progress(horizontal)+1e-6)horizontal={...step,pos:down.end};
-      }}
+  const start={x:p.x,y:p.y,z:p.z};
+  if(modern&&!grounded){
+    const halfGravity=RULES.gravity*dt/2,velocity=[p.vx,p.vy-halfGravity,p.vz];
+    const moved=slideMove(start,velocity,dt,(a,b)=>traceMovement(a,b,height,players,p),{airborne:true});
+    p.x=moved.pos.x;p.y=moved.pos.y;p.z=moved.pos.z;p.vx=moved.velocity[0];p.vy=moved.velocity[1]-halfGravity;p.vz=moved.velocity[2];
+    const floorImpact=moved.hits.some(h=>h.normal[1]>.7&&h.velocity[1]<=0);
+    for(const hit of moved.hits)if(hit.normal[1]>.7&&hit.velocity[1]<0)p.landedSpeed=Math.max(p.landedSpeed||0,-hit.velocity[1]);
+    const support=groundContact(p,players,height,floorImpact);p.grounded=Boolean(support);if(support)settle(p,support);p.groundPlayer=support?.player||null;
+  }else{
+    const velocity=[p.vx,0,p.vz],sweep=modern?(pos,v,time)=>slideMove(pos,v,time,(a,b)=>traceMovement(a,b,height,players,p)):(pos,v,time)=>slide(pos,v,time,height,players,p);
+    let horizontal=sweep(start,velocity,dt);
+    // A clear horizontal sweep already covers the full requested distance.
+    // Only a blocked route needs the second, raised step attempt.
+    if(grounded&&(!modern||horizontal.blocked)){
+      const up=traceMovement(start,{...start,y:start.y+RULES.stepHeight},height,players,p);
+      if(!up.startSolid&&(modern?up.fraction>0:up.fraction===1)){const step=sweep(up.end,velocity,dt);
+        const down=traceMovement(step.pos,{...step.pos,y:modern?step.pos.y-RULES.stepHeight-.04:start.y-.04},height,players,p);
+        if(!down.startSolid&&down.fraction<1&&down.normal[1]>.7){
+          const progress=r=>Math.hypot(r.pos.x-start.x,r.pos.z-start.z);
+          if(progress(step)>progress(horizontal)+1e-6)horizontal={...step,pos:down.end};
+        }}
+    }
+    p.x=horizontal.pos.x;p.y=horizontal.pos.y;p.z=horizontal.pos.z;p.vx=horizontal.velocity[0];p.vz=horizontal.velocity[2];
+    if(grounded&&p.vy<=0){const down=traceMovement(p,{...p,y:p.y-RULES.stepHeight-.04},height,players,p);
+      if(!down.startSolid&&down.fraction<1&&down.normal[1]>.7){p.y=down.end.y;p.vy=0;}else grounded=false;}
+    if(!grounded||p.vy>0){const halfGravity=RULES.gravity*dt/2;p.vy-=halfGravity;
+      const vertical=traceMovement(p,{...p,y:p.y+p.vy*dt},height,players,p);
+      if(!vertical.startSolid)p.y=vertical.end.y;if(vertical.fraction<1&&vertical.normal[1]>.7&&p.vy<0)p.landedSpeed=-p.vy;p.vy=vertical.fraction<1?0:p.vy-halfGravity;}
+    const support=groundContact(p,players,height);p.grounded=Boolean(support);if(support)settle(p,support);p.groundPlayer=p.grounded?support.player||null:null;
   }
-  p.x=horizontal.pos.x;p.y=horizontal.pos.y;p.z=horizontal.pos.z;
-  p.vx=horizontal.velocity[0];p.vz=horizontal.velocity[2];
-  if(grounded&&p.vy<=0){const down=traceMovement(p,{...p,y:p.y-RULES.stepHeight-.04},height,players,p);
-    if(!down.startSolid&&down.fraction<1&&down.normal[1]>.7){p.y=down.end.y;p.vy=0;}else grounded=false;}
-  if(!grounded||p.vy>0){const halfGravity=RULES.gravity*dt/2;p.vy-=halfGravity;
-    const vertical=traceMovement(p,{...p,y:p.y+p.vy*dt},height,players,p);
-    if(!vertical.startSolid)p.y=vertical.end.y;
-    if(vertical.fraction<1&&vertical.normal[1]>.7&&p.vy<0)p.landedSpeed=-p.vy;
-    p.vy=vertical.fraction<1?0:p.vy-halfGravity;}
-  const support=groundContact(p,players,height);p.grounded=Boolean(support);if(support)settle(p,support);
   const travel=Math.hypot(p.x-start.x,p.z-start.z),forward=(p.x-start.x)*-Math.sin(p.yaw)+(p.z-start.z)*-Math.cos(p.yaw);
   let gaitYaw=Number.isFinite(p.gaitYaw)?p.gaitYaw:p.yaw;
   if(Math.hypot(p.vx,p.vz)>.125)gaitYaw=Math.atan2(-p.vx,-p.vz);
@@ -126,7 +159,7 @@ function substep(p,input,dt,players,commandDuration,jumpSlowed){
   p.gaitYaw=Math.atan2(Math.sin(gaitYaw),Math.cos(gaitYaw));
   if(p.grounded)p.gaitDistance=(p.gaitDistance||0)+travel*(forward<-travel*.5?-1:1);
   p.airTime=p.grounded?0:(p.airTime||0)+dt;
-  p.groundPlayer=p.grounded? support.player||null:null;p.moving=Math.hypot(p.vx,p.vz)>.12;
+  p.moving=Math.hypot(p.vx,p.vz)>.12;
   return jumpSlowed;
 }
 export function movePlayer(p,input,dt,players=[]){

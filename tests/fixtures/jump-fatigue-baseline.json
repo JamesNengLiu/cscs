@@ -1,0 +1,55 @@
+{
+  "scope": "Pre-fatigue-change, modern-collision movement; project input schedules and scalar hashes only.",
+  "cases": [
+    {
+      "name": "flat-run",
+      "frames": 120,
+      "sha256": "5b50337ca55905e70714044b2bbdeb87deb57234cdc2c5295e45d55ee0b4dc8b"
+    },
+    {
+      "name": "flat-stop",
+      "frames": 120,
+      "sha256": "3caa8b03c43cba7dea99cd5016b899f02bfc8c6c53a8f92a8702ac2f8556945f"
+    },
+    {
+      "name": "flat-strafe",
+      "frames": 120,
+      "sha256": "5dccfcead3f0acca7db39c8cab79a6510a1679f322645ec1dec4d977d17a16fa"
+    },
+    {
+      "name": "flat-duck-jump",
+      "frames": 120,
+      "sha256": "23c8dba8a6fa4cc2c6a3fb1a788d46e985e134adcac10e4cf5db2096be8a9ba4"
+    },
+    {
+      "name": "T-spawn ramp",
+      "frames": 120,
+      "sha256": "39da82ff6d0e8fa269fddadcca65385ab250b0c054afbfb86ef9558f64907fac"
+    },
+    {
+      "name": "A-long ramp",
+      "frames": 120,
+      "sha256": "0355ccaead19f72fe616e4675d31616aa9e8a3fbb1827fd65bcaa2936fab7bd8"
+    },
+    {
+      "name": "CT-B ramp",
+      "frames": 120,
+      "sha256": "8519a9945baf3274d421e71295b2e322b518075588267b1fd1a210725b4fc0ba"
+    },
+    {
+      "name": "B-tunnel approach",
+      "frames": 120,
+      "sha256": "ffcb0cb7c23c25b3cf8a7153db39aac64613908562a5857601b1ea54dba21b11"
+    },
+    {
+      "name": "legacy-hit-jump-0.5",
+      "frames": 120,
+      "sha256": "72a4c8a69c312ec78abeaa7feabbdb58998350cb4973276ef1defa3f8ded6c39"
+    },
+    {
+      "name": "legacy-hit-jump-0.65",
+      "frames": 120,
+      "sha256": "2d5496b657d160c2bb40e3069034557d2f5b6ae5658918af78cba73a1a055db6"
+    }
+  ]
+}

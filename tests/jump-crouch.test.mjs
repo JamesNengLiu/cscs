@@ -102,6 +102,15 @@ for(const hz of [30,60,120,144])test(`Dust2 jump: climb the complete CT crate st
       landed||=isGrounded(p)&&Math.abs(p.y-top)<.01;
     }
     assert.equal(landed,true);
+    if(top===0){
+      // Landing fatigue now slows the crouched approach. Reach the next rim by
+      // walking, rather than assuming the old 1.6-second script got there.
+      for(let i=0;p.x>16.55&&i<hz*2;i++){
+        movePlayer(p,{f:1,yaw:p.yaw,jump:false,crouch:true},1/hz);
+        assert.equal(blocked(p),false);assert.equal(p.grounded,true);
+      }
+      assert.ok(p.x<=16.55,'walked to the upper crate without teleporting');
+    }
     // Release jump and stand on the crate before taking the next jump.
     movePlayer(p,{f:1,yaw:p.yaw,jump:false,crouch:false},1/hz);
   }

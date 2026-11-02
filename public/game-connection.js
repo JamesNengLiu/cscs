@@ -3,8 +3,9 @@ import {encodeDatagrams,createReassembler,readReliable,encodeReliable} from './n
 export class GameConnection{
   constructor({mode=new URLSearchParams(location.search).get('transport')||'auto',timeoutMs=5000,deferStates=false}={}){
     this.readyState=0;this.bufferedAmount=0;this.transport='connecting';this.reason='';this.counters={sentDatagrams:0,receivedDatagrams:0,coalescedInputs:0,staleStates:0,coalescedStates:0};this.closed=false;this.mode=mode;this.timeoutMs=timeoutMs;this.sequence=0;this.actionSequence=0;this.latestInput=null;this.datagramBusy=false;this.controlQueue=Promise.resolve();this.reassembler=createReassembler();this.lastStateSeq=0;this.deferStates=deferStates;this.pendingState=null;queueMicrotask(()=>this.connect());
+    this.pendingTimeline=[];this.counters.droppedTimelineStates=0;
   }
-  diagnostics(){return {transport:this.transport,fallbackReason:this.reason,...this.counters,reassembly:this.reassembler.diagnostics(),bufferedBytes:this.bufferedAmount};}
+  diagnostics(){return {transport:this.transport,fallbackReason:this.reason,...this.counters,pendingTimelineStates:this.pendingTimeline.length,reassembly:this.reassembler.diagnostics(),bufferedBytes:this.bufferedAmount};}
   async connect(){
     if(this.mode!=='websocket')try{
       const response=await fetch('/transport-config',{cache:'no-store'}),config=await response.json();
@@ -30,11 +31,11 @@ export class GameConnection{
       this.onstatearrival?.(m,event);
       // Consume one newest state at the start of the game frame. Events and
       // reliable action acknowledgements still arrive immediately.
-      if(this.deferStates&&m.net?.seq){if(this.pendingState)this.counters.coalescedStates++;this.pendingState=event;return;}
+      if(this.deferStates&&m.net?.seq){if(this.pendingState)this.counters.coalescedStates++;this.pendingState=event;this.pendingTimeline.push({snapshot:m,receivedAtMs:event.receivedAtMs});if(this.pendingTimeline.length>32){this.pendingTimeline.shift();this.counters.droppedTimelineStates++;}return;}
     }
     this.onmessage?.(event);
   }
-  flushState(){const event=this.pendingState;this.pendingState=null;if(event&&!this.closed)this.onmessage?.(event);}
+  flushState(){const event=this.pendingState,timeline=this.pendingTimeline;this.pendingState=null;this.pendingTimeline=[];if(event&&!this.closed){if(this.onstatehistory){this.onstatehistory(timeline);event.timelineBuffered=true;}this.onmessage?.(event);}}
   send(payload){
     if(this.readyState!==1)return;const m=typeof payload==='string'?JSON.parse(payload):payload;
     if(this.transport==='websocket'){if(this.ws.bufferedAmount>65536){if(m.type==='inputBatch')return;this.close();return;}this.ws.send(JSON.stringify(m));this.bufferedAmount=this.ws.bufferedAmount;return;}
@@ -49,6 +50,6 @@ export class GameConnection{
     const packets=encodeDatagrams(m,{sequence:++this.sequence,maxSize:Math.min(1000,this.wt.datagrams.maxDatagramSize||1000)});
     for(const bytes of packets){await this.datagrams.write(bytes);this.counters.sentDatagrams++;}
   }}catch{this.close();}finally{this.datagramBusy=false;}}
-  finish(){if(this.closed)return;this.closed=true;this.pendingState=null;this.readyState=3;try{this.wt?.close();}catch{}this.ws?.close();this.onclose?.({});}
+  finish(){if(this.closed)return;this.closed=true;this.pendingState=null;this.pendingTimeline=[];this.readyState=3;try{this.wt?.close();}catch{}this.ws?.close();this.onclose?.({});}
   close(){this.finish();}
 }

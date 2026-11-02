@@ -60,6 +60,15 @@ import {interpolateLocomotion} from './player-locomotion.js';
  * Interpolation stays within its two endpoints; it does not alter geometry or
  * independently prove the segment collision-free around a corner.
  *
+ * Optional maxPlaybackRate bounds recovery catch-up against elapsed wall time,
+ * shared by every actor and push/sample call. Default remains unlimited.
+ * A gap above maxInterpolationGapMs can be retained up to maxBridgeGapMs only
+ * when canBridgeGap(from,to,context) explicitly approves the entire segment.
+ * Life/round/teleport changes always reset. Callbacks receive detached copies.
+ * pushBatch([{snapshot,receivedAtMs}]) retains up to 32 arrivals while updating
+ * clock/jitter only from the newest record, so a local callback burst is not
+ * mistaken for persistent network jitter. Single push behavior is unchanged.
+ *
  * Options (all optional; invalid options throw RangeError/TypeError):
  * snapshotHz:30, minDelayMs:50, maxDelayMs:160,
  * initialDelayMs:clamp(2000/snapshotHz, minDelayMs, maxDelayMs),
@@ -106,6 +115,10 @@ export function createSnapshotBuffer(options = {}) {
   const maxEntities = finite('maxEntities', 128, 1, true);
   const teleportDistance = finite('teleportDistance', 8, Number.MIN_VALUE);
   const maxInterpolationGapMs = finite('maxInterpolationGapMs', 250, Number.MIN_VALUE);
+  const maxBridgeGapMs = finite('maxBridgeGapMs', maxInterpolationGapMs, maxInterpolationGapMs);
+  const canBridgeGap = options.canBridgeGap;
+  if (canBridgeGap !== undefined && typeof canBridgeGap !== 'function') throw new TypeError('Invalid canBridgeGap');
+  const maxPlaybackRate = options.maxPlaybackRate === undefined ? Infinity : finite('maxPlaybackRate', 1.2, 1);
   const maxExtrapolationMs = Math.min(80, finite('maxExtrapolationMs', 80));
   const maxExtrapolationSpeed = finite('maxExtrapolationSpeed', 20);
   const extrapolation = options.extrapolation ?? 'hold';
@@ -119,7 +132,7 @@ export function createSnapshotBuffer(options = {}) {
 
   const actors = new Map();
   let round, latestTimeMs, lastArrivalMs, clockOffsetMs, playbackTimeMs, lastNowMs;
-  let clockObservations, jitterMs, delayMs, targetDelayMs, stats;
+  let clockObservations, jitterMs, delayMs, targetDelayMs, stats, playbackAtMs,clockAtMs,clockServerMs;
   const clone = value => structuredClone(value);
   const moveToward = (value, target, step) => target > value
     ? Math.min(target, value + step) : Math.max(target, value - step);
@@ -128,7 +141,8 @@ export function createSnapshotBuffer(options = {}) {
 
   function clearTimeline() {
     actors.clear();
-    latestTimeMs = lastArrivalMs = clockOffsetMs = playbackTimeMs = lastNowMs = undefined;
+    latestTimeMs = lastArrivalMs = clockOffsetMs = playbackTimeMs = lastNowMs = playbackAtMs = undefined;
+    clockAtMs=clockServerMs=undefined;
     clockObservations = [];
     jitterMs = 0;
     delayMs = initialDelayMs;
@@ -146,11 +160,22 @@ export function createSnapshotBuffer(options = {}) {
       samples: 0, misses: 0, interpolations: 0, holds: 0,
       startupHolds: 0, underflows: 0, extrapolations: 0,
       extrapolationClamps: 0, collisionBlocks: 0,
+      playbackRateClamps: 0, bridgedGaps: 0,clockBatchSuspensions:0,
     };
   }
   reset();
 
-  function push(snapshot, receivedAtMs = performance.now()) {
+  function advancePlayback(target, nowMs) {
+    if(playbackTimeMs===undefined)playbackTimeMs=target;
+    else {
+      const elapsed=Math.max(0,nowMs-playbackAtMs),limit=Number.isFinite(maxPlaybackRate)?playbackTimeMs+elapsed*maxPlaybackRate:Infinity;
+      if(target>limit)stats.playbackRateClamps++;
+      playbackTimeMs=Math.max(playbackTimeMs,Math.min(target,limit));
+    }
+    playbackAtMs=playbackAtMs===undefined?nowMs:Math.max(playbackAtMs,nowMs);
+  }
+
+  function push(snapshot, receivedAtMs = performance.now(), updateClock = true) {
     stats.pushes++;
     // Validate/copy before any membership, clock or round mutation.
     const timeMs = typeof snapshot?.time === 'number' ? snapshot.time * 1000 : NaN;
@@ -191,13 +216,12 @@ export function createSnapshotBuffer(options = {}) {
     try { players = clone(snapshot.players); }
     catch { stats.rejectedInvalid++; return false; }
 
-    if (snapshot.round === round && playbackTimeMs !== undefined) {
+    if (updateClock && snapshot.round === round && playbackTimeMs !== undefined) {
       // Capture the maximum before a discrete estimator update. Otherwise a
       // high-Hz renderer might see a pre-update peak that a low-Hz one misses,
       // making the monotonic freeze after a delay increase frame-rate dependent.
       const beforeUpdate = receivedAtMs - clockOffsetMs - delayMs;
-      playbackTimeMs = Math.max(playbackTimeMs,
-        Math.min(beforeUpdate, latestTimeMs + extrapolationHorizonMs));
+      advancePlayback(Math.min(beforeUpdate, latestTimeMs + extrapolationHorizonMs),receivedAtMs);
     }
     if (round !== undefined && snapshot.round > round) {
       stats.roundResets++;
@@ -205,6 +229,7 @@ export function createSnapshotBuffer(options = {}) {
       clearTimeline();
     }
     round = snapshot.round;
+    if(updateClock){
     const observation = receivedAtMs - timeMs;
     clockObservations.push({ arrival: receivedAtMs, offset: observation });
     while (clockObservations.length > clockWindowSamples ||
@@ -214,8 +239,8 @@ export function createSnapshotBuffer(options = {}) {
     if (clockOffsetMs === undefined) {
       clockOffsetMs = observation;
     } else {
-      const elapsedMs = receivedAtMs - lastArrivalMs;
-      const serverDeltaMs = timeMs - latestTimeMs;
+      const elapsedMs = receivedAtMs - clockAtMs;
+      const serverDeltaMs = timeMs - clockServerMs;
       // Time-weighted EWMA: comparable adaptation at different snapshot rates.
       const weight = -Math.expm1(-elapsedMs / 500);
       jitterMs += (Math.abs(elapsedMs - serverDeltaMs) - jitterMs) * weight;
@@ -225,6 +250,8 @@ export function createSnapshotBuffer(options = {}) {
       targetDelayMs = clamp(baseDelayMs + jitterMultiplier * jitterMs, minDelayMs, maxDelayMs);
       const rate = targetDelayMs > delayMs ? delayRise : delayFall;
       delayMs = moveToward(delayMs, targetDelayMs, rate * (elapsedMs / 1000));
+    }
+    clockAtMs=receivedAtMs;clockServerMs=timeMs;
     }
     latestTimeMs = timeMs;
     lastArrivalMs = receivedAtMs;
@@ -245,7 +272,12 @@ export function createSnapshotBuffer(options = {}) {
           spawnKey(p) !== spawnKey(player);
         const teleport = player.teleport === true || teleportKey(p) !== teleportKey(player) ||
           Math.hypot(player.x - p.x, player.y - p.y, player.z - p.z) > teleportDistance;
-        const gap = timeMs - previous.timeMs > maxInterpolationGapMs;
+        let gap = timeMs - previous.timeMs > maxInterpolationGapMs;
+        if(gap&&!spawn&&!teleport&&canBridgeGap&&timeMs-previous.timeMs<=maxBridgeGapMs){
+          let safe=false;
+          try{safe=canBridgeGap(clone(p),clone(player),{playerId:player.id,round,dtSeconds:(timeMs-previous.timeMs)/1000,players:clone(players)})===true;}catch{}
+          if(safe){gap=false;stats.bridgedGaps++;}
+        }
         if (spawn || teleport || gap) {
           history.length = 0;
           stats.discontinuities++;
@@ -275,7 +307,7 @@ export function createSnapshotBuffer(options = {}) {
     lastNowMs = lastNowMs === undefined ? nowMs : Math.max(lastNowMs, nowMs);
     const desired = lastNowMs - clockOffsetMs - delayMs;
     const capped = Math.min(desired, latestTimeMs + extrapolationHorizonMs);
-    playbackTimeMs = playbackTimeMs === undefined ? capped : Math.max(playbackTimeMs, capped);
+    advancePlayback(capped,lastNowMs);
     const history = actors.get(playerId);
     if (!history) { stats.misses++; return null; }
     const first = history[0];
@@ -303,6 +335,7 @@ export function createSnapshotBuffer(options = {}) {
           safe = canExtrapolate(clone(p), clone(proposed), {
             playerId, round, fromTime: newest.timeMs / 1000,
             toTime: (newest.timeMs + dtMs) / 1000, dtSeconds: dtMs / 1000,
+            previous:history.length>1?clone(history[history.length-2].player):null,
           }) === true;
         } catch { /* Collision failures must fail closed. */ }
         if (safe) {
@@ -373,8 +406,16 @@ export function createSnapshotBuffer(options = {}) {
       latestArrivalMs: lastArrivalMs ?? null, activeEntities: actors.size,
       bufferedSnapshots, largestEntityBuffer, clockSamples: clockObservations.length,
       maxSnapshots, maxEntities, maxHistoryMs,
+      maxPlaybackRate:Number.isFinite(maxPlaybackRate)?maxPlaybackRate:null,maxBridgeGapMs,
     };
   }
 
-  return { push, sample, reset, diagnostics };
+  function pushBatch(entries,{updateClock=true}={}){
+    if(!Array.isArray(entries)||entries.length>32)return false;
+    if(!updateClock&&entries.length)stats.clockBatchSuspensions++;
+    let accepted=false;
+    for(let i=0;i<entries.length;i++)accepted=push(entries[i]?.snapshot,entries[i]?.receivedAtMs,i===entries.length-1&&(updateClock||clockOffsetMs===undefined))||accepted;
+    return accepted;
+  }
+  return { push, pushBatch, sample, reset, diagnostics };
 }

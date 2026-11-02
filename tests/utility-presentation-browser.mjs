@@ -57,7 +57,9 @@ try{
   report.checks.push('unscoped AWP has no crosshair, scoped AWP shows its scope, pistol retains the normal crosshair');
   report.checks.push('real client converts 4:3 FOV and applies scope/FOV sensitivity scaling');
   const center=()=>page.locator('#crosshair').boundingBox(),before=await center();
-  const recoil=structuredClone(pistol);Object.assign(recoil.players[0],{recoilPitch:.12,shotsFired:10,burstCount:10});await emit(recoil);
+  // This isolated camera check must not invent a cumulative shot ordinal: the
+  // independent M4 fixture below starts at zero in the same displayed round.
+  const recoil=structuredClone(pistol);Object.assign(recoil.players[0],{recoilPitch:.12,burstCount:10});await emit(recoil);
   await page.waitForFunction(()=>window.lanStrike.getDiagnostics().recoilPitch>.02);const after=await center();
   assert.equal(before.x,after.x);assert.equal(before.y,after.y);assert.equal(await page.locator('#hitmarker').evaluate(e=>getComputedStyle(e).opacity),'0');
   report.checks.push('camera recoil leaves the crosshair at the same screen coordinates without a modern hit marker');

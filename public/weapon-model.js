@@ -198,7 +198,9 @@ async function buildOriginal(THREE, id, entry, skinningMode) {
 }
 
 /** Camera child with caller-owned outer recoil transform. setWeapon returns a
- * promise (safe to ignore); fallback is immediate and late loads cannot win races.
+ * promise (safe to ignore); ready cache hits install synchronously. Loading is
+ * visually empty; only a real asset error installs the diagnostic fallback.
+ * Late loads cannot win races.
  * update accepts optional weaponSequence (label/index), weaponFrame, animationToken,
  * skin/body; otherwise draw/idle/reload and observed ammo/lastShot changes drive it.
  */
@@ -216,7 +218,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   muzzle.renderOrder = FOREGROUND + 10;
   muzzle.frustumCulled = false;
   group.add(muzzle);
-  const cache = new Map();
+  const cache = new Map(), readyModels = new Map();
   let manifest = null, manifestError = null;
   try { manifest = await loadWeaponManifest(); }
   catch (error) { manifestError = String(error.message || error); }
@@ -229,6 +231,14 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     if (placeholder) { group.remove(placeholder); disposeTree(placeholder); }
     active = placeholder = null;
   }
+  function showFallback(){placeholder=fallback(THREE,id);group.add(placeholder);}
+  function install(model){
+    removeCurrent();active=model;group.add(model.root);
+    idle=find(/^idle/i)||model.data.sequences.find(s=>s.tracks)||null;
+    start(find(/^(draw|deploy)/i)||idle);
+    active.pose(sequence,0);active.muzzlePosition(muzzle.position);
+    pending=null;return info();
+  }
   function setWeapon(nextId) {
     if (disposed) return Promise.resolve(info());
     if (nextId === id) return pending || Promise.resolve(info());
@@ -239,34 +249,33 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     error = null;
     muzzle.visible = false;
     muzzle.position.set(0, 0, -0.43);
-    placeholder = fallback(THREE, id);
-    group.add(placeholder);
+    pending=null;
     if (!WEAPON_MODEL_IDS.includes(id) || !manifest?.weapons?.[id]?.file) {
       error = !WEAPON_MODEL_IDS.includes(id) ? `Unknown canonical weapon id: ${id}` : manifest?.weapons?.[id]?.error || manifestError || 'Original asset not imported';
-      pending = null;
+      showFallback();
       return Promise.resolve(info());
     }
     if (!cache.has(id)) {
       const modelId = id;
-      const promise = buildOriginal(THREE, id, manifest.weapons[id], skinning).catch(cause => { if(cache.get(modelId)===promise)cache.delete(modelId); throw cause; });
+      const promise = buildOriginal(THREE, id, manifest.weapons[id], skinning).then(model=>{
+        if(!disposed&&cache.get(modelId)===promise)readyModels.set(modelId,model);
+        return model;
+      }).catch(cause => { if(cache.get(modelId)===promise){cache.delete(modelId);readyModels.delete(modelId);} throw cause; });
       cache.set(id, promise);
       // Bound cached geometry/textures to the four most recent weapons.
       if (cache.size > 4) {
         const oldest = cache.keys().next().value, evicted = cache.get(oldest); cache.delete(oldest);
+        readyModels.delete(oldest);
         evicted.then(model => model.dispose(), () => {});
       }
     }
     const cached=cache.get(id);cache.delete(id);cache.set(id,cached);
+    if(readyModels.has(id))return Promise.resolve(install(readyModels.get(id)));
     pending = cached.then(model => {
       if (ticket !== generation) return info();
-      removeCurrent(); active = model; group.add(model.root);
-      idle = find(/^idle/i) || model.data.sequences.find(s => s.tracks) || null;
-      start(find(/^(draw|deploy)/i) || idle);
-      active.pose(sequence, 0); active.muzzlePosition(muzzle.position);
-      pending = null;
-      return info();
+      return install(model);
     }).catch(cause => {
-      if (ticket === generation) { error = String(cause.message || cause); pending = null; }
+      if (ticket === generation) { error = String(cause.message || cause); pending = null;showFallback(); }
       return info();
     });
     return pending;
@@ -332,7 +341,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   }
   function info() {
     return {
-      ...(active ? active.data.metadata : {id, source: 'procedural-fallback', sourceSHA256: null, animationSupport: 'none'}),
+      ...(active ? active.data.metadata : {id, source: pending?'loading-original-mdl':'procedural-fallback', sourceSHA256: null, animationSupport: 'none'}),
       id, loading: !!pending, error, sequence: sequence?.name || null, frame, skinning, disposed, cachedModels:cache.size,muzzleVisible:muzzle.visible,muzzleProfile:flash.info(),
       convertedSHA256Verified: active?.verified || false,
       availableSequences: active?.data.sequences.map(s => ({name: s.name, fps: s.fps, frames: s.frames, imported: !!s.tracks})) || [],
@@ -346,7 +355,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     if (disposed) return;
     disposed = true; generation++; pending = null; removeCurrent();
     for (const promise of cache.values()) promise.then(model => model.dispose(), () => {});
-    cache.clear();flash.dispose();group.removeFromParent();
+    cache.clear();readyModels.clear();flash.dispose();group.removeFromParent();
   }
   await setWeapon('glock18');
   return {group,muzzle,setWeapon,update,info,dispose,prepare(){const model=active;return {objects:model?[model.root,muzzle]:[muzzle],textures:[muzzle.material.map,...(model?.textures||[])],valid:()=>!disposed&&active===model};}};

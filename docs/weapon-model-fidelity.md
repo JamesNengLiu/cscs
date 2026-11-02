@@ -66,7 +66,7 @@ view.update(dt, playerState);
 console.log(view.info());
 ```
 
-The factory attaches `group` to the camera and initially loads `glock18`. `setWeapon(id)` installs an immediate distinguishable fallback, then loads the requested original asynchronously; its returned promise is safe to ignore, and stale loads cannot replace a newer choice. `info().loading` indicates a pending load. Missing assets, invalid geometry/provenance, failed JSON checksums, or failed texture loads leave an honest fallback with the error message. `sourceSHA256` is null and `animationSupport` is `none` for fallback. The fallback is a magenta wire schematic, never labeled as an original weapon.
+The factory attaches `group` to the camera and initially loads `glock18`. `setWeapon(id)` keeps its Promise API but installs a ready cached original synchronously, before the switching frame renders. A cold load detaches the old weapon and stays visually empty while its validated model and decoded textures are pending; `info().loading` is true and `source` is `loading-original-mdl`. The debug fallback is installed only on an actual resource/error path. Stale loads cannot replace a newer choice. Missing assets, invalid geometry/provenance, failed JSON checksums, or failed texture loads leave an honest fallback with the error message. `sourceSHA256` is null and `animationSupport` is `none` for fallback. The fallback is a magenta wire schematic, never labeled as an original weapon.
 
 The outer group starts at the existing caller's **`(.25,-.24,-.42)`**. The original-model child cancels that fixed translation so native eye-origin coordinates land at the camera; subsequent caller recoil deltas remain effective. `update` never writes the outer group's position/rotation. If integration later changes the caller's neutral origin, update this one shared compatibility translation, not individual model shapes. With the current legacy API, setting the outer group to zero does **not** represent the neutral pose.
 
@@ -127,3 +127,17 @@ explicitly diagnosed procedural canister/cap/lever fallback, never a sphere.
 batch/geometry bounds; `npm run test:utility` also verifies this rendering in
 the real client. Neither starts or restarts the current game service. These
 checks do not measure physical multiplayer or claim a hardware FPS result.
+
+## 2026-11-02：切换时粉紫占位网格
+
+先用原生 Chrome、实际第一人称渲染器与本地模型逐帧复现：即使 HE／闪光／烟雾已在四槽缓存中，每次切换仍先安装粉色线框，再通过已完成 Promise 的回调装回真模型，九次热切换均露出一帧。复现时 HTTP 请求、模型哈希及材质加载均正常。另给 HE 的模型/贴图请求各加 120ms 测试延迟放大冷加载，捕获十七帧网格；该延迟不是正常网络耗时测量。
+
+缓存增加仅引用现有模型的 ready 索引，命中时当帧安装并采样原 deploy/draw；冷加载期间不放调试网格，也不把旧武器当作新投掷物。就绪后再显示真模型。Promise API、四槽 LRU、最晚请求优先、校验与资源释放保留；淘汰和销毁同时清理 ready 引用。真正缺失、哈希错误或纹理解码失败仍保留明确的紫红线框和错误诊断，加载等待与资源失败区分显示。
+
+首次修复验证时，完整自动化 **1112 项**通过，新增九项覆盖热切换同步、JSON/纹理等待、四槽淘汰、晚到结果、销毁、错误恢复、同 ID 的旧失败不得清除新缓存及单次资源释放。原生 GPU 十七个切换阶段加一个快速竞态场景通过；三种热切换九次均为 **零加载帧、零网格帧**，所有正常加载阶段零旧武器误显示，原贴图模型与转换哈希验证正常。截图和像素读回仅用于隔离视觉检查，不拿它们报告游戏帧率。
+
+回归中还确认旧 `utility-presentation-browser.mjs` 夹具在修复前也会卡在 M4 射击断言：准星相机测试虚构了累计射击序号 10，随后独立 Game 从 0 开始，同一展示回合内的新序号 1 被视为旧记录。移除该相机测试不需要的假序号，保留反冲、准星位置和 M4 实际开火全部断言；未修改生产射击确认逻辑。三种投掷物准备/持握/投出/回主武器、连续双闪，以及主战枪恢复、FAMAS 连发和 AWP 快切后手动开镜回归通过；实际 QUIC/WSS 十四项回归通过。
+
+`npm run test:weapon-switch` 可复测原生视觉专项；`--before` 需明确提供先前保存的 `WEAPON_SWITCH_BASELINE`。截图、报告仍位于被忽略的 `artifacts/weapon-switch-*`，不提交原模型、贴图或截图。此次只修改第一人称模型的加载/缓存交接，不修改投掷、弹道、后坐力、移动、网络连续性或原始素材。已验收的网络修复独立提交为 `d29da5d`，A/B 镜头与高刷验证独立提交为 `1651d7a`；本项单独提交模型交接修复与对应测试。前端刷新即可加载，本次提交不重启现有服务。
+
+本次提交前在已合入 A/B 镜头与高刷验证的 main 上重新回归：完整自动化 **1185 通过、0 失败、0 跳过**；原生 GPU 十七个切换阶段及快速竞态场景均通过，九次热切换为零网格帧、零加载帧，全部正常阶段零旧模型误显示，并重新检查了 HE、闪光、烟雾的真实贴图截图。客户端投掷物呈现 **9 项**、连续双闪 **5 项**通过；B 镜头下的 **4 组**即时射击场景和 **7 组**主战武器/模式恢复检查通过。没有更改射击、移动、后坐力、跳跃或 A/B 相机代码。

@@ -16,11 +16,13 @@ try{
   const loaded=()=>page.waitForFunction(()=>window.lanStrike?.getDiagnostics&&window.lanStrike.getRenderInfo().triangles>0);
   await page.goto(base,{waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');
   assert.equal(await page.locator('#resume').isVisible(),true);assert.equal(await page.locator('#openBuyButton').isVisible(),false);assert.equal((await(await fetch(base+'/health')).json()).players,0);assert.equal(await page.inputValue('#mouseSensitivityNumber'),'1.00');check('game menu opens before joining with compatible default and no hidden join');
+  assert.equal(await page.inputValue('#resume [data-frame-target]'),'auto');await page.selectOption('#resume [data-frame-target]','120');assert.equal(await page.inputValue('#joinForm [data-frame-target]'),'120');assert.equal(await page.evaluate(()=>window.lanStrike.getPerformance().renderBudget.target),'120');check('render-budget targets synchronize between lobby and pause without changing quality');
   assert.equal(await page.inputValue('#cameraMode'),'baseline');
   await page.selectOption('#cameraMode','responsive');assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().cameraMode),'responsive');
   await page.reload({waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#cameraMode'),'responsive');
-  await page.goto(base+'/?camera=baseline',{waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#cameraMode'),'baseline');
+  await page.goto(base+'/?camera=baseline&frameTarget=144',{waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#cameraMode'),'baseline');
   assert.equal(await page.evaluate(()=>localStorage.getItem('lan-strike-camera-mode')),'responsive');
+  assert.equal(await page.inputValue('#resume [data-frame-target]'),'144');assert.equal(await page.evaluate(()=>localStorage.getItem('lan-strike-frame-target')),'120');await page.selectOption('#resume [data-frame-target]','120');check('frame target persists across reload and supports a temporary tab override');
   await page.selectOption('#cameraMode','responsive');await page.selectOption('#cameraMode','baseline');
   assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().cameraMode),'baseline');check('camera A/B switches in the actual client, persists, honors a tab override and rolls back to A');
   await page.fill('#mouseSensitivityNumber','2');assert.equal(await page.inputValue('#mouseSensitivity'),'2');await page.locator('#mouseSensitivity').focus();await page.keyboard.press('ArrowRight');

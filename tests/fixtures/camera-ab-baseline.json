@@ -1,0 +1,389 @@
+{
+  "scope": "Pre-experiment stable camera from the saved source; hashes of project inputs/positions only, no map/model data.",
+  "rows": [
+    {
+      "name": "flat-start-stop-reverse",
+      "hz": 60,
+      "physicsHash": "9cf8fc605e94e96034f362228bfd518d2d14c6c70647d16a530dcd7fdf4d3e2a",
+      "renderHash": "3127d79f989efadba648b1e1d0bb86151dea8f212e83e3378643f562e88405fb"
+    },
+    {
+      "name": "flat-wheel",
+      "hz": 60,
+      "physicsHash": "8984500c6203e33bfe07792c609d3110b7e60f517fbcbfb53d3115fc06f47328",
+      "renderHash": "e68de4546895b476b57b2a88f22fe0aaaeabb40bbbfa7316efedb82e70d29886"
+    },
+    {
+      "name": "flat-crouch-rise",
+      "hz": 60,
+      "physicsHash": "28ce186a7bc4bcc720a889b19304666b55faefca0e9fc27022e778e24e8efe3a",
+      "renderHash": "10535d2e86b88f01baa8677dad6400ed255c7556d493693113b46ea0c6ef8c54"
+    },
+    {
+      "name": "vertical-wheel",
+      "hz": 60,
+      "physicsHash": "f1572c3ca76c9a6e1d49e354a111b8a2d44c0e586b616c981e412d716f3a8483",
+      "renderHash": "24fe94a1cfa0b7f7d4b72ca1cf1f37288a6d1cc4ee256c70c92bbcbe0eef3ca3"
+    },
+    {
+      "name": "air-stance",
+      "hz": 60,
+      "physicsHash": "7698534b7b6b0b7f3e016da10bfeff6e7cb1d68713846e420e950acc356957d3",
+      "renderHash": "3d40a574bae0f12fa0ee2682bd829ee0b609733717c3e8316582c9899917c88b"
+    },
+    {
+      "name": "ceiling",
+      "hz": 60,
+      "physicsHash": "3ea61b461059b207e382ce0b4ae53c384068b57051ee81de3474bd4ed07fa7d8",
+      "renderHash": "ac32ac5bb05ceec121cfb3465ce65d831a2ede80a82332d367d650dc211e6a0d"
+    },
+    {
+      "name": "ct-crate",
+      "hz": 60,
+      "physicsHash": "89f5da82f52d5ae259aa4b8e83cd1e4e0bfbebfd665045f062d7775987a7fdc1",
+      "renderHash": "924219cb66ec2713b9a08103405f628812da521d4916ec0a76149cbdcefbd922"
+    },
+    {
+      "name": "landing-fatigue",
+      "hz": 60,
+      "physicsHash": "dcca5b87369e778c33ec54d742663f7244205b9e02a2a01f806cb547490cd67a",
+      "renderHash": "c156e40ad965f41b07a7e130076db0867e159b03c5a9f6de8a7a95970bacde73"
+    },
+    {
+      "name": "T-spawn ramp-down",
+      "hz": 60,
+      "physicsHash": "73f75bd41bf5eef173eb67a2d6c74e904ed337d4aabb5a426052975c449c1d9b",
+      "renderHash": "3b99de95250fa89f68bf030593ad27db3fc5c95013499b19f0be40e489f3ad46"
+    },
+    {
+      "name": "T-spawn ramp-up",
+      "hz": 60,
+      "physicsHash": "d647db47451a6a1f5a0061e734a84cd11c467b05932d2c9df503b8170beb48da",
+      "renderHash": "9d2abf676cf647095ae86489441580df31d312806a9de2fd43b45fe3e80243c4"
+    },
+    {
+      "name": "A-long ramp-down",
+      "hz": 60,
+      "physicsHash": "ee4eed56282de43c4e32f4592359c71b4a7bbc5f7598fe8984c361a2bf8fb597",
+      "renderHash": "11a9dad42a84794047dcb8ddad5800f85fcc086ce641e04a6efeca4ab9c42f47"
+    },
+    {
+      "name": "A-long ramp-up",
+      "hz": 60,
+      "physicsHash": "1e7fd003af6936fb5a8d9a26e62fdf1b8875b6d80dce5c9e0f0639842445f40c",
+      "renderHash": "924910922dd76efc75fe5b53d2266202b15181bc816b18b6d43af965837a836f"
+    },
+    {
+      "name": "CT-B ramp-down",
+      "hz": 60,
+      "physicsHash": "0e8a8f91a56d106812bd1f19eb32f928004ce2610b92fbfdbef85c61353e1401",
+      "renderHash": "8eb3f2dd874eb1be6e56064889bc7464c0bc909f7bc7f36431666fd1fbc6177a"
+    },
+    {
+      "name": "CT-B ramp-up",
+      "hz": 60,
+      "physicsHash": "b6e556e3a626111671387e6a1043d6d16ced0661a598a8cfe5a5dcbbdde2a072",
+      "renderHash": "d5853643f90376e2e37b7a0093644eb71e0002926e68ee16a54c8b064b85693c"
+    },
+    {
+      "name": "B-tunnel approach-down",
+      "hz": 60,
+      "physicsHash": "cef8a82eb9214d977be5dfb46b61913af799a09a3f02ddc80740042d4dfe0847",
+      "renderHash": "f220ee41ef29ab6dbf724eb232ce32769f7b1566ad2a2ef2e9ba98f8bd9f6ed5"
+    },
+    {
+      "name": "B-tunnel approach-up",
+      "hz": 60,
+      "physicsHash": "14b350dfba744c95bea30462785dfe94e5c979c33d4c500125e6d50e6103f4a4",
+      "renderHash": "8f8336bf5bc1b17329d95c1fcc40c042ad590ee0eeb252b6ddc75ae2a7841e74"
+    },
+    {
+      "name": "flat-start-stop-reverse",
+      "hz": 120,
+      "physicsHash": "9cf8fc605e94e96034f362228bfd518d2d14c6c70647d16a530dcd7fdf4d3e2a",
+      "renderHash": "0a5d0a1ad161230a8b79978fcd8ea566aac66114d9bbaaf1fc791dd69a54c081"
+    },
+    {
+      "name": "flat-wheel",
+      "hz": 120,
+      "physicsHash": "8984500c6203e33bfe07792c609d3110b7e60f517fbcbfb53d3115fc06f47328",
+      "renderHash": "db28c1f3ce970979f880d102a3e7f03e998df793b0063c428e2a0ef41ca361db"
+    },
+    {
+      "name": "flat-crouch-rise",
+      "hz": 120,
+      "physicsHash": "28ce186a7bc4bcc720a889b19304666b55faefca0e9fc27022e778e24e8efe3a",
+      "renderHash": "2982278cf45a6ef56cfc8b1ad9ac4c400763c5b4a027dc55a12f6021797832ec"
+    },
+    {
+      "name": "vertical-wheel",
+      "hz": 120,
+      "physicsHash": "f1572c3ca76c9a6e1d49e354a111b8a2d44c0e586b616c981e412d716f3a8483",
+      "renderHash": "f9c71889ec3c74a9e78b8b247856af89bf4cd126acd9ff4aed6c255249268d30"
+    },
+    {
+      "name": "air-stance",
+      "hz": 120,
+      "physicsHash": "7698534b7b6b0b7f3e016da10bfeff6e7cb1d68713846e420e950acc356957d3",
+      "renderHash": "0fc022880ea029163be1840dce6fc2133ace18163a5a8d2d1d32b582c22f100a"
+    },
+    {
+      "name": "ceiling",
+      "hz": 120,
+      "physicsHash": "3ea61b461059b207e382ce0b4ae53c384068b57051ee81de3474bd4ed07fa7d8",
+      "renderHash": "9e0488f9b2e4dd08e3dfd2a43854efb2713ebce1c4e9eec88270d4a2055fe62c"
+    },
+    {
+      "name": "ct-crate",
+      "hz": 120,
+      "physicsHash": "89f5da82f52d5ae259aa4b8e83cd1e4e0bfbebfd665045f062d7775987a7fdc1",
+      "renderHash": "f149749dcc43f369806b097cedbdbb259ed0b4eb9d7a1e297c5a8656f758896a"
+    },
+    {
+      "name": "landing-fatigue",
+      "hz": 120,
+      "physicsHash": "dcca5b87369e778c33ec54d742663f7244205b9e02a2a01f806cb547490cd67a",
+      "renderHash": "8d7b4f95826e8bf557438335c2e7bff8ff875d041051f1a715c5b5e50ae6c091"
+    },
+    {
+      "name": "T-spawn ramp-down",
+      "hz": 120,
+      "physicsHash": "73f75bd41bf5eef173eb67a2d6c74e904ed337d4aabb5a426052975c449c1d9b",
+      "renderHash": "7629fcedf5e1228ad50b0a04dec9eff5c555396a8b76983d9776cde09558ae96"
+    },
+    {
+      "name": "T-spawn ramp-up",
+      "hz": 120,
+      "physicsHash": "d647db47451a6a1f5a0061e734a84cd11c467b05932d2c9df503b8170beb48da",
+      "renderHash": "83cf4954a97f24fd0716d21fda5208b3e56d7b126d592fc20cb5b9dbc1e7694b"
+    },
+    {
+      "name": "A-long ramp-down",
+      "hz": 120,
+      "physicsHash": "ee4eed56282de43c4e32f4592359c71b4a7bbc5f7598fe8984c361a2bf8fb597",
+      "renderHash": "12cadc381611b7c811cef55e97fc512820cd40f7b61e21c00d431e11f629dd1b"
+    },
+    {
+      "name": "A-long ramp-up",
+      "hz": 120,
+      "physicsHash": "1e7fd003af6936fb5a8d9a26e62fdf1b8875b6d80dce5c9e0f0639842445f40c",
+      "renderHash": "10635abcbaf738ee5640c51776ca209f9ec277ba8e64809f94443a4795f920fa"
+    },
+    {
+      "name": "CT-B ramp-down",
+      "hz": 120,
+      "physicsHash": "0e8a8f91a56d106812bd1f19eb32f928004ce2610b92fbfdbef85c61353e1401",
+      "renderHash": "dcb17a684763ddab04ae8a154cf949bf7364569f5899e76a8cc3e1e8efc6c4e8"
+    },
+    {
+      "name": "CT-B ramp-up",
+      "hz": 120,
+      "physicsHash": "b6e556e3a626111671387e6a1043d6d16ced0661a598a8cfe5a5dcbbdde2a072",
+      "renderHash": "e1537b2cc83d65d6fc5d8e4eee527e7928c90355f93503d024c12b041cff3e9e"
+    },
+    {
+      "name": "B-tunnel approach-down",
+      "hz": 120,
+      "physicsHash": "cef8a82eb9214d977be5dfb46b61913af799a09a3f02ddc80740042d4dfe0847",
+      "renderHash": "41dac838a318f998d99f9b23e916db6199faf2cfc7b0d496ac0300368fc6be21"
+    },
+    {
+      "name": "B-tunnel approach-up",
+      "hz": 120,
+      "physicsHash": "14b350dfba744c95bea30462785dfe94e5c979c33d4c500125e6d50e6103f4a4",
+      "renderHash": "7d5f09caa92425ed356d03915a1027c081c2e5ea9e3d132efbc995cf34521a88"
+    },
+    {
+      "name": "flat-start-stop-reverse",
+      "hz": 144,
+      "physicsHash": "9cf8fc605e94e96034f362228bfd518d2d14c6c70647d16a530dcd7fdf4d3e2a",
+      "renderHash": "7d19e4cb088ba707dc9e71acab49a74789242950fcad7efc92914a0bc570f2dc"
+    },
+    {
+      "name": "flat-wheel",
+      "hz": 144,
+      "physicsHash": "8984500c6203e33bfe07792c609d3110b7e60f517fbcbfb53d3115fc06f47328",
+      "renderHash": "196b15ae242d72d4debe9ec34abb37a870a275409f2bec27b849b9a5eceddafb"
+    },
+    {
+      "name": "flat-crouch-rise",
+      "hz": 144,
+      "physicsHash": "28ce186a7bc4bcc720a889b19304666b55faefca0e9fc27022e778e24e8efe3a",
+      "renderHash": "1a333a36fbc36dbf0bda56f30740f393b79e48e94e7acdaad30509088674bdf3"
+    },
+    {
+      "name": "vertical-wheel",
+      "hz": 144,
+      "physicsHash": "f1572c3ca76c9a6e1d49e354a111b8a2d44c0e586b616c981e412d716f3a8483",
+      "renderHash": "71d5ebcfa3e3b178f3d054e0098ccf9f8bf47fadd87969e29dcf2ff06664dade"
+    },
+    {
+      "name": "air-stance",
+      "hz": 144,
+      "physicsHash": "7698534b7b6b0b7f3e016da10bfeff6e7cb1d68713846e420e950acc356957d3",
+      "renderHash": "ee7fa53166814fb285ff1f7da4fbb2e14dc73d6208831e3e26049a12fe2df486"
+    },
+    {
+      "name": "ceiling",
+      "hz": 144,
+      "physicsHash": "3ea61b461059b207e382ce0b4ae53c384068b57051ee81de3474bd4ed07fa7d8",
+      "renderHash": "d8b7c5eada8a2604512795245378eac9fd1b7e5545ca445ccb4b881ca5255c94"
+    },
+    {
+      "name": "ct-crate",
+      "hz": 144,
+      "physicsHash": "89f5da82f52d5ae259aa4b8e83cd1e4e0bfbebfd665045f062d7775987a7fdc1",
+      "renderHash": "e4b9cf0d9feeb5304912857139e494fe4ced0ab3f6b3e350a399e3c805aa9060"
+    },
+    {
+      "name": "landing-fatigue",
+      "hz": 144,
+      "physicsHash": "dcca5b87369e778c33ec54d742663f7244205b9e02a2a01f806cb547490cd67a",
+      "renderHash": "40fd8f3a44f1ed1be0d4f4f151ed2b7cdfb05cdd898a48ecb683983f49e23fec"
+    },
+    {
+      "name": "T-spawn ramp-down",
+      "hz": 144,
+      "physicsHash": "73f75bd41bf5eef173eb67a2d6c74e904ed337d4aabb5a426052975c449c1d9b",
+      "renderHash": "a2026fda26310a771d1a3b0ba116c02d5c617ff4ce69def4879aede3d346cab2"
+    },
+    {
+      "name": "T-spawn ramp-up",
+      "hz": 144,
+      "physicsHash": "d647db47451a6a1f5a0061e734a84cd11c467b05932d2c9df503b8170beb48da",
+      "renderHash": "b97f3981030ac1a0a7dd15ed405812aa8c6e6f1d7a5443860608447d68cdb09e"
+    },
+    {
+      "name": "A-long ramp-down",
+      "hz": 144,
+      "physicsHash": "ee4eed56282de43c4e32f4592359c71b4a7bbc5f7598fe8984c361a2bf8fb597",
+      "renderHash": "a672b8f6e8ed49bc5e3a4432fc8f8d841c8a6f6925a33a21d8d7f3fdcf8cde2e"
+    },
+    {
+      "name": "A-long ramp-up",
+      "hz": 144,
+      "physicsHash": "1e7fd003af6936fb5a8d9a26e62fdf1b8875b6d80dce5c9e0f0639842445f40c",
+      "renderHash": "763d02e5c6ac4d8de4d58899139511cee12af1bf0540ee1c7120e75f0929fbf1"
+    },
+    {
+      "name": "CT-B ramp-down",
+      "hz": 144,
+      "physicsHash": "0e8a8f91a56d106812bd1f19eb32f928004ce2610b92fbfdbef85c61353e1401",
+      "renderHash": "992dc7d3f84b79fbfc9553d9ad3f7d43c4ba9b71db848fb9b32d349cfcd8d5a9"
+    },
+    {
+      "name": "CT-B ramp-up",
+      "hz": 144,
+      "physicsHash": "b6e556e3a626111671387e6a1043d6d16ced0661a598a8cfe5a5dcbbdde2a072",
+      "renderHash": "d93ee609dee0decca14ef449ac2a5273013d7d3dce52f9c41be3e60989a94200"
+    },
+    {
+      "name": "B-tunnel approach-down",
+      "hz": 144,
+      "physicsHash": "cef8a82eb9214d977be5dfb46b61913af799a09a3f02ddc80740042d4dfe0847",
+      "renderHash": "da7b66e79b3be65cf16c5e742343429af7fcc3a7f30bdd216077ca55caab488e"
+    },
+    {
+      "name": "B-tunnel approach-up",
+      "hz": 144,
+      "physicsHash": "14b350dfba744c95bea30462785dfe94e5c979c33d4c500125e6d50e6103f4a4",
+      "renderHash": "878fa9b8866e78b327780f82739d2e5cefb8c49445bb66491fb69a4015728d49"
+    },
+    {
+      "name": "flat-start-stop-reverse",
+      "hz": 240,
+      "physicsHash": "9cf8fc605e94e96034f362228bfd518d2d14c6c70647d16a530dcd7fdf4d3e2a",
+      "renderHash": "e94d9698cbb35e925f2745f4e8863706634f658c175916d2debb49553171fee9"
+    },
+    {
+      "name": "flat-wheel",
+      "hz": 240,
+      "physicsHash": "8984500c6203e33bfe07792c609d3110b7e60f517fbcbfb53d3115fc06f47328",
+      "renderHash": "7c172d94879117b402c34d55dfeb88dc9a6201fe28d9c675e2f1d54f9881a008"
+    },
+    {
+      "name": "flat-crouch-rise",
+      "hz": 240,
+      "physicsHash": "28ce186a7bc4bcc720a889b19304666b55faefca0e9fc27022e778e24e8efe3a",
+      "renderHash": "babc9cf81544ce0af158d38be50722930f4393ed4ef461aa5c8526a4e6a3a57d"
+    },
+    {
+      "name": "vertical-wheel",
+      "hz": 240,
+      "physicsHash": "f1572c3ca76c9a6e1d49e354a111b8a2d44c0e586b616c981e412d716f3a8483",
+      "renderHash": "61e70f1a9da40f6e0190b0f6397ac38437dd91aed24ba4d70bfd82636b1a9509"
+    },
+    {
+      "name": "air-stance",
+      "hz": 240,
+      "physicsHash": "7698534b7b6b0b7f3e016da10bfeff6e7cb1d68713846e420e950acc356957d3",
+      "renderHash": "71426023d481d2b166e4bfcd3f3208955ef4c21394c7320cba4834a9b21484ff"
+    },
+    {
+      "name": "ceiling",
+      "hz": 240,
+      "physicsHash": "3ea61b461059b207e382ce0b4ae53c384068b57051ee81de3474bd4ed07fa7d8",
+      "renderHash": "f94d9caceb3ed4f224b0574b3c1e7ae9561ba5a37d552d4fdc8c191ff09217a3"
+    },
+    {
+      "name": "ct-crate",
+      "hz": 240,
+      "physicsHash": "89f5da82f52d5ae259aa4b8e83cd1e4e0bfbebfd665045f062d7775987a7fdc1",
+      "renderHash": "59beb0cae342bc90f15b257dcbcd8416f4cbe17107cd5145df57c0466016ff2e"
+    },
+    {
+      "name": "landing-fatigue",
+      "hz": 240,
+      "physicsHash": "dcca5b87369e778c33ec54d742663f7244205b9e02a2a01f806cb547490cd67a",
+      "renderHash": "330bca64dab1c5eda98a129bdf45993f4bab2e41d5c0c3a2365b8a3f0f433238"
+    },
+    {
+      "name": "T-spawn ramp-down",
+      "hz": 240,
+      "physicsHash": "73f75bd41bf5eef173eb67a2d6c74e904ed337d4aabb5a426052975c449c1d9b",
+      "renderHash": "8785c5ca00d5c09c9823cf3ec2c95e0f99fb635377a28ee04a05d38d447fb72a"
+    },
+    {
+      "name": "T-spawn ramp-up",
+      "hz": 240,
+      "physicsHash": "d647db47451a6a1f5a0061e734a84cd11c467b05932d2c9df503b8170beb48da",
+      "renderHash": "c10c77f5a1991e0deb564592159d98b9335c27815c58a91309b97fe3e6ee2dee"
+    },
+    {
+      "name": "A-long ramp-down",
+      "hz": 240,
+      "physicsHash": "ee4eed56282de43c4e32f4592359c71b4a7bbc5f7598fe8984c361a2bf8fb597",
+      "renderHash": "cbecdedd7cb1d3903e41075c1a55ed0ea52a9a37facb539fc70af636ab613470"
+    },
+    {
+      "name": "A-long ramp-up",
+      "hz": 240,
+      "physicsHash": "1e7fd003af6936fb5a8d9a26e62fdf1b8875b6d80dce5c9e0f0639842445f40c",
+      "renderHash": "0d2ba041509e02c7037cd68156ec46eb9c9388b1e41bedd587879ba2383825a8"
+    },
+    {
+      "name": "CT-B ramp-down",
+      "hz": 240,
+      "physicsHash": "0e8a8f91a56d106812bd1f19eb32f928004ce2610b92fbfdbef85c61353e1401",
+      "renderHash": "fa8f85584e100496d50ee065b9c70c8ca5ba8a6be0a90a093b9c6b1a70542853"
+    },
+    {
+      "name": "CT-B ramp-up",
+      "hz": 240,
+      "physicsHash": "b6e556e3a626111671387e6a1043d6d16ced0661a598a8cfe5a5dcbbdde2a072",
+      "renderHash": "568bfb1d53a7c33fa05d33f1a4f119f8cee28aa8fba7a13e4f53b309c79cb983"
+    },
+    {
+      "name": "B-tunnel approach-down",
+      "hz": 240,
+      "physicsHash": "cef8a82eb9214d977be5dfb46b61913af799a09a3f02ddc80740042d4dfe0847",
+      "renderHash": "603a001e6cdd581d41c66e118ee3b310631274423a496b17d961ff1fdd98d828"
+    },
+    {
+      "name": "B-tunnel approach-up",
+      "hz": 240,
+      "physicsHash": "14b350dfba744c95bea30462785dfe94e5c979c33d4c500125e6d50e6103f4a4",
+      "renderHash": "bd79d449e72a86d45560c2d0047d2884bdcd98d2afe605ac41ea37d6d05d9199"
+    }
+  ]
+}

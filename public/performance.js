@@ -14,7 +14,7 @@ export function interpolateRemote(display, target, dt) {
   return display;
 }
 export function createFrameMetrics(capacity = 240) {
-  const fields = ['intervalMs', 'cpuMs', 'animationMs', 'renderSubmitMs'];
+  const fields = ['intervalMs', 'cpuMs', 'animationMs', 'renderSubmitMs','cameraMs'];
   const rings = fields.map(() => new Float32Array(capacity));
   let cursor = 0, count = 0;
   return {
@@ -34,6 +34,16 @@ export function createFrameMetrics(capacity = 240) {
         if(i===0){const tail=samples.slice(-Math.max(1,Math.ceil(count*.01))),mean=tail.reduce((a,b)=>a+b,0)/tail.length;result.onePercentLowFps=mean>0?1000/mean:0;}
       }
       result.estimatedFps = result.intervalMs.mean ? 1000 / result.intervalMs.mean : 0;
+      const intervals=Array.from(rings[0].subarray(0,count));
+      result.frameBudgets=Object.fromEntries([60,120,144].map(hz=>{
+        const budgetMs=1000/hz,toleranceMs=Math.max(.2,budgetMs*.02);
+        return [hz,{targetHz:hz,budgetMs,toleranceMs,samples:count,
+          overBudgetFrames:intervals.filter(ms=>ms>budgetMs+toleranceMs).length,
+          cadenceP99WithinBudget:count>0&&result.intervalMs.p99<=budgetMs+toleranceMs,
+          cpuP99WithinBudget:count>0&&result.cpuMs.p99<=budgetMs,
+          cameraP99Ms:result.cameraMs.p99}];
+      }));
+      result.cadenceScope='Observed callback intervals; not a display capability or physical input-latency certification';
       return result;
     },
   };

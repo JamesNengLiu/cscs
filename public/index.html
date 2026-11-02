@@ -58,7 +58,11 @@
       <div class="diagnostics-actions"><button id="testAudioPosition" type="button" class="secondary">方位试听 · 左 / 右 / 前 / 后</button><button id="resetAudioSettings" type="button" class="secondary">恢复默认声音设置</button></div>
       <small id="audioSettingsStatus" role="status" aria-live="polite">点击继续游戏或方位试听后启用声音。</small><small id="audioRuntimeStatus"></small>
     </fieldset>
-    <fieldset class="menu-section"><legend>图形与性能</legend><label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label></fieldset>
+    <fieldset class="menu-section"><legend>图形与性能</legend>
+      <label for="cameraMode">位置镜头响应 · A/B 对比<select id="cameraMode" aria-describedby="cameraModeHelp"><option value="baseline">A · 现有稳定插值</option><option value="responsive">B · 低延迟预览（实验）</option></select></label>
+      <p id="cameraModeHelp" class="menu-help">仅改变本机位置显示，不改变移动或射击规则。建议在相同路线对比起停、连跳和落地；可在此切回 A。</p><small id="cameraModeStatus" role="status" aria-live="polite"></small>
+      <label>画质 / 流畅度<select data-quality aria-label="暂停时画质 / 流畅度"><option value="auto">自动</option><option value="performance">优先流畅</option><option value="sharp">优先清晰</option></select></label>
+    </fieldset>
     <fieldset class="menu-section"><legend>联机诊断</legend>
       <p class="menu-help">自动保留最近采样。复现卡顿后按 Esc 导出 JSON 发给开发者。仅本地下载，不自动上传；包含浏览器、显卡与连接地址，不包含昵称或完整对局。</p>
       <small id="networkDiagnosticsStatus" role="status" aria-live="polite">正在采样…</small>

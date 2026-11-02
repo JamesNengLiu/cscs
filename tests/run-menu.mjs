@@ -16,6 +16,13 @@ try{
   const loaded=()=>page.waitForFunction(()=>window.lanStrike?.getDiagnostics&&window.lanStrike.getRenderInfo().triangles>0);
   await page.goto(base,{waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');
   assert.equal(await page.locator('#resume').isVisible(),true);assert.equal(await page.locator('#openBuyButton').isVisible(),false);assert.equal((await(await fetch(base+'/health')).json()).players,0);assert.equal(await page.inputValue('#mouseSensitivityNumber'),'1.00');check('game menu opens before joining with compatible default and no hidden join');
+  assert.equal(await page.inputValue('#cameraMode'),'baseline');
+  await page.selectOption('#cameraMode','responsive');assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().cameraMode),'responsive');
+  await page.reload({waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#cameraMode'),'responsive');
+  await page.goto(base+'/?camera=baseline',{waitUntil:'networkidle'});await loaded();await page.click('#lobbySettingsButton');assert.equal(await page.inputValue('#cameraMode'),'baseline');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('lan-strike-camera-mode')),'responsive');
+  await page.selectOption('#cameraMode','responsive');await page.selectOption('#cameraMode','baseline');
+  assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().cameraMode),'baseline');check('camera A/B switches in the actual client, persists, honors a tab override and rolls back to A');
   await page.fill('#mouseSensitivityNumber','2');assert.equal(await page.inputValue('#mouseSensitivity'),'2');await page.locator('#mouseSensitivity').focus();await page.keyboard.press('ArrowRight');
   assert.equal(await page.inputValue('#mouseSensitivityNumber'),'2.05');assert.equal(await page.locator('#mouseSensitivityValue').textContent(),'2.05×');
   await page.fill('#mouseSensitivityNumber','999');await page.locator('#mouseSensitivityNumber').blur();assert.equal(await page.inputValue('#mouseSensitivityNumber'),'5.00');
@@ -28,7 +35,7 @@ try{
   await page.locator('#resumeButton').focus();await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.id),'mouseSensitivity');
   await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.id),'resumeButton');check('modal traps keyboard focus and does not expose the inert lobby');
   await page.screenshot({path:'artifacts/game-menu-desktop.png'});report.screenshots.push('artifacts/game-menu-desktop.png');
-  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'artifacts/game-menu-mobile.png'});report.screenshots.push('artifacts/game-menu-mobile.png');await page.setViewportSize({width:1280,height:900});
+  await page.setViewportSize({width:390,height:844});await page.locator('#cameraMode').scrollIntoViewIfNeeded();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'artifacts/game-menu-mobile.png'});report.screenshots.push('artifacts/game-menu-mobile.png');await page.setViewportSize({width:1280,height:900});
   await page.fill('#mouseSensitivityNumber','0.5');await page.locator('#mouseSensitivityNumber').blur();await page.click('#resumeButton');assert.equal(await page.locator('#resume').isVisible(),false);
   await page.fill('#name','Menu Test');await page.selectOption('#team','T');await page.click('#joinButton');await page.waitForFunction(()=>window.lanStrike.getState()?.players.length===1);
   peer=new WebSocket(base.replace('http','ws'));await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Peer timeout')),10000);peer.on('error',reject);peer.on('message',c=>{const m=JSON.parse(String(c));if(m.type==='hello')peer.send(JSON.stringify({type:'join',team:'CT',name:'Menu Opponent'}));if(m.type==='joined'){clearTimeout(timeout);resolve();}});});heartbeat=setInterval(()=>{if(peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({type:'input',input:{f:0,s:0,fire:false,yaw:0,pitch:0}}));},100);

@@ -45,6 +45,8 @@
     "test:hit-slowdown:browser": "node tests/hit-slowdown-browser.mjs",
     "test:wheel-jump": "node --test tests/wheel-jump.test.mjs",
     "test:wheel-jump:browser": "node tests/wheel-jump-browser.mjs",
+    "test:camera": "node --test tests/camera-ab.test.mjs",
+    "test:camera:browser": "node tests/run-camera-ab.mjs",
     "test:collision:browser": "node tests/movement-collision-browser.mjs",
     "test:jump-fatigue:browser": "node tests/jump-fatigue-browser.mjs",
     "test:tuning": "node tests/evaluate-tuning.mjs",

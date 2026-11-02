@@ -54,7 +54,7 @@ try{
   if(busy)return;const due=deliveries.filter(e=>e.at<=now);deliveries=deliveries.filter(e=>e.at>now);if(!due.length)return;
   busy=true;try{await page.evaluate(ms=>ms.forEach(m=>window.fixtureSocket.emit(m)),due.map(e=>e.m));}catch(e){if(!closed)report.errors.push(e.message);}finally{busy=false;}
  },1000/60);
- await page.goto('https://continuity-audit.test/?transport=websocket');await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.click('#resumeButton');await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.locked&&!d.weaponModel.loading&&d.remoteModels.length===1&&!d.remoteModels[0].loading;});await page.waitForTimeout(1200);
+ await page.goto('https://continuity-audit.test/?transport=websocket&camera='+(process.env.CAMERA_TEST_MODE||'baseline')+'');await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.click('#resumeButton');await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.locked&&!d.weaponModel.loading&&d.remoteModels.length===1&&!d.remoteModels[0].loading;});await page.waitForTimeout(1200);
  for(const [name,options]of [['clean',{walk:true}],['remote-loss',{burst:true}],['remote-jitter',{jitter:true}],['downlink-outage',{downlink:true}],['uplink-outage',{walk:true,uplink:true}],['stall-150',{walk:true,stall:150}],['stall-350',{walk:true,stall:350}],['wheel-ramp-stall',{walk:true,stall:150,wheel:true}]]){
   if(only&&name!==only)continue;
   running=false;await page.keyboard.up('KeyW');while(busy)await sleep(5);deliveries=[];g.begin();g.phase='live';g.time=10;g.endAt=1000;place();fault=options;label=name;serverRows=[];commandRows=[];caseStarted=performance.now();
@@ -88,4 +88,4 @@ try{
  }
  assert.ok(report.cases.length>0,'at least one named fixture must run');assert.deepEqual(report.errors,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/network-continuity-'+(before?'before':'after')+(only?'-'+only:'')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,scope:report.scope,cases:report.cases.map(c=>({name:c.name,summary:c.summary})),errors:report.errors,failure:report.failure},null,2));}
+finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/network-continuity-'+(before?'before':'after')+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+(only?'-'+only:'')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,scope:report.scope,cases:report.cases.map(c=>({name:c.name,summary:c.summary})),errors:report.errors,failure:report.failure},null,2));}

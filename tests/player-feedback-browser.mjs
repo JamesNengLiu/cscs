@@ -1,3 +1,4 @@
+import {installUncapturedPointerLock} from './fixtures/frame-clock.mjs';
 // Actual client/assets, real mouse/keyboard and two offline Game players over IPC.
 // No production room, listening socket or service restart. GPU/CPU reported separately.
 import assert from 'node:assert/strict';
@@ -18,13 +19,14 @@ function place(){
 place();
 try{
  await mkdir('artifacts',{recursive:true});
- browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
+ browser=await chromium.launch({headless:process.env.CAMERA_TEST_HEADED!=='1',executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:[...(process.env.CAMERA_TEST_HEADED==='1'?['--window-position=0,0']:[]),'--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
  page=await browser.newPage({viewport:{width:1280,height:800}});page.setDefaultTimeout(15000);
  page.on('pageerror',e=>report.errors.push(e.message));page.on('request',r=>{if(!r.url().startsWith('https://player-feedback.test/')&&!r.url().startsWith('data:'))report.externalRequests.push(r.url());});
  await page.exposeFunction('sendToGame',m=>{
   if(m.type==='join'){joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}
   if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='equip')g.equip(p.id,m.weapon);else if(m.type==='ping')return [{type:'pong',sent:m.sent}];return [];
  });
+ if(process.env.CAMERA_TEST_HEADED==='1')await page.addInitScript(installUncapturedPointerLock);
  await page.addInitScript(()=>{
   window.feedback={events:[],batches:[],samples:[],case:null};
   const raf=requestAnimationFrame.bind(window);window.requestAnimationFrame=cb=>raf(t=>{cb(t);if(cb.name==='frame'&&window.feedback.case&&window.lanStrike){const d=window.lanStrike.getDiagnostics();window.feedback.samples.push({t,case:window.feedback.case,seq:d.inputSeq,camera:d.cameraPosition,correction:d.lastCorrection,remote:d.remoteModels.map(p=>({sequence:p.sequence,gait:p.gait,position:p.position})),fx:d.playerHitEffects});}});
@@ -49,7 +51,7 @@ try{
   try{const messages=[],events=g.events.splice(0);if(events.length)messages.push({type:'events',events});if(tick%2===0)messages.push(g.snapshot(p.id));if(messages.length)await page.evaluate(ms=>ms.forEach(m=>window.feedbackSocket.emit(m)),messages);}
   catch(e){if(!closed)report.errors.push(e.message);}finally{busy=false;}
  },1000/60);
- await page.goto('https://player-feedback.test/?transport=websocket');await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.click('#resumeButton');
+ await page.goto('https://player-feedback.test/?transport=websocket&camera='+(process.env.CAMERA_TEST_MODE||'baseline')+'');await page.waitForFunction(()=>window.lanStrike);await page.click('#joinButton');await page.click('#resumeButton');
  await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.locked&&!d.weaponModel.loading&&d.remoteModels.length===1&&!d.remoteModels[0].loading;});
  await page.evaluate(()=>new Promise(r=>setTimeout(r,1200)));
  const reset=async effect=>{
@@ -92,4 +94,4 @@ try{
  report.graphics=await page.evaluate(()=>{const gl=document.getElementById('game').getContext('webgl2'),e=gl.getExtension('WEBGL_debug_renderer_info');return e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);});
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.externalRequests,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;report.debug={p:{weapon:p.weapon,ammo:p.ammo,input:p.input,yaw:p.yaw,pitch:p.pitch,x:p.x,y:p.y,z:p.z},q:{x:q.x,y:q.y,z:q.z,yaw:q.yaw,hp:q.hp},events:await page?.evaluate(()=>window.feedback?.events.slice(-25)),diagnostics:await page?.evaluate(()=>window.lanStrike?.getDiagnostics())};console.error(e);process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/player-feedback-browser-report.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,checks:report.checks,graphics:report.graphics,performance:report.motion?.performance,renderStress:report.renderStress,errors:report.errors,failure:report.failure,fixtures:report.fixtures,debug:report.debug},null,2));}
+finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/player-feedback-browser-report'+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,checks:report.checks,graphics:report.graphics,performance:report.motion?.performance,renderStress:report.renderStress,errors:report.errors,failure:report.failure,fixtures:report.fixtures,debug:report.debug},null,2));}

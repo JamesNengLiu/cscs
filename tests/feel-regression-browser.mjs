@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';import {performance} from 'node:perf_hooks';
 import {Game} from '../game.mjs';import {GUNS} from '../public/arsenal.js';import {supportHeight} from '../public/shared.js';
-const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game({random:()=>.27}),p=g.add('local','Feel regression','T');g.begin();g.time=10;g.buy(p.id,'ak47');Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});
+const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game({random:()=>.27,hitRecovery:process.env.HIT_RECOVERY_PROFILE||'baseline'}),p=g.add('local','Feel regression','T');g.begin();g.time=10;g.buy(p.id,'ak47');Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});
 let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,blocked=false,heldEvents=[];
 const report={scope:'Production client and offline Game, native isolated headless Chrome; synthetic browser mouse/wheel events and deliberately held outgoing confirmation. Not physical mouse-to-photon or retail-CS timing.',errors:[]};
 try{

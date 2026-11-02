@@ -9,7 +9,7 @@ import {chromium} from 'playwright';
 import {Game} from '../game.mjs';
 import {supportHeight,eyeHeight,direction} from '../public/shared.js';
 import {playerHitboxes} from '../hitboxes.mjs';
-const g=new Game({random:()=>.5}),p=g.add('local','Shooter','T'),q=g.add('target','Opponent','CT');g.begin();g.phase='live';g.time=10;g.buy(p.id,'ak47');g.buy(q.id,'m4a1');
+const g=new Game({random:()=>.5,hitRecovery:process.env.HIT_RECOVERY_PROFILE||'baseline'}),p=g.add('local','Shooter','T'),q=g.add('target','Opponent','CT');g.begin();g.phase='live';g.time=10;g.buy(p.id,'ak47');g.buy(q.id,'m4a1');
 const report={status:'running',checks:[],errors:[],externalRequests:[],scope:'Isolated native-GPU Chrome at 1280x800 with production client and two authoritative offline Game players over IPC. No physical multiplayer or retail-client parity claim.'};
 let page,browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,moving=false,moveDir=1,stress=false,extras=[];
 function place(){

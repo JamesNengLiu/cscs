@@ -1,0 +1,365 @@
+{
+  "source": "Saved pre-experiment movement function from c774e1b; numeric fixture hashes only.",
+  "rows": [
+    {
+      "weapon": "ak47",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "058d63ad469d5adf09b8431e8b90f88c0b0f257d0a4e3085ae269a68a2d05524"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "a607c543f5e1d9e84cf0f353da3c18ba3939440d329ee8836f894eab6c1561dd"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "073d340f3a78f547f4c9719365db154fc8e9c24b1cd31ba932be1eb46aa3b387"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "82fb306e3fb352ff52aefed1f4d5ab4908eda2a8e235dfc1829a5207ec655698"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "b8cfff2c1c018beb0e93e839c6a2c8955edd6659027c47167dae25df765edb55"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "95875bfe1b9bdf562ae7bd66526580006fb838d16b01ea9664619343d8dc4c7c"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "fb0fb83ec3fd03044f1e3aa7eb410db92a9515bff7b6878b506b93e02df1d1ec"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "a3ce5855ec4b535d7b594a2b3c22dd7f3e3df8b9a73030749d48d54e764713f6"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "feca443a5c34fdc69127785589d6e26bd53ddd0f6f157d864a10c58868650cbf"
+    },
+    {
+      "weapon": "ak47",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "6ce49c848eb7753b4a4c22f64ca6ad9abafdc0a3b52fbf703612f44f00298e13"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "454a3959ecdeffe07185406ddaf10b28dddb5851b88e04a78f71e2d7e84655ba"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "c719a09b9638b74dc3dbb5e39b9cfa2730d82a05c9072af134ef269d5dffbb5a"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "11f717a721764285c92c964563fd58230c626620fc9b9ac56421dee3df456685"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "70a54a6388fabbb4bde2f419f0ffc5140c754b9b7a0234bb0687d9ca259285f9"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "60958a8ad2b4cbe17772e7cb9af34883dab829ecb659f01d0dde20003fe0278c"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "2ab6c6ed97ea3344148453e3c7c6d5d0f0be19d2bd414c3411b6e413a9e75806"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "67c74cad65fbf314c00aebfb7f7391fa0f6955584f547d39322e67aad15d5553"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "40ce63318bc7c38a30e962ed78784b48663a3d35ecd5cb78b3a0a43b63d854d1"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "f4269835b0b192ad2ad2461c75162c6d630a64aa11ebdfa10dde225fd6e78ff3"
+    },
+    {
+      "weapon": "m4a1",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "43ebfc048d161113c95cf7f508ac522c8a385e1b1807d06807b71977281b8a4e"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "76823e56397cc6475e983b25cc7a478e9b20c2c483104c963fcff09cd0fbc9a1"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "32316d810b8f9a5398f583dccc68c1063ae677d16e57d450c885bf9c9db40c1f"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "2ac9362b92b053ed7d2ea9a209f2862963cad9a3ce8f703957074042e59656b2"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "14b456c277604ebe16ca7d50e9415c17d059fed941568e1116e511395237df05"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "53a54a788a2f024619c546b853392ba4135812251adfc8e3d4074ea12ceb056f"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "6cd6a8888ac0538477ddc2e1575f36aa615ce51d89f73f736aa2a19117d7f474"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "42aba135d538379c365685b6cd08d1443c9db5a00d428a18f0d7e684574b0c3c"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "8b10d26f6dc669667b46df3b3f352ab832e07d454b4a2e63cdedbcf5b5440107"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "888d4a33d4c7f263d2432fa387d3b5afe0542122f187569cc18ee2078b775daf"
+    },
+    {
+      "weapon": "mp5navy",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "895be493455f7327a8b17ae58349d6b53e0c084fe1f222d3b465fff104a59931"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "1492e4c2d2c92ee3ceb872a419e5ab544439bcf4ad9451720cd46e09bb0bc9d4"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "37db207840b2451cc7784ff5a833edacf37dea2b63171adc1d7d4935f0067f84"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "9bea03ce1a52d4ca75777bc670490a265919ef6b3ca2e578c6352635dc902201"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "d61d8d0ec750628d982f1f0c682d724c865ef677dd1214e826d72c538ed826d6"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "052d04c6924e6d06bece6e9580fa08411249454d3663508c48881e0b3c03b38d"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "721fb2785c3cc9ea130ff057d83d771a4e3b6a64ce73fd7dbbe699c12f2b1288"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "a5c7648bf8038dde4a68516e78d44489f9540075fbab8decf1d1a53811fe5e75"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "157398eb6e066bdf4db30e1499351c6c47835bcb4a30efcdc7e9a1296fb05f02"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "0c21790ecb022b55789c946f71b1c002310b6e1ff4a4dcd78da38e327331d7e8"
+    },
+    {
+      "weapon": "p90",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "27bb16728a857dd75182c140781b2db02d60adc406620e7f4d3df2ef8bcd0d9b"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "ad4e11c09520a2f6a669c924026511cfd30ff9da4f7cada696336ba1419d3576"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "2e14f087a1bcf9027d37c0276d24e34c35300058a7d35a6b43452a225ffa74a7"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "690cbd8acd37012264b7590ca42b7430c00997d93d86124bf937e7b55cf27831"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "8194ef3b1a10aac77195d765f8ad736bf0d05cc4142eb4fb8a3d9a2f240de45b"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "d427ee0e7deaeb7c1943efad9e3f2d4f0832a6cd05e561ec3ab6c5755a5b5f10"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "30dc3a25bd772007fd09e20e6494a94cc1620307031e2c4435053c17ac537ce5"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "05977fa884bea422f70303481615875cd5930dcb24e0c257d63ff68a0d880e88"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "0e2a93e2e03c1730b6ef47f7d682822e3d90b03858468f4acb10709d576c5572"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "ac43b1e7069580c133b3a852dbbb1d23eef24e363db41655915383a037490550"
+    },
+    {
+      "weapon": "awp",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "3179f8846de478e9c094f985b414dd6363acc8500ca5d49e1faa212a327a008f"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.5,
+      "mode": "run",
+      "hash": "99de293f44d092cb733373814269bd5f12ec29c5f349f9f2eeb532326899d3b8"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.5,
+      "mode": "stop",
+      "hash": "a989ae04090436202c54a3dd1341930482af332daa05072c1f98bb26c6d40969"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.5,
+      "mode": "strafe",
+      "hash": "62dbce9d06d925b1de1d70493d705f5d502d48db6ee6c50acfeab50411a43a19"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.5,
+      "mode": "crouch",
+      "hash": "83a94c3f63311bffb53cd656a8149b98a1ed71d3c795af3fc479d8f5713e2444"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.5,
+      "mode": "jump",
+      "hash": "2f0bad837ea3d8546da942e0d9a3f10c2aa0cef88226f066596a364e697a78a0"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.65,
+      "mode": "run",
+      "hash": "780658e3c9337d3cbf2346c46e6cc7334f5ab5d0a7ddaadf80fcce1bf0adc663"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.65,
+      "mode": "stop",
+      "hash": "6eb754be3d956c45076612814ee875c1bb80bac758362112d940fea5cc3c4908"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.65,
+      "mode": "strafe",
+      "hash": "923e61e4d232bc0ed4289fac70627a7967dd1968c7100058c59a0ca17d4578ee"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.65,
+      "mode": "crouch",
+      "hash": "30fbc341eb05bc648dfa4aef96ee497b4e1a0e96410fcdc8fa07eff011a1a9e8"
+    },
+    {
+      "weapon": "famas",
+      "modifier": 0.65,
+      "mode": "jump",
+      "hash": "44a6e235fd6169019f8afaa44b61e7dd7706aea4167c83afaffdd47430e68001"
+    }
+  ]
+}

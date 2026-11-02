@@ -36,6 +36,6 @@ export function observeLongTasks(diagnostics,Observer=globalThis.PerformanceObse
 
 export function buildDiagnosticReport({network,performance,diagnostics,environment,longTaskSupported}){
   // Deliberately whitelist fields. Never export player names, IDs, chat, credentials or raw game state.
-  const fields=['locked','visibility','frameCount','unackedInputs','inputSeq','ackInputSeq','lastCorrection','predictionRecoveryActive','cameraMode','mouseSensitivity','scopedSensitivity'];
+  const fields=['locked','visibility','frameCount','unackedInputs','inputSeq','ackInputSeq','lastCorrection','predictionRecoveryActive','hitRecoveryVersion','cameraMode','mouseSensitivity','scopedSensitivity'];
   return {schema:'lan-strike-diagnostic-report-v1',exportedUTC:new Date().toISOString(),network,performance,client:Object.fromEntries(fields.filter(k=>diagnostics[k]!==undefined).map(k=>[k,diagnostics[k]])),environment,longTaskSupported};
 }

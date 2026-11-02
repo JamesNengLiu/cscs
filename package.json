@@ -47,6 +47,8 @@
     "test:downhill": "node --test tests/downhill.test.mjs && node tools/verify-downhill.mjs",
     "test:downhill:browser": "node tests/downhill-browser.mjs",
     "test:hit-slowdown:browser": "node tests/hit-slowdown-browser.mjs",
+    "test:hit-recovery": "node --test tests/hit-recovery.test.mjs",
+    "test:hit-recovery:evaluate": "node tools/evaluate-hit-recovery.mjs",
     "test:wheel-jump": "node --test tests/wheel-jump.test.mjs",
     "test:wheel-jump:browser": "node tests/wheel-jump-browser.mjs",
     "test:camera": "node --test tests/camera-ab.test.mjs",

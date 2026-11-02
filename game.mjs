@@ -18,6 +18,7 @@ import {consumeGunShot} from './public/gun-state.js';
 import {SCOPE_VIEW_PROTOCOL} from './public/awp-view.js';
 import {createLocomotionState,stepLocomotion,copyLocomotion} from './public/player-locomotion.js';
 import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
+import {hitRecoveryProfile} from './public/hit-recovery.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
@@ -25,7 +26,7 @@ export class Game {
   #locomotion=new WeakMap();
   #movementSounds=new Map();
   #bombSounds=null;
-  constructor({random=Math.random,audioRandom=Math.random,friendlyFire=false}={}){this.random=random;this.audioRandom=audioRandom;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
+  constructor({random=Math.random,audioRandom=Math.random,friendlyFire=false,hitRecovery='baseline'}={}){this.hitRecovery=hitRecoveryProfile(hitRecovery);this.random=random;this.audioRandom=audioRandom;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
   emit(e){this.events.push({...e,time:this.time});if(this.events.length>1024)this.events.splice(0,this.events.length-1024);}
   sound(p,name,{position=null,volume=1,attenuation=.8,channel='auto',category='effects',private:personal=false,global=false,team=null,exceptId=null,priority=0}={}){
     if(!safeSound(name))return;
@@ -65,7 +66,7 @@ export class Game {
   spawn(p){const index=[...this.players.values()].filter(a=>a.team===p.team).indexOf(p),s=SPAWN_POINTS[p.team][Math.max(0,index)%SPAWN_POINTS[p.team].length];
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
-    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
+    Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,hitRecoveryVersion:this.hitRecovery.version,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
     delete p.playerLocomotion;this.#locomotion.delete(p);
     p.gaitDistance=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     this.#movementSounds.set(p.id,createMovementSoundState());p.radioCount=0;p.nextRadioAt=0;
@@ -440,11 +441,11 @@ export class Game {
     const present=team=>all.some(p=>p.team===team),alive=team=>all.some(p=>p.alive&&p.team===team);
     if(present('CT')&&!alive('CT'))this.finish('T','对方全灭');else if(present('T')&&!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,hitSlowdownVersion:HIT_SLOWDOWN_VERSION,collisionVersion:COLLISION_VERSION,jumpFatigueVersion:JUMP_FATIGUE_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
+  snapshot(viewerId=null){return {type:'state',version:'0.5.0',ballisticsVersion:MAIN_BALLISTICS_VERSION,hitSlowdownVersion:HIT_SLOWDOWN_VERSION,hitRecoveryVersion:this.hitRecovery.version,collisionVersion:COLLISION_VERSION,jumpFatigueVersion:JUMP_FATIGUE_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>({...s})),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(player=>{
         const {input,lastInput,lastInputSeq,pendingMoney,...p}=player,animation=hitboxAnimation(player,this.time);
         if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);
-        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,...visible}=p;return {...visible,...animation};}
+        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,...visible}=p;return {...visible,...animation};}
         return {...p,...animation,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}
 }

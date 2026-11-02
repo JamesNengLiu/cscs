@@ -3,6 +3,7 @@ import {clamp} from './math.js';
 import {groundHeight,collides,isGrounded,trace} from './map.js';
 import {PITCH_LIMIT} from './view-settings.js';
 import {slideMove,edgeFrictionMultiplier} from './movement-collision.js';
+import {recoveryRate} from './hit-recovery.js';
 export const HIT_SLOWDOWN_VERSION=1;
 export const COLLISION_VERSION=1;
 export const JUMP_FATIGUE_VERSION=1;
@@ -84,7 +85,13 @@ function slide(start,velocity,dt,height,players,self){
   }
   return {pos,velocity:v};
 }
-function applyHitSlowdown(p,dt){const mod=Math.min(1,p.velocityModifier+dt*.6);p.vx*=mod**(dt*60);p.vz*=mod**(dt*60);p.velocityModifier=mod;}
+function applyHitSlowdown(p,dt){
+  let mod=Math.min(1,p.velocityModifier+dt*recoveryRate(p));
+  // The 100 Hz clock can end just below 1 through floating-point roundoff.
+  // Snap only the experimental profile; baseline arithmetic stays exact.
+  if(p.hitRecoveryVersion===1&&mod>=1-1e-12)mod=1;
+  p.vx*=mod**(dt*60);p.vz*=mod**(dt*60);p.velocityModifier=mod;
+}
 function substep(p,input,dt,players,commandDuration,jumpSlowed){
   const modern=p.collisionVersion!==0;
   const height=bodyHeight(p),contact=groundContact(p,players,height);let grounded=Boolean(contact);

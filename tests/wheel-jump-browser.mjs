@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';import {performance} from 'node:perf_hooks';
 import {Game} from '../game.mjs';import {supportHeight} from '../public/shared.js';
 const cameraMode=process.env.CAMERA_TEST_MODE||'baseline',headed=process.env.CAMERA_TEST_HEADED==='1',clockHz=Number(process.env.CAMERA_TEST_HZ)||0,reportTag=process.env.CAMERA_TEST_TAG||'';
-const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game(),p=g.add('local','Read-only audit','T');g.begin();g.time=10;Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0});
+const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game({hitRecovery:process.env.HIT_RECOVERY_PROFILE||'baseline'}),p=g.add('local','Read-only audit','T');g.begin();g.time=10;Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0});
 let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0;const report={scope:'Moving ramp/step wheel-jump regression; native-GPU isolated headless Chrome, offline authoritative Game over IPC. No live-room join or listening service.',errors:[],cases:[]};
 try{
  browser=await chromium.launch({headless:!headed,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:[...(headed?['--window-position=0,0']:[]),'--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});

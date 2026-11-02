@@ -1,0 +1,8 @@
+// Offline Game + real flat BSP patch, without listening ports or live players.
+import {writeFile,mkdir} from 'node:fs/promises';
+import {RECOVERY_WEAPONS,recoveryTrace,referenceRecovery100} from '../tests/fixtures/hit-recovery-cases.mjs';
+import {GUNS} from '../public/arsenal.js';
+const report={scope:'Room-wide A/B recovery clock; repeated real flat BSP patch with X/Z recentered each command. Source units. No retail-client, hardware frame-rate or physical multiplayer claim.',modifiers:[],weapons:[]};
+for(const modifier of [.5,.65]){const a=recoveryTrace({modifier}),b=recoveryTrace({modifier,profile:'reference100'}),r=referenceRecovery100(modifier);report.modifiers.push({initial:modifier,baseline:a.summary,candidate:b.summary,reference100:r.summary,traces:{baseline:a.rows.map(x=>({time:x.time,speedSource:x.speed*40,modifier:x.modifier})),candidate:b.rows.map(x=>({time:x.time,speedSource:x.speed*40,modifier:x.modifier})),reference100:r.rows}});}
+for(const weapon of RECOVERY_WEAPONS)for(const repeat of [false,true])report.weapons.push({weapon,repeat,baseline:recoveryTrace({weapon,actualHits:true,seconds:repeat?Math.max(1.2,GUNS[weapon].interval*3):1.2,repeatSeconds:repeat?GUNS[weapon].interval:0}).summary,candidate:recoveryTrace({weapon,profile:'reference100',actualHits:true,seconds:repeat?Math.max(1.2,GUNS[weapon].interval*3):1.2,repeatSeconds:repeat?GUNS[weapon].interval:0}).summary});
+await mkdir('artifacts',{recursive:true});await writeFile('artifacts/hit-recovery-evaluation.json',JSON.stringify(report,null,2));console.log(JSON.stringify({...report,modifiers:report.modifiers.map(({traces,...summary})=>summary)},null,2));

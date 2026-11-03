@@ -417,5 +417,7 @@ export function createSnapshotBuffer(options = {}) {
     for(let i=0;i<entries.length;i++)accepted=push(entries[i]?.snapshot,entries[i]?.receivedAtMs,i===entries.length-1&&(updateClock||clockOffsetMs===undefined))||accepted;
     return accepted;
   }
-  return { push, pushBatch, sample, reset, diagnostics };
+  // Render/input timing needs only two scalars, not a full diagnostic snapshot.
+  const view=()=>({playbackTimeMs:playbackTimeMs??null,delayMs});
+  return { push, pushBatch, sample, reset, diagnostics, view };
 }

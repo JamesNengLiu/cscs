@@ -14,8 +14,9 @@ import {ECONOMY} from './public/economy.js';
 import {CHARACTER_PRESETS} from './public/characters-config.js';
 import {createServerTelemetry} from './server-telemetry.mjs';
 import {createLagCompensation} from './lag-compensation.mjs';
-import {MAX_INPUT_BATCH} from './public/input-protocol.js';
+import {MAX_INPUT_BATCH,INPUT_VIEW_PROTOCOL,COMBAT_ORDER_VERSION} from './public/input-protocol.js';
 import {GRENADE_PROTOCOL} from './public/grenade-intent.js';
+import {WEAPON_ACTION_PROTOCOL} from './public/weapon-action-order.js';
 import {eventVisibleTo} from './event-visibility.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url)),secure=process.env.WEBTRANSPORT==='1',port=Number(process.env.PORT||(secure?3443:3000)),host=process.env.HOST||'0.0.0.0';
 const snapshotHz=Number(process.env.SNAPSHOT_HZ||30);if(![15,30,60].includes(snapshotHz))throw Error('SNAPSHOT_HZ must be 15, 30 or 60');
@@ -31,7 +32,7 @@ async function handler(req,res){
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname==='/transport-config'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({webtransport:secure,path:'/wt',certificateHash:certDigest,protocol:'lan-strike-wt-v1',snapshotHz}));return;}
-    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.5.0',characterPresets:CHARACTER_PRESETS.length,playerModels:'mdl10-custom-face-v1',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',audioSystem:'cs16-spatial-v1',movementSync:'command-queue-v2',hitRecoveryProfile:game.hitRecovery.name,hitRecoveryVersion:game.hitRecovery.version,mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase,network:{...telemetry.snapshot(),transport:secure?'webtransport+websocket':'websocket',webtransportReady:!!wt,sessions:[...peers].reduce((a,p)=>(a[p.transport||'websocket']=(a[p.transport||'websocket']||0)+1,a),{})}}));return;}
+    if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,version:'0.5.0',characterPresets:CHARACTER_PRESETS.length,playerModels:'mdl10-custom-face-v1',startMoney:ECONOMY.startMoney,gunCount:Object.keys(GUNS).length,arsenal:'cs16-catalog-v1',audioSystem:'cs16-spatial-v1',movementSync:'command-queue-v2',inputViewProtocol:INPUT_VIEW_PROTOCOL,combatOrderVersion:COMBAT_ORDER_VERSION,hitRecoveryProfile:game.hitRecovery.name,hitRecoveryVersion:game.hitRecovery.version,mapVersion:MAP_VERSION,sourceSHA256:MAP_DATA.sourceSHA256,players:game.players.size,phase:game.phase,network:{...telemetry.snapshot(),transport:secure?'webtransport+websocket':'websocket',webtransportReady:!!wt,sessions:[...peers].reduce((a,p)=>(a[p.transport||'websocket']=(a[p.transport||'websocket']||0)+1,a),{})}}));return;}
     if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
     const vendor={'/vendor/three.module.js':'three.module.js','/vendor/three.core.js':'three.core.js'};
     const relative=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
@@ -57,7 +58,7 @@ function connect(ws,req){
   if(origin&&origin!==`http://${requestHost}`&&origin!==`https://${requestHost}`){ws.close(1008,'Origin rejected');return;}
   peers.add(ws);ws.netCounters={sentMessages:0,sentBytes:0,skippedMessages:0,skippedStates:0,maxBufferedBytes:0,stateSequence:0};
   const id=randomUUID();let joined=false,windowAt=Date.now(),messages=0,lastAction=0,probe=null;
-  send(ws,{type:'hello',id,transport:ws.transport||'websocket',protocol:'lan-strike-wt-v1'});
+  send(ws,{type:'hello',id,transport:ws.transport||'websocket',protocol:'lan-strike-wt-v1',weaponActionProtocol:WEAPON_ACTION_PROTOCOL,inputViewProtocol:INPUT_VIEW_PROTOCOL,combatOrderVersion:COMBAT_ORDER_VERSION});
   const deadline=setTimeout(()=>{if(!joined)ws.close(1008,'Join timeout');},30000);deadline.unref();
   const probeTimer=setInterval(()=>{if(ws.readyState!==1)return;probe={token:randomUUID(),at:performance.now()};send(ws,{type:'clockProbe',token:probe.token});},1000);probeTimer.unref();
   ws.on('message',buffer=>{
@@ -65,10 +66,10 @@ function connect(ws,req){
     try{const m=JSON.parse(buffer.toString());
       if(m.actionSeq!==undefined){if(!Number.isSafeInteger(m.actionSeq)||m.actionSeq<=lastAction)return;lastAction=m.actionSeq;}
       if(m.type==='join'&&!joined){game.add(id,m.name,m.team,m.character);if(m.grenadeProtocol===GRENADE_PROTOCOL)game.enableGrenadeIntents(id);joined=true;ws.playerId=id;clearTimeout(deadline);send(ws,{type:'joined',id});send(ws,game.snapshot(id));}
-      else if(m.type==='grenadeIntent'&&joined){const ack=game.grenadeIntent(id,m);if(ack)send(ws,ack);}
-      else if((m.type==='inputBatch'||m.type==='inputCritical')&&joined){if(!Array.isArray(m.commands)||m.commands.length>MAX_INPUT_BATCH)throw Error('Invalid input batch');game.inputBatch(id,m.commands);game.lagComp.view(id,m.commands,{viewTime:m.viewTime,interpDelayMs:m.interpDelayMs,now:game.time,round:game.round});}
+      else if(m.type==='grenadeIntent'&&joined){const ack=game.grenadeIntent(id,m,{onAck:ack=>send(ws,ack),onError:error=>send(ws,{type:'error',message:error.message||'无效消息'})});if(ack)send(ws,ack);}
+      else if((m.type==='inputBatch'||m.type==='inputCritical')&&joined){if(!Array.isArray(m.commands)||m.commands.length>MAX_INPUT_BATCH)throw Error('Invalid input batch');const accepted=[];game.inputBatch(id,m.commands,accepted);game.lagComp.view(id,accepted,{viewTime:m.viewTime,interpDelayMs:m.interpDelayMs,viewAgeMs:m.viewAgeMs,now:game.time,round:game.round});}
       else if(m.type==='input'&&joined)game.input(id,m.input);
-      else if(['reload','equip','drop','secondary'].includes(m.type)&&joined){const ack=applyScopeAwareAction(game,id,m);if(ack)send(ws,ack);}
+      else if(['reload','equip','drop','secondary'].includes(m.type)&&joined){const ack=applyScopeAwareAction(game,id,m,{onAck:ack=>send(ws,ack),onError:error=>send(ws,{type:'error',message:error.message||'无效消息'})});if(ack)send(ws,ack);}
       else if(m.type==='buy'&&joined){game.buy(id,m.item);send(ws,game.snapshot(id));}
       else if(m.type==='nightvision'&&joined)game.toggleNightvision(id);
       else if(m.type==='radio'&&joined)game.radio(id,m.menu,m.slot);

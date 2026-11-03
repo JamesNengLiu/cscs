@@ -19,10 +19,12 @@ import {SCOPE_VIEW_PROTOCOL} from './public/awp-view.js';
 import {createLocomotionState,stepLocomotion,copyLocomotion} from './public/player-locomotion.js';
 import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
 import {hitRecoveryProfile} from './public/hit-recovery.js';
+import {WEAPON_ACTION_LIMIT} from './public/weapon-action-order.js';
 const own=(o,k)=>typeof k==='string'&&Object.hasOwn(o,k);
 const opponent=team=>team==='T'?'CT':'T';
 export class Game {
   #inputs=new Map();
+  #receiptOrder=0;
   #locomotion=new WeakMap();
   #movementSounds=new Map();
   #bombSounds=null;
@@ -72,7 +74,7 @@ export class Game {
     this.#movementSounds.set(p.id,createMovementSoundState());p.radioCount=0;p.nextRadioAt=0;
     p.recoilSeed=this.random===Math.random?Math.floor(Math.random()*0x100000000):null;
     p.y=supportHeight(p.x,p.z,s.y+.05);p.lastInput=this.time;
-    this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeIntent:null});
+    this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeIntent:null,actions:[],receivedOrder:0,lastOrder:0,grenadeReceiptSeq:0,grenadeReceiptAction:0});
     p.grenadeAckSeq=0;p.grenadeActionId=0;p.grenadeIntentStatus='';p.grenadeRejectedActionId=0;
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
     this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
@@ -101,23 +103,39 @@ export class Game {
       state.skipThrough=Math.max(state.skipThrough,p.lastInputSeq,watermark);
       state.queue.clear();state.gapSince=null;
       p.input=input;p.jumpHeld=false;p.fireHeld=false;
+      this.#flushInputActions(p,true);
       // Ordinary legacy trigger release must finish an already-started burst.
       // Sequenced menu/blur cancellation or an explicit watermark cancels it.
       if(state.sequenced||cancel!==undefined)p.burstRemaining=0;
     }else if(state.sequenced){return false;}
     else p.input=input;
-    p.lastInput=this.time;return true;
+    state.receivedOrder=++this.#receiptOrder;p.lastInput=this.time;return true;
   }
-  inputBatch(id,commands){
+  inputBatch(id,commands,acceptedCommands=null){
     const p=this.players.get(id),state=this.#inputs.get(id);if(!p||!state||!Array.isArray(commands))return 0;
     let accepted=0;
     for(const raw of commands.slice(0,MAX_INPUT_BATCH)){
       const c=normalizeInputCommand(raw,this.round);
       if(!c||c.seq<=Math.max(p.ackInputSeq,state.skipThrough)||c.seq>p.ackInputSeq+MAX_INPUT_QUEUE||state.queue.has(c.seq)||state.queue.size>=MAX_INPUT_QUEUE)continue;
-      state.queue.set(c.seq,{...c,receivedTick:this.serverTick});state.sequenced=true;
-      p.lastInputSeq=Math.max(p.lastInputSeq,c.seq);p.lastInput=this.time;accepted++;
+      state.queue.set(c.seq,{...c,receivedTick:this.serverTick,receivedOrder:++this.#receiptOrder});state.sequenced=true;
+      p.lastInputSeq=Math.max(p.lastInputSeq,c.seq);p.lastInput=this.time;accepted++;if(Array.isArray(acceptedCommands))acceptedCommands.push(c);
     }
     return accepted;
+  }
+  queueInputAction(id,{round,seq},run){
+    const p=this.players.get(id),state=this.#inputs.get(id);
+    if(!p||!state||round!==this.round||(seq!==0&&!validInputSequence(seq))||seq>p.ackInputSeq+MAX_INPUT_QUEUE)throw Error('Invalid weapon input barrier');
+    if(state.actions.length>=WEAPON_ACTION_LIMIT)throw Error('Weapon action queue full');
+    if(!p.alive){run(false);return;}
+    if(!allowsPlayerActions(this.phase)){run(seq<=p.ackInputSeq&&!state.actions.length);return;}
+    state.actions.push({seq,round,run,tick:this.serverTick,order:++this.#receiptOrder});
+  }
+  #flushInputActions(p,cancel=false){
+    const state=this.#inputs.get(p.id);if(!state)return;
+    while(state.actions.length){const a=state.actions[0],invalid=cancel||!p.alive||a.round!==this.round||this.serverTick-a.tick>MAX_INPUT_AGE_TICKS;
+      if(!invalid&&p.ackInputSeq<a.seq)break;
+      state.actions.shift();a.run(!invalid);
+    }
   }
   enableGrenadeIntents(id){const p=this.players.get(id);if(p)p.grenadeProtocol=GRENADE_PROTOCOL;}
   cancelGrenadeIntent(p){
@@ -127,10 +145,27 @@ export class Game {
       if(p.grenadePhase!=='throw'||pending)p.grenadeIntentStatus='cancelled';
     }
   }
-  grenadeIntent(id,raw){
+  grenadeIntent(id,raw,{immediate=false,onAck=()=>{},onError=()=>{}}={}){
     const p=this.players.get(id),state=this.#inputs.get(id),c=normalizeGrenadeIntent(raw,this.round);
-    if(!p||!state||p.grenadeProtocol!==GRENADE_PROTOCOL||!c||c.seq!==(p.grenadeAckSeq||0)+1)return null;
+    if(!p||!state||p.grenadeProtocol!==GRENADE_PROTOCOL||!c)return null;
+    if(!immediate){
+      if(c.seq!==Math.max(p.grenadeAckSeq||0,state.grenadeReceiptSeq)+1)return null;
+      const activeAction=state.grenadeIntent?.actionId||state.grenadeReceiptAction;
+      // Explicit cancel is a safety barrier, like menu/blur, and may retire
+      // queued intent sequences without waiting for a missing movement input.
+      if((c.kind==='cancel'&&(!c.actionId||!activeAction||c.actionId===activeAction))||state.actions.length>=WEAPON_ACTION_LIMIT){
+        state.grenadeReceiptSeq=c.seq;this.#flushInputActions(p,true);return this.grenadeIntent(id,{...c,kind:'cancel'},{immediate:true});
+      }
+    }
+    // A later release cannot overtake an earlier queued equip/cancel. Resolve
+    // the intent only after preceding reliable operations at their input fence.
+    if(!immediate&&state.actions.length){
+      const seq=Math.max(p.ackInputSeq,...state.actions.map(a=>a.seq));
+      this.queueInputAction(id,{round:c.round,seq},allowed=>{try{const ack=this.grenadeIntent(id,allowed?c:{...c,kind:'cancel'},{immediate:true});if(ack)onAck(ack);}catch(error){onError(error);}});state.grenadeReceiptSeq=c.seq;if(c.kind==='press')state.grenadeReceiptAction=c.actionId;return null;
+    }
+    if(c.seq!==(p.grenadeAckSeq||0)+1)return null;
     p.grenadeAckSeq=c.seq;
+    if(!immediate){state.grenadeReceiptSeq=c.seq;if(c.kind==='press')state.grenadeReceiptAction=c.actionId;}
     const reply=(status,reason='')=>({type:'grenadeAck',round:this.round,seq:c.seq,actionId:c.actionId,status,reason});
     const reject=reason=>{p.grenadeRejectedActionId=c.actionId;return reply('rejected',reason);};
     if(c.kind==='cancel'){
@@ -286,7 +321,7 @@ export class Game {
       const name=options.kind==='fall'?'player/pl_fallpain'+(1+Math.min(1,Math.floor(this.audioRandom()*2))+1)+'.wav':options.hitgroup==='head'?(p.helmet?'player/bhit_helmet-1.wav':`player/headshot${n}.wav`):previousArmour>0&&options.hitgroup!=='legs'?'player/bhit_kevlar-1.wav':`player/bhit_flesh-${n}.wav`;
       this.sound(p,name,{channel:'voice',priority:15});
     }
-    if(p.hp<=0){p.alive=false;p.diedAt=this.time;p.deaths++;p.reloadAt=0;p.burstRemaining=0;this.cancelGrenadeIntent(p);resetGrenadeThrow(p);saveActive(p);
+    if(p.hp<=0){p.alive=false;this.#flushInputActions(p,true);p.diedAt=this.time;p.deaths++;p.reloadAt=0;p.burstRemaining=0;this.cancelGrenadeIntent(p);resetGrenadeThrow(p);saveActive(p);
       if(p.shield)this.releaseShield(p);else {const best=p.primary||p.pistol;if(best)this.releaseGun(p,best);}
       if(p.defuseKit){this.drops.push({id:`drop-${++this.nextDrop}`,kind:'defusekit',x:p.x,y:p.y,z:p.z,pickupAt:this.time+.5,endAt:this.time+180});p.defuseKit=false;this.drops=this.drops.slice(-64);}this.dropBomb(p);
       if(killer){if(killer===p){killer.kills--;}else if(killer.team===p.team){killer.kills--;this.credit(killer,ECONOMY.teamKillPenalty,'teamkill');}else {killer.kills++;this.credit(killer,ECONOMY.killReward,'kill');}}
@@ -404,15 +439,47 @@ export class Game {
     if(this.time+1e-8>=a.nextWave){a.wave=Math.min(5,a.wave+1);a.nextWave=this.time+a.interval;a.interval*=.9;}
     if(this.time+1e-8>=a.nextBeep){a.nextBeep=this.time+1.4;this.sound(null,`weapons/c4_beep${a.wave}.wav`,{position:{x:b.x,y:b.y+.2,z:b.z},attenuation:[1.5,1,.8,.5,.2][a.wave-1],channel:'voice',priority:20});}
   }
+  #playerCombat({p,command,preserveEdges},dt){
+    const heldFire=p.fireHeld;
+    updateWeapon(p,dt,this.time,preserveEdges);this.pickup(p);
+    const w=GUNS[p.weapon];
+    if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
+    if(p.reloadAt&&this.time+1e-8>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?p.reloadAt+w.reload:0;saveActive(p);}
+    if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return false;}
+    if(p.burstRemaining>0&&this.time+1e-8>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+.1;}
+    this.updateGrenadeIntent(p);
+    if(p.input.fire&&!p.action&&!(p.grenadeProtocol===GRENADE_PROTOCOL&&GRENADE_IDS.includes(p.weapon))&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||w?.automatic||p.burstMode||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
+    this.updateGrenade(p,Boolean(command.seq)||(!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS));
+    // Reload an empty active firearm even after the trigger is released.
+    if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
+    return true;
+  }
+  #resolveCombat(records,dt){
+    // Movement retains its existing deterministic order. Only weapon operations
+    // are merged by trusted server receipt order, with per-player input fences.
+    for(let budget=records.length*(WEAPON_ACTION_LIMIT+1);budget>0;budget--){
+      let chosen=null,action=null,invalid=false,priority=Infinity;
+      for(const r of records){if(!r.p.alive)continue;const state=this.#inputs.get(r.p.id),a=state?.actions[0];
+        const expired=a&&(a.round!==this.round||this.serverTick-a.tick>MAX_INPUT_AGE_TICKS),through=r.done?r.p.ackInputSeq:r.beforeAck,ready=a&&(expired||a.seq<=through);
+        if(!ready&&r.done)continue;const value=ready?a.order:r.order,order=Number.isSafeInteger(value)&&value>0?value:Infinity;
+        if(!chosen||order<priority||order===priority&&String(r.p.id)<String(chosen.p.id)){chosen=r;action=ready?a:null;invalid=expired;priority=order;}
+      }
+      if(!chosen)return true;
+      if(action){this.#inputs.get(chosen.p.id).actions.shift();action.run(!invalid);}
+      else {chosen.done=true;if(!this.#playerCombat(chosen,dt))return false;}
+    }
+    return true;
+  }
   // One call is one authoritative 60Hz tick; transport/client dt is never used.
   step(){const dt=INPUT_DT;this.time+=dt;this.serverTick++;const all=[...this.players.values()];
     if(!all.length){this.waitForPlayers();return;}
     if(this.phase==='waiting'){this.begin();return;}
     if(this.phase==='ended'&&this.time>=this.endAt){this.begin();return;}
     if(this.phase==='countdown'){if(this.time>=this.endAt){this.phase='live';this.endAt=this.time+RULES.roundSeconds;this.buyEndAt=this.time+ECONOMY.buySeconds;this.message='回合进行中 · B 购买 / 1—5 切换装备';this.sound(null,['radio/moveout.wav','radio/letsgo.wav','radio/locknload.wav','radio/com_go.wav'][Math.min(3,Math.floor(this.audioRandom()*4))],{position:{x:0,y:0,z:0},global:true,category:'voice',channel:'announcer',priority:30});}return;}
+    const combat=[];
     for(const p of all)if(p.alive){
-      const command=this.#nextInput(p);p.input=command.input||command;
-      const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld,heldFire=p.fireHeld;
+      const command=this.#nextInput(p),beforeAck=p.ackInputSeq;p.input=command.input||command;
+      const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld;
       const locomotion=this.#locomotion.get(p)||createLocomotionState(p);
       const beforeMove={x:p.x,y:p.y,z:p.z,vx:p.vx,vy:p.vy,vz:p.vz,grounded:p.grounded};movePlayer(p,p.input,dt,all);
       const presentation=stepLocomotion(locomotion,p,dt);this.#locomotion.set(p,presentation.state);p.playerLocomotion=presentation.pose;
@@ -422,18 +489,10 @@ export class Game {
       // without firing/jumping, so loss cannot manufacture another press.
       if(preserveEdges)p.jumpHeld=heldJump;
       if(command.seq){p.ackInputSeq=command.seq;p.lastAppliedInputSeq=command.seq;p.appliedInputCommands++;}
-      updateWeapon(p,dt,this.time,preserveEdges);this.pickup(p);
-      const w=GUNS[p.weapon];
-      if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
-      if(p.reloadAt&&this.time+1e-8>=p.reloadAt&&w){const n=Math.min(w.clip-p.ammo,p.reserve,w.reloadStyle==='per-shell'?1:Infinity);p.ammo+=n;p.reserve-=n;p.reloadAt=w.reloadStyle==='per-shell'&&p.ammo<w.clip&&p.reserve>0?p.reloadAt+w.reload:0;saveActive(p);}
-      if(this.phase==='live'){this.use(p,dt);if(this.phase!=='live')return;}
-      if(p.burstRemaining>0&&this.time+1e-8>=p.nextBurstAt){if(this.shoot(p,true))p.burstRemaining--;else p.burstRemaining=0;p.nextBurstAt=this.time+.1;}
-      this.updateGrenadeIntent(p);
-      if(p.input.fire&&!p.action&&!(p.grenadeProtocol===GRENADE_PROTOCOL&&GRENADE_IDS.includes(p.weapon))&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||w?.automatic||p.burstMode||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
-      this.updateGrenade(p,Boolean(command.seq)||(!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS));
-      // Reload an empty active firearm even after the trigger is released.
-      if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
+      const inputState=this.#inputs.get(p.id);if(command.seq)inputState.lastOrder=command.receivedOrder;
+      combat.push({p,command,preserveEdges,beforeAck,done:false,order:command.seq?command.receivedOrder:inputState.sequenced?inputState.lastOrder:inputState.receivedOrder});
     }
+    if(!this.#resolveCombat(combat,dt))return;
     stepGrenades(this,dt);this.drops=this.drops.filter(d=>d.endAt>this.time);
     if(this.phase==='ended')return;
     this.updateBombSound();

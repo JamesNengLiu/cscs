@@ -9,12 +9,21 @@ export const MAX_INPUT_BATCH=32;
 export const MAX_INPUT_AGE_TICKS=30;
 export const INPUT_REORDER_TICKS=2;
 export const INPUT_REDUNDANCY=8;
+export const INPUT_VIEW_PROTOCOL=1;
+export const COMBAT_ORDER_VERSION=1;
 export const LEGACY_INPUT_GRACE_SECONDS=.1;
 // Sequenced commands represent exactly one tick, never an indefinitely held intent.
 // A zero-tick hold grace avoids simulating lost history twice during replay.
 export const SEQUENCED_INPUT_GRACE_TICKS=0;
 
 export function validInputSequence(seq){return Number.isSafeInteger(seq)&&seq>0&&seq<=MAX_INPUT_SEQUENCE;}
+// Optional presentation metadata travels with the immutable command, never
+// inside sanitized movement intent or a client-controlled simulation duration.
+export function inputViewMetadata(command){
+  const result={};if(Number.isFinite(command?.viewTime))result.viewTime=command.viewTime;
+  if(Number.isFinite(command?.interpDelayMs))result.interpDelayMs=command.interpDelayMs;
+  if(Number.isFinite(command?.viewAgeMs))result.viewAgeMs=command.viewAgeMs;return result;
+}
 export function normalizeInputCommand(command,round){
   if(!command||typeof command!=='object'||Array.isArray(command))return null;
   const input=command.input===undefined?command:command.input;
@@ -22,7 +31,7 @@ export function normalizeInputCommand(command,round){
   const seq=command.seq===undefined?input.seq:command.seq;
   const commandRound=command.round===undefined?input.round:command.round;
   if(!validInputSequence(seq)||!Number.isSafeInteger(commandRound)||commandRound!==round)return null;
-  return {seq,round:commandRound,input:sanitizedInput(input)};
+  return {seq,round:commandRound,input:sanitizedInput(input),...inputViewMetadata(command)};
 }
 // First copy wins: redundant datagrams cannot rewrite an already queued edge.
 export function orderedInputCommands(commands,round,ack=0,limit=MAX_INPUT_QUEUE){
@@ -39,7 +48,7 @@ export function orderedInputCommands(commands,round,ack=0,limit=MAX_INPUT_QUEUE)
 // This bounds packet size; recovery beyond this window requires explicit resend.
 export function buildInputBatch(commands,round,ack=0){
   const ordered=orderedInputCommands(commands,round,ack);
-  return {type:'inputBatch',commands:ordered.slice(-INPUT_REDUNDANCY).map(c=>({seq:c.seq,round:c.round,...c.input}))};
+  return {type:'inputBatch',commands:ordered.slice(-INPUT_REDUNDANCY).map(c=>({seq:c.seq,round:c.round,...c.input,...inputViewMetadata(c)}))};
 }
 export function isNeutralInput(input){
   return input.f===0&&input.s===0&&!input.fire&&!input.jump&&!input.crouch&&!input.walk&&!input.use;

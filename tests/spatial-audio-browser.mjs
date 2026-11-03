@@ -36,10 +36,10 @@ try{
         constructor(){this.destination=offline.destination;this.listener=offline.listener;}
         get state(){return 'running';}get currentTime(){return offline.currentTime;}
         createGain(){return offline.createGain();}createBufferSource(){return offline.createBufferSource();}
-        createPanner(){return offline.createPanner();}decodeAudioData(data){return offline.decodeAudioData(data);}
+        createPanner(){return offline.createPanner();}createBiquadFilter(){return offline.createBiquadFilter();}createDelay(max){return offline.createDelay(max);}decodeAudioData(data){return offline.decodeAudioData(data);}
         async resume(){}async close(){}
       }
-      const mixer=createGameAudio({Context:OfflineAdapter,now:()=>0,settings:{master:1,effects:1,voice:1,spatialMode:mode,...settings},
+      const mixer=createGameAudio({Context:OfflineAdapter,now:()=>0,sampleAcoustics:()=>({gain:.62,cutoff:1800}),sampleRoom:()=>.09,settings:{master:1,effects:1,voice:1,spatialMode:mode,...settings},
         fetcher:async()=>new Response(wavBuffer.slice(0),{headers:{'content-type':'audio/wav'}})});
       await mixer.resume();mixer.listen({x:0,y:0,z:0},{x:0,y:0,z:-1});
       const admitted=await mixer.play('weapons/awp1.wav',{position,volume:1,category,attenuation});
@@ -71,6 +71,12 @@ try{
     results.headlocked={baseline:local.stats,rotationDifference:difference(local,rotatedLocal),
       halfMasterEnergyRatio:halfMaster.stats.total/local.stats.total,mutedEffects:mutedEffects.stats,
       voiceEnergyRatio:audibleVoice.stats.total/local.stats.total};
+    const direct=await render({mode:'equalpower'}),blocked=await render({mode:'equalpower',settings:{occlusion:true}}),room=await render({position:null,settings:{environment:true}}),roomVoice=await render({position:null,category:'voice',settings:{environment:true}});
+    const tail=a=>['left','right'].reduce((sum,k)=>sum+a[k].slice(2048+1200).reduce((n,v)=>n+v*v,0),0);
+    results.acoustics={blockedDirectEnergyRatio:blocked.stats.total/direct.stats.total,dryTail:tail(local),roomTail:tail(room),voiceDifference:difference(local,roomVoice)};
+    if(!(results.acoustics.blockedDirectEnergyRatio>0&&results.acoustics.blockedDirectEnergyRatio<.9))throw Error('Optional obstruction must remain audible with a milder spectrum');
+    if(!(results.acoustics.roomTail>results.acoustics.dryTail+.00001))throw Error('Optional room tail did not reach native PCM');
+    if(results.acoustics.voiceDifference>1e-12)throw Error('Environment tail leaked onto announcer/voice bus');
     const original=await (await fetch('/fixture-step.wav')).arrayBuffer();
     const originalRight=await render({wavBuffer:original}),originalRotated=await render({wavBuffer:original,forward:{x:0,y:0,z:1}});
     const originalFront=await render({wavBuffer:original,position:{x:0,y:0,z:-4}}),originalBack=await render({wavBuffer:original,position:{x:0,y:0,z:4}});

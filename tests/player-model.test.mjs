@@ -266,3 +266,9 @@ test('switching remote weapons keeps the old mesh until the new asset is ready, 
   assert.ok(a.group.getObjectByName('original-mdl:ak47'));assert.equal(a.info().thirdPersonWeapon.loaded,false);assert.equal(a.info().thirdPersonWeapon.displayedId,'ak47');
   finish();await settle(()=>a.info().thirdPersonWeapon.loaded);assert.equal(a.group.getObjectByName('original-mdl:ak47'),undefined);assert.ok(a.group.getObjectByName('original-mdl:m4a1'));
 });
+
+test('hidden presentation advances logical action/position and resumes the exact visible CPU pose',async t=>{
+ const {actor}=setup(t),full=actor(),scheduled=actor();await Promise.all([full.setCharacter('terror'),scheduled.setCharacter('terror')]);
+ for(let n=0;n<40;n++){const p={x:n*.01,y:0,z:0,yaw:.2,weapon:null,alive:true,grounded:true,vx:3,vz:0,animation:'run'};full.update(1/60,p);scheduled.update(1/60,p,{renderPose:false});}
+ assert.equal(scheduled.info().presentation.poseSkipped,true);assert.equal(scheduled.group.position.x,.39);assert.ok(scheduled.info().frame>0);const p={x:.4,y:0,z:0,yaw:.2,weapon:null,alive:true,grounded:true,vx:3,vz:0,animation:'run'};full.update(1/60,p);scheduled.update(1/60,p);assert.deepEqual([...meshOf(scheduled).geometry.attributes.position.array],[...meshOf(full).geometry.attributes.position.array]);assert.equal(scheduled.info().frame,full.info().frame);
+});

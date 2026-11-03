@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import {createBonePose} from './public/bone-pose.js';
 import {locomotionOrigin} from './public/player-locomotion.js';
 import {rayBox} from './public/math.js';
+// Stretch the complete reaction by one third; keep trigger gating, render
+// sampling and historical hitboxes on this same clock.
+export const HIT_REACTION=Object.freeze({duration:.16*4/3,playbackRate:3/4});
 // One canonical original rig keeps cosmetic character/face selection out of combat rules.
 let rig=null,error=null;
 try{
@@ -27,7 +30,7 @@ function animationState(p,time){
     else if(Math.hypot(p.vx||0,p.vz||0)>.12)gait=available.get(p.crouch?'crouchrun':p.walk?'walk':'run')||null;
   }
   if(p.alive===false){names=[p.crouch?'crouch_die':'death1','death1','head'];elapsed=Math.max(0,time-(p.diedAt??time));}
-  else if(time-(p.flinchAt??-100)>=0&&time-(p.flinchAt??-100)<.16){names=[p.flinchHead?'head_flinch':'gut_flinch'];elapsed=time-p.flinchAt;}
+  else if(time-(p.flinchAt??-100)>=0&&time-(p.flinchAt??-100)<HIT_REACTION.duration){names=[p.flinchHead?'head_flinch':'gut_flinch'];elapsed=(time-p.flinchAt)*HIT_REACTION.playbackRate;}
   else if(p.reloadAt){names=[`${prefix}_reload_${weapon}`,`reload_${weapon}`];elapsed=Math.max(0,time-(p.reloadStartedAt??time));}
   else if(age>=0&&age<.12){names=[`${prefix}_shoot_${weapon}`,`shoot_${weapon}`];elapsed=age;}
   else if(p.grounded===false){names=['jump'];elapsed=p.airTime||0;}

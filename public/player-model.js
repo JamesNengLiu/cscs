@@ -175,6 +175,7 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu',
   const cache = cacheFor(THREE);
   let id = null, active = null, missing = null, manifest = null, generation = 0, pending = null, disposed = false, error = null;
   let choose = null, sequence = null, elapsed = 0, frame = 0, action = 'idle', animationWarning = null, explicitKey = null;
+  let logicalUpdates=0,poseUpdates=0,poseSkipped=false;
   let shotSeen, ammoSeen, animationTokenSeen, reloadSeen = false, actionRemaining = 0;
   let weapon = null, weaponId = null, weaponDisplayedId=null, weaponGeneration = 0, weaponStatus = 'No third-person weapon requested', weaponMapping = null;
   const state = {};
@@ -244,9 +245,9 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu',
     animationWarning = imported ? null : `No imported ${requested} sequence; ${fallback ? `showing ${fallback.name}` : 'bind pose only'}`;
     sequence = imported ? next : fallback; action = requested; frame = elapsed = 0;
   }
-  function update(dt, p = {}) {
+  function update(dt, p = {},{renderPose=true}={}) {
     if (disposed) return;
-    p ||= {};
+    p ||= {};logicalUpdates++;poseSkipped=!renderPose;
     // Copy only supported fields: no external objects or arbitrarily large state retained.
     for (const key of ['x', 'y', 'z', 'yaw', 'gaitYaw', 'pitch', 'aimYaw', 'vx', 'vz', 'crouch', 'grounded', 'alive', 'dead', 'walk', 'weapon', 'reloading', 'reloadAt', 'lastShot', 'ammo', 'skin', 'body', 'playerGroundSequence', 'playerGroundTime', 'playerAnimationTime', 'playerPoseFromTime', 'playerSequence', 'playerFrame', 'playerGaitSequence', 'playerGaitFrame', 'gaitDistance', 'playerPoseFromSequence', 'playerPoseFromFrame', 'playerPoseBlend', 'animation', 'animationToken', 'blendX', 'blendY']) state[key] = p[key];
     state.playerLocomotion=copyLocomotion(p.playerLocomotion);
@@ -284,13 +285,13 @@ export function createPlayerActor(THREE, {onChange = () => {}, skinning = 'gpu',
       frame = Number.isFinite(p.playerFrame) && key !== null ? clamp(p.playerFrame, 0, sequence.frames - 1) : elapsed * sequence.fps;
       if (!(Number.isFinite(p.playerFrame) && key !== null)) frame = sequence.flags & 1 && action !== 'death' ? frame % span : Math.min(frame, sequence.frames - 1);
     }
-    active.pose(sequence, frame, state);
+    if(renderPose){active.pose(sequence, frame, state);poseUpdates++;}
     selectWeapon(p.weapon);
-    if (weapon) weapon.pose(null, 0, state, active.matrices, weaponMapping);
+    if (renderPose&&weapon) weapon.pose(null, 0, state, active.matrices, weaponMapping);
   }
   function info() {
     return {
-      id, source: active?.data.metadata.source || 'missing-asset-wireframe', loading: !!pending, disposed, error,
+      presentation:{logicalUpdates,poseUpdates,poseSkipped},id, source: active?.data.metadata.source || 'missing-asset-wireframe', loading: !!pending, disposed, error,
       sourceSHA256: active?.data.metadata.sourceSHA256 || null,
       baseSourceSHA256: active?.data.metadata.baseSourceSHA256 || null,
       convertedSHA256: active?.asset.entry.convertedSHA256 || null,

@@ -1,7 +1,7 @@
 import * as THREE from '/vendor/three.module.js';
 import {loadOriginalMap} from './map-render.js';
 import {PREDICTION_DT,MAX_PENDING_COMMANDS,reconcileMovement,visualCorrection,decayCorrection} from './prediction.js';
-import {RULES,WEAPONS,SITES,VIEWS,MAP_VERSION,MAP_BOUNDS,groundHeight,movePlayer,blankInput,siteAt,clamp} from './shared.js';
+import {RULES,WEAPONS,SITES,VIEWS,MAP_VERSION,MAP_BOUNDS,groundHeight,trace,movePlayer,blankInput,siteAt,clamp} from './shared.js';
 import {GUNS,EQUIPMENT} from './arsenal.js';
 import {allowsPlayerActions} from './round-state.js';
 import {ECONOMY} from './economy.js';
@@ -18,7 +18,7 @@ import {remoteExtrapolationSafe,remoteGapSafe,predictionCorrectionLimit} from '.
 import {buildInputBatch} from './input-protocol.js';
 import {createShotFeedback} from './shot-feedback.js';
 import {createAwpView} from './awp-view.js';
-import {usesMainWeaponRules,sampleViewRecoil} from './weapon-feel.js';
+import {sampleViewRecoil} from './weapon-feel.js';
 import {createMuzzlePulse} from './muzzle-pulse.js';
 import {muzzleFlashProfile} from './muzzle-flash.js';
 import {createPresentationWarmup} from './presentation-warmup.js';
@@ -37,6 +37,13 @@ import {createPlayerCamera} from './player-camera.js';
 import {createCameraSettings,bindCameraSettings} from './camera-settings.js';
 import {createFrameTargetSettings,bindFrameTargets} from './performance-settings.js';
 import {createRenderSurface} from './render-surface.js';
+import {createPresentationSettings,bindPresentationSettings} from './presentation-settings.js';
+import {createViewFeedback,viewmodelMotion} from './view-feedback.js';
+import {createPointerInput,mouseCalibration} from './pointer-input.js';
+import {createWeaponCosmetics} from './weapon-cosmetics.js';
+import {createMuzzleLighting} from './muzzle-lighting.js';
+import {createAcousticSampler} from './acoustic-sampler.js';
+import {createActorScheduler} from './actor-scheduler.js';
 import {createNetworkDiagnostics,observeLongTasks,buildDiagnosticReport} from './network-diagnostics.js';
 const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,document.getElementById(id));return nodes.get(id);},canvas=$('game');
 const text=(id,value)=>{const node=$(id),next=String(value);if(node.textContent!==next)node.textContent=next;};
@@ -44,6 +51,7 @@ const style=(id,key,value)=>{const node=$(id);if(node.style[key]!==value)node.st
 let mouseStorage;try{mouseStorage=localStorage;}catch{}
 const mouseSettings=createMouseSettings(mouseStorage),scopedSettings=createMouseSettings(mouseStorage,SCOPED_SENSITIVITY);bindMouseSettings(document,mouseSettings,scopedSettings);
 const viewmodelSettings=createViewmodelSettings(mouseStorage);bindViewmodelSettings(document,viewmodelSettings,()=>{sceneDirty=true;});
+const presentationSettings=createPresentationSettings(mouseStorage),viewFeedback=createViewFeedback(),pointerInput=createPointerInput(canvas);
 const cameraSettings=createCameraSettings(mouseStorage,new URLSearchParams(location.search));
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 const frameMetrics=createFrameMetrics(),resolution=createResolutionController(devicePixelRatio);
@@ -73,6 +81,10 @@ const bombLight=new THREE.PointLight('#ff4422',0,7);scene.add(bombLight);
 let weaponView=null,weaponModelError='',modelWeapon=null;
 try{const {createWeaponView}=await import('./weapon-model.js');weaponView=await createWeaponView(THREE,camera,{onSound:name=>audio?.play(name,{volume:1,entityId:'local-viewmodel',channel:'item',priority:10})});}
 catch(error){weaponModelError=String(error.message||error);}
+const muzzleLighting=createMuzzleLighting(THREE,{renderer,camera});
+const weaponCosmetics=createWeaponCosmetics(THREE,scene,{trace,onContact:position=>{void audio?.play('debris/metal1.wav',{position,volume:.025,pitch:170,entityId:'cosmetic-shell',channel:'auto',priority:-5});},lighting:muzzleLighting});weaponCosmetics.setOptions(presentationSettings.values);muzzleLighting.prepare(scene);
+const actorScheduler=createActorScheduler(THREE);
+const cosmeticOrigin=new THREE.Vector3(),cosmeticMuzzle=new THREE.Vector3(),cosmeticRight=new THREE.Vector3(),cosmeticForward=new THREE.Vector3();
 const worldEffects=createWorldEffects(THREE,scene,{onChange:()=>{sceneDirty=true;}});
 const shotEffects=createShotEffects(THREE,scene),playerHitEffects=createPlayerHitEffects(THREE,scene),remote=new Map();
 
@@ -82,6 +94,9 @@ const presentationWarmup=createPresentationWarmup(THREE,renderer,scene,camera,{c
 const initialHitResources=playerHitEffects.prepare(),initialShotResources=shotEffects.prepare();
 presentationWarmup.enqueue({objects:[...initialHitResources.objects,...initialShotResources.objects,...(weaponView?[weaponView.muzzle]:[])],textures:[...initialHitResources.textures,...initialShotResources.textures,...(weaponView?[weaponView.muzzle.material.map]:[])]});
 if(weaponView)presentationWarmup.enqueue(weaponView.prepare());
+presentationWarmup.enqueue(weaponCosmetics.prepare());
+void shotEffects.warm(renderer,camera);void weaponCosmetics.warm(renderer,camera);
+bindPresentationSettings(document,presentationSettings,values=>{if(!values.landing)viewFeedback.reset();weaponCosmetics.setOptions(values);muzzleLighting.prepare(scene);sceneDirty=true;presentationWarmup.enqueue(weaponCosmetics.prepare());});
 bindFrameTargets(document,frameTargetSettings,target=>{resolution.setTarget(target);frameMetrics.reset();sceneDirty=true;const url=new URL(location.href);if(url.searchParams.has('frameTarget')){url.searchParams.set('frameTarget',target);history.replaceState(null,'',url);}});
 const qualityControls=[...document.querySelectorAll('[data-quality]')];
 for(const control of qualityControls){control.value=resolution.quality;control.onchange=()=>{
@@ -101,10 +116,11 @@ $('backButton').onclick=()=>{if(!connected){location.href='/';return;}preview=fa
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{view=button.dataset.view;sceneDirty=true;};
 const keys=new Set(),inputSampler=createInputSampler();let mouseFire=false,audio=null,maxBurst=0,maxRecoilPitch=0;
 let localMovementSounds=createMovementSoundState(),audioRound=null,radioMenuIndex=null;
+const acoustics=createAcousticSampler(trace);
 const worldAudio=createWorldAudio(()=>audio);
-function ensureAudio(){if(!audio)audio=createGameAudio({settings:audioControls.settings});return audio;}
+function ensureAudio(){if(!audio)audio=createGameAudio({settings:audioControls.settings,sampleAcoustics:(a,b)=>acoustics.sample(a,b),sampleRoom:p=>acoustics.room(p)});return audio;}
 const audioControls=bindAudioControls(document,{getAudio:()=>audio,ensureAudio,storage:mouseStorage,getListener:()=>({position:camera.position,forward:camera.getWorldDirection(cameraDirection)})});
-function resetRoundAudio(round){if(audioRound===round)return;audioRound=round;audio?.stopAll();worldAudio.reset();localMovementSounds=createMovementSoundState();}
+function resetRoundAudio(round){if(audioRound===round)return;audioRound=round;audio?.stopAll();worldAudio.reset();localMovementSounds=createMovementSoundState();acoustics.clear();}
 function closeRadio(){radioMenuIndex=null;$('radioMenu').hidden=true;}
 function openRadio(index){radioMenuIndex=index;const panel=$('radioChoices');panel.replaceChildren();RADIO_LABELS[index].forEach((label,i)=>{const item=document.createElement('div');item.textContent=`${i+1}. ${label}`;panel.append(item);});$('radioMenu').hidden=false;}
 let inputSeq=0,pendingCommands=[],physicsAccumulator=0,correction={x:0,y:0,z:0},lastCorrection=0,lastInputPacket=0;
@@ -128,6 +144,7 @@ function presentLocalShot(event,now=performance.now()){
   if(event.weapon!==player()?.weapon)return;
   awpView.shot(event,{stateTime:serverTime(),nowMs:now});
   crosshairFeedback.shot();muzzlePulse.trigger(now,muzzleFlashProfile(event).durationMs);if(joined&&!document.hidden)audio?.shot({...event,burstMode:event.burstMode??player()?.burstMode,shotId:event.token||event.shotId});
+  weaponCosmetics.enqueueLocal({...event,id:myId,round:event.round??lastRound});
   recoilYaw=event.recoilYaw||0;recoilPitch=event.recoilPitch||0;
 }
 const shop=createShop({guns:GUNS,equipment:EQUIPMENT,economy:ECONOMY,send,onResume:resumeGame,onOpenChange(open){
@@ -162,9 +179,9 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       me.hitRecoveryVersion=m.hitRecoveryVersion===1?1:0;
       me.collisionVersion=m.collisionVersion??0;
       me.jumpFatigueVersion=m.jumpFatigueVersion??0;
-      if(!local||lastRound!==m.round){resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};playerCamera.reset(local);yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;}
-      else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){local={...me};playerCamera.reset(local);pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;}
-      else {const result=reconcileMovement(me,pendingCommands,m.round,m.players),allowance=predictionCorrectionLimit(local,result.player,{previousAuthority,authority:me,intervalSeconds:m.time-previousStateTime,activeRecovery:recoveryCorrection});lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction,{maxDistance:allowance});if(allowance>.5&&Math.hypot(correction.x,correction.y,correction.z)>.05)recoveryCorrection=true;playerCamera.rebase(local,result.player,{maxDistance:allowance});local=result.player;pendingCommands=result.pending;}
+      if(!local||lastRound!==m.round){resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;}
+      else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;}
+      else {const result=reconcileMovement(me,pendingCommands,m.round,m.players),allowance=predictionCorrectionLimit(local,result.player,{previousAuthority,authority:me,intervalSeconds:m.time-previousStateTime,activeRecovery:recoveryCorrection});lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction,{maxDistance:allowance});if(allowance>.5&&Math.hypot(correction.x,correction.y,correction.z)>.05)recoveryCorrection=true;if(lastCorrection>allowance)viewFeedback.reset();playerCamera.rebase(local,result.player,{maxDistance:allowance});local=result.player;pendingCommands=result.pending;}
       if(activeWeapon!==me.weapon){if(activeWeapon&&ownedWeapons(me,m.bomb).includes(activeWeapon))lastWeapon=activeWeapon;activeWeapon=me.weapon;sceneDirty=true;}
       awpView.observe(me,{round:m.round,stateTime:m.time,protocol:m.scopeProtocol,nowMs:performance.now()});
       const confirmedShot=shotFeedback.observe(me,{round:m.round,stateTime:m.time,nowMs:performance.now()});if(confirmedShot)presentLocalShot(confirmedShot);
@@ -176,7 +193,7 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
     }
     if(worldEffects.sync(m)&&joined)sceneDirty=true;
     for(const p of m.players)if(p.id!==myId){
-      let r=remote.get(p.id);if(!r){const actor=createPlayerActor(THREE,{onChange:()=>{sceneDirty=true;}});scene.add(actor.group);r={actor,mesh:actor.group,p,character:null};remote.set(p.id,r);}r.p=p;
+      let r=remote.get(p.id);if(!r){const actor=createPlayerActor(THREE,{onChange:()=>{sceneDirty=true;muzzleLighting.prepare(scene);}});scene.add(actor.group);r={actor,mesh:actor.group,p,character:null};remote.set(p.id,r);}r.p=p;
       const character=selectCharacter(p.team,p.character);if(r.character!==character){r.character=character;Promise.resolve(r.actor.setCharacter(character)).then(()=>{sceneDirty=true;});}
     }
     for(const [id,r] of remote)if(!m.players.some(p=>p.id===id)){scene.remove(r.mesh);r.actor.dispose();remote.delete(id);}
@@ -199,8 +216,8 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
         const target=remote.get(e.hitImpact?.targetId),point=playerHitEffects.add(e,performance.now()/1000,target?.rendered?target.mesh.position:target?.p);
         // Audio is routed once from authoritative sound/impact events; particles do not emit a second hit sound.
       }
-      if(e.id===myId){if(shotFeedback.confirm(e,performance.now())&&e.weapon===player()?.weapon){muzzlePulse.trigger(performance.now(),muzzleFlashProfile(e).durationMs);if(joined&&!document.hidden)audio?.shot(e);}maxBurst=Math.max(maxBurst,e.burst||0);if(e.hit)hitAt=performance.now();}
-      else if(joined&&local&&!document.hidden)audio?.shot(e,e.from);
+      if(e.id===myId){if(shotFeedback.confirm(e,performance.now())&&e.weapon===player()?.weapon){muzzlePulse.trigger(performance.now(),muzzleFlashProfile(e).durationMs);if(joined&&!document.hidden)audio?.shot(e);weaponCosmetics.enqueueLocal({...e,round:e.round??lastRound});}maxBurst=Math.max(maxBurst,e.burst||0);if(e.hit)hitAt=performance.now();}
+      else if(joined&&local&&!document.hidden){audio?.shot(e,e.from);if(locked&&e.from&&Math.hypot(e.from.x-local.x,e.from.y-local.y,e.from.z-local.z)<30)weaponCosmetics.remote(e,performance.now()/1000);}
     }
   }
 };
@@ -213,7 +230,7 @@ function resumeGame(){
   if(!connected){location.reload();return;}
   shop.setOpen(false);
   audioControls.cancelTest();ensureAudio().resume();
-  try{const result=canvas.requestPointerLock();result?.catch(()=>notify('无法捕获鼠标，请再次点击进入游戏'));}catch{notify('此浏览器不支持鼠标捕获，请使用桌面 Chrome / Edge');}
+  void pointerInput.request(presentationSettings.values.rawMouse).then(ok=>{if(!ok)notify('无法捕获鼠标，请再次点击进入游戏');});
 }
 $('resumeButton').addEventListener('click',resumeGame);
 function setMenuVisible(visible){
@@ -235,9 +252,9 @@ function openGameMenu(){
 }
 $('lobbySettingsButton').addEventListener('click',openGameMenu);
 $('gameMenuButton').addEventListener('click',openGameMenu);
-document.addEventListener('pointerlockchange',()=>{sceneDirty=true;const frames=frameMetrics.snapshot();if(frames.samples)lastGameplayPerformance=frames;locked=document.pointerLockElement===canvas&&!shop.isOpen;if(joined)setMenuVisible(!locked&&!shop.isOpen);clearInput();frameMetrics.reset();resolution.reset();presentationWarmup.resume();});
-document.addEventListener('pointerlockerror',()=>notify('鼠标捕获失败，请点击“进入游戏”重试'));
-document.addEventListener('mousemove',e=>{if(locked&&!document.hidden&&$('resume').hidden){const p=player(),viewPlayer=p?.weapon==='awp'?{alive:p.alive,weapon:p.weapon,zoom:awpView.zoom(p,{stateTime:serverTime()})}:p;const factor=mouseTurnFactor(mouseSettings,scopedSettings,viewPlayer);yaw-=e.movementX*factor;pitch=clamp(pitch-e.movementY*factor,-PITCH_LIMIT,PITCH_LIMIT);}});
+document.addEventListener('pointerlockchange',()=>{sceneDirty=true;const frames=frameMetrics.snapshot();if(frames.samples)lastGameplayPerformance=frames;locked=document.pointerLockElement===canvas&&!shop.isOpen;if(joined)setMenuVisible(!locked&&!shop.isOpen);clearInput();frameMetrics.reset();resolution.reset();viewFeedback.reset();presentationWarmup.resume();});
+document.addEventListener('pointerlockerror',()=>{if(!pointerInput.inflight&&document.pointerLockElement!==canvas)notify('鼠标捕获失败，请点击“进入游戏”重试');});
+document.addEventListener('mousemove',e=>{if(locked&&!document.hidden&&$('resume').hidden){if(!pointerInput.observe(e.movementX,e.movementY))return;const p=player(),viewPlayer=p?.weapon==='awp'?{alive:p.alive,weapon:p.weapon,zoom:awpView.zoom(p,{stateTime:serverTime()})}:p;const factor=mouseTurnFactor(mouseSettings,scopedSettings,viewPlayer);yaw-=e.movementX*factor;pitch=clamp(pitch-e.movementY*factor,-PITCH_LIMIT,PITCH_LIMIT);}});
 document.addEventListener('mousedown',e=>{if(!locked||shop.isOpen||!$('resume').hidden)return;if(e.button===0&&!mouseFire){mouseFire=true;grenadePrediction.press(player(),{round:lastRound,stateTime:serverTime(),phase:state?.phase,yaw,pitch});queueInputEdge();sceneDirty=true;}if(e.button===2){e.preventDefault();send({type:'secondary'});}});
 document.addEventListener('mouseup',e=>{if(e.button===0){mouseFire=false;grenadePrediction.release({yaw,pitch});queueInputEdge();sceneDirty=true;}});
 document.addEventListener('contextmenu',e=>{if(locked)e.preventDefault();});
@@ -349,30 +366,31 @@ function frame(now){requestAnimationFrame(frame);const started=performance.now()
   scene.fog=preview?null:gameplayFog;const zoom=awpView.zoom(me,{stateTime:time,nowMs:now}),desiredFov=preview?(view==='overview'?55:75):verticalFov(zoom,camera.aspect);if(camera.fov!==desiredFov){camera.fov=desiredFov;camera.updateProjectionMatrix();}
   const scoped=Boolean(!preview&&me?.alive&&zoom<=40);
   $('scopeOverlay').hidden=!scoped;$('crosshair').hidden=scoped||!me?.alive||shop.isOpen||me?.weapon==='c4'||GUNS[me?.weapon]?.category==='sniper';
-  if(local&&me){if(allowsPlayerActions(state.phase)&&me.alive&&locked){let sampledInput=false;physicsAccumulator=Math.min(.1,physicsAccumulator+dt);while(physicsAccumulator>=PREDICTION_DT&&pendingCommands.length<MAX_PENDING_COMMANDS){const sampled=inputSampler.sample(input()),command={seq:++inputSeq,round:state.round,input:sampled.input};const beforeStep={grounded:local.grounded,vx:local.vx,vy:local.vy,vz:local.vz};movePlayer(local,command.input,PREDICTION_DT,state.players);worldAudio.localMovement(movementSoundStep(localMovementSounds,{before:beforeStep,after:local,input:command.input,dt:PREDICTION_DT,surface:mapRender.groundSoundSurface(local)}));playerCamera.push(local,command.input,state.players);pendingCommands.push(command);sampledInput=true;if(sampled.critical)send({type:'inputCritical',commands:[{seq:command.seq,round:command.round,...command.input}]});const feedback=shotFeedback.sample({player:me,pose:local,input:command.input,seq:command.seq,round:state.round,time:serverTime(),stateTime:state.time,fixedStep:true,nowMs:now,allowed:true});if(feedback)presentLocalShot(feedback,now);physicsAccumulator-=PREDICTION_DT;}if((sampledInput||now-lastInputPacket>=1000/60)&&pendingCommands.length){const batch=buildInputBatch(pendingCommands,state.round,me.ackInputSeq||0);batch.viewTime=snapshotBuffer.diagnostics().playbackTimeMs/1000;batch.interpDelayMs=snapshotBuffer.diagnostics().delayMs;send(batch);lastInputPacket=now;}}
+  if(local&&me){if(allowsPlayerActions(state.phase)&&me.alive&&locked){let sampledInput=false;physicsAccumulator=Math.min(.1,physicsAccumulator+dt);while(physicsAccumulator>=PREDICTION_DT&&pendingCommands.length<MAX_PENDING_COMMANDS){const sampled=inputSampler.sample(input()),command={seq:++inputSeq,round:state.round,input:sampled.input};const beforeStep={grounded:local.grounded,vx:local.vx,vy:local.vy,vz:local.vz};movePlayer(local,command.input,PREDICTION_DT,state.players);viewFeedback.observe(beforeStep,local,{seq:command.seq,round:state.round,now,enabled:presentationSettings.values.landing,strength:presentationSettings.values.landingStrength});worldAudio.localMovement(movementSoundStep(localMovementSounds,{before:beforeStep,after:local,input:command.input,dt:PREDICTION_DT,surface:mapRender.groundSoundSurface(local)}));playerCamera.push(local,command.input,state.players);pendingCommands.push(command);sampledInput=true;if(sampled.critical)send({type:'inputCritical',commands:[{seq:command.seq,round:command.round,...command.input}]});const feedback=shotFeedback.sample({player:me,pose:local,input:command.input,seq:command.seq,round:state.round,time:serverTime(),stateTime:state.time,fixedStep:true,nowMs:now,allowed:true});if(feedback)presentLocalShot(feedback,now);physicsAccumulator-=PREDICTION_DT;}if((sampledInput||now-lastInputPacket>=1000/60)&&pendingCommands.length){const batch=buildInputBatch(pendingCommands,state.round,me.ackInputSeq||0);batch.viewTime=snapshotBuffer.diagnostics().playbackTimeMs/1000;batch.interpDelayMs=snapshotBuffer.diagnostics().delayMs;send(batch);lastInputPacket=now;}}
     correction=decayCorrection(correction,dt,recoveryCorrection?{maxSpeed:Math.max(2.5,Math.min(6,Math.hypot(local.vx||0,local.vz||0)*.9))}:undefined);if(Math.hypot(correction.x,correction.y,correction.z)<.001)recoveryCorrection=false;
     const cameraStarted=performance.now();renderY=playerCamera.update(local,{fractionSeconds:physicsAccumulator,correction,dt,players:state.players,enabled:locked&&me.alive&&allowsPlayerActions(state.phase)&&pendingCommands.length<MAX_PENDING_COMMANDS});lastCameraMs=performance.now()-cameraStarted;
     const predictedView=shotFeedback.view();
-    if(usesMainWeaponRules(me)){const recoil=sampleViewRecoil(predictedView||me,physicsAccumulator);recoilYaw=recoil.recoilYaw;recoilPitch=recoil.recoilPitch;}
-    else{recoilYaw+=((predictedView?.recoilYaw??me.recoilYaw??0)-recoilYaw)*Math.min(1,dt*20);recoilPitch+=((predictedView?.recoilPitch??me.recoilPitch??0)-recoilPitch)*Math.min(1,dt*20);}
+    const recoil=sampleViewRecoil(predictedView||me,physicsAccumulator);recoilYaw=recoil.recoilYaw;recoilPitch=recoil.recoilPitch;
     maxRecoilPitch=Math.max(maxRecoilPitch,recoilPitch);
-    camera.position.set(playerCamera.position.x,renderY,playerCamera.position.z);camera.rotation.set(clamp(pitch+recoilPitch,-PITCH_LIMIT,PITCH_LIMIT),yaw+recoilYaw,0,'YXZ');
+    const landing=viewFeedback.sample(now,presentationSettings.values.landing),motion=viewmodelMotion(local,now,presentationSettings.values);camera.position.set(playerCamera.position.x,renderY,playerCamera.position.z);camera.rotation.set(clamp(pitch+recoilPitch,-PITCH_LIMIT,PITCH_LIMIT),yaw+recoilYaw,landing.roll+motion.cameraRoll,'YXZ');
     audio?.listen(camera.position,camera.getWorldDirection(cameraDirection));
     const gap=`${crosshairFeedback.update(me,dt,innerWidth).toFixed(2)}px`;if($('crosshair').style.getPropertyValue('--gap')!==gap)$('crosshair').style.setProperty('--gap',gap);
     if(now-lastHud>=100){const speed=Math.hypot(me.vx||0,me.vz||0);text('tuning',`速度 ${speed.toFixed(1)} m/s · ${!me.grounded?'空中散布':speed>.25?'移动散布':me.burstCount?'连射扩散':'静止精度'} · 连射 ${me.burstCount||0}`);lastHud=now;}
   }else{const preset=VIEWS[preview?view:'overview'];camera.position.set(...preset.eye);camera.lookAt(...preset.target);}
   const animationStarted=performance.now();
-  for(const [id,r] of remote){const pose=snapshotBuffer.sample(id,now)||r.p;r.actor.update(dt,pose);r.rendered=true;}
+  actorScheduler.begin(camera);for(const [id,r] of remote){const pose=snapshotBuffer.sample(id,now)||r.p,visible=actorScheduler.shouldPose(pose);r.actor.group.visible=visible;r.actor.update(dt,pose,{renderPose:visible});r.rendered=true;}
   const muzzleVisible=muzzlePulse.sample(now);
   if(weaponView){
     const visibleWeapon=me?.shieldRaised?'shield':me?.weapon;
-    if(me&&modelWeapon!==visibleWeapon){modelWeapon=visibleWeapon;Promise.resolve(weaponView.setWeapon(visibleWeapon)).then(()=>{sceneDirty=true;presentationWarmup.enqueue(weaponView.prepare());}).catch(error=>{weaponModelError=String(error.message||error);});}
+    if(me&&modelWeapon!==visibleWeapon){modelWeapon=visibleWeapon;Promise.resolve(weaponView.setWeapon(visibleWeapon)).then(()=>{sceneDirty=true;presentationWarmup.enqueue(weaponView.prepare());muzzleLighting.prepare(scene);}).catch(error=>{weaponModelError=String(error.message||error);});}
     if(me){const visual=grenadePrediction.view(shotFeedback.presentation(me),now/1000);weaponView.update(dt,visual,visual.grenadePredicted||visual.weaponLocalClock?now/1000:time);}
-    const bob=Math.min(1,Math.hypot(local?.vx||0,local?.vz||0)/6.25);weaponView.group.position.set(.25,-.24+Math.abs(Math.sin(now*.007))*bob*.006,-.42);weaponView.group.rotation.x=0;
-    applyWeaponHand(weaponView.group,viewmodelSettings.hand,Math.sin(now*.007)*bob*.006);
+    const motion=viewmodelMotion(local,now,presentationSettings.values);weaponView.group.position.set(.25,-.24+motion.y,-.42);weaponView.group.rotation.x=0;weaponView.group.rotation.z=motion.roll;
+    applyWeaponHand(weaponView.group,viewmodelSettings.hand,motion.side);
     weaponView.group.visible=Boolean(me?.alive&&!preview&&!scoped);
     if(weaponView.muzzle)weaponView.muzzle.visible=Boolean(me?.alive&&GUNS[me.weapon]&&muzzleVisible);
   }
+  if(weaponView&&me){weaponView.group.updateWorldMatrix(true,false);if(!weaponView.ejectionPosition(cosmeticOrigin))cosmeticOrigin.set(.08,-.1,-.25);cosmeticOrigin.applyMatrix4(weaponView.group.matrixWorld);cosmeticMuzzle.copy(weaponView.muzzle.position).applyMatrix4(weaponView.group.matrixWorld);cosmeticRight.set(viewmodelSettings.hand==='left'?-1:1,0,0).applyQuaternion(camera.quaternion);cosmeticForward.set(0,0,-1).applyQuaternion(camera.quaternion);weaponCosmetics.flushLocal({weapon:me.weapon,origin:cosmeticOrigin,muzzle:cosmeticMuzzle,right:cosmeticRight,forward:cosmeticForward,now:now/1000});}
+  if(weaponCosmetics.update(now/1000,camera.quaternion))sceneDirty=true;
   const animationMs=performance.now()-animationStarted;
   smokeOpacity=worldEffects.update(time,me?.alive&&!preview?camera.position:null,camera.quaternion);style('smokeOverlay','opacity',String(smokeOpacity));
   if(state){const bombTimer=state.phase==='live'&&state.bomb.state==='planted',remaining=Math.max(0,Math.ceil((bombTimer?state.bomb.endAt:state.endAt)-time));text('timer',state.phase==='waiting'?'--:--':`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`);style('timer','color',bombTimer?'rgb(255, 157, 112)':'rgb(255, 255, 255)');}
@@ -393,9 +411,9 @@ function frame(now){requestAnimationFrame(frame);const started=performance.now()
   }
 }
 requestAnimationFrame(frame);window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderSurface.resize(innerWidth,innerHeight);sceneDirty=true;});
-window.addEventListener('pagehide',()=>{presentationWarmup.dispose();audioControls.dispose();audio?.dispose();clearInterval(diagnosticUiTimer);longTaskObserver.dispose();gpuTimer.dispose();weaponView?.dispose();worldEffects.dispose();shotEffects.dispose();playerHitEffects.dispose();for(const r of remote.values())r.actor.dispose();renderer.dispose();},{once:true});
+window.addEventListener('pagehide',()=>{presentationWarmup.dispose();audioControls.dispose();audio?.dispose();clearInterval(diagnosticUiTimer);longTaskObserver.dispose();gpuTimer.dispose();weaponView?.dispose();weaponCosmetics.dispose();worldEffects.dispose();shotEffects.dispose();playerHitEffects.dispose();for(const r of remote.values())r.actor.dispose();renderer.dispose();},{once:true});
 // Read-only diagnostic hook for automated browser smoke tests.
-window.lanStrike={getState:()=>state,getId:()=>myId,getPerformance:()=>({...frameMetrics.snapshot(),quality:resolution.quality,pixelRatio:renderSurface.ratio,renderSurface:renderSurface.diagnostics(),gpuTimerSupported:gpuTimer.supported,gpuMs,gpuTimer:gpuTimer.diagnostics(),renderBudget:resolution.diagnostics(),autoResolution:gpuTimer.supported?'gpu-timed':'manual-only-no-gpu-timer',skinning:'gpu',drawingBuffer:{width:canvas.width,height:canvas.height}}),getRenderInfo:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,frame:renderer.info.render.frame}),getDiagnostics:()=>({presentationWarmup:presentationWarmup.diagnostics(),audio:audio?.diagnostics()||null,audioRouting:worldAudio.diagnostics(),soundSurface:mapRender.soundMaterials,hitRecoveryVersion:local?.hitRecoveryVersion??0,velocityModifier:local?.velocityModifier??1,transport:socket.transport,connection:socket.diagnostics(),interpolation:snapshotBuffer.diagnostics(),shotFeedback:shotFeedback.diagnostics(),awpView:awpView.diagnostics(),grenadePrediction:grenadePrediction.diagnostics(),mapVersion:MAP_VERSION,mapFaces:mapRender.faces,terrainTriangles:mapRender.triangles,mapTextures:mapRender.textures,sourceSHA256:mapRender.sourceSHA256,preview,view,renderedView,locked,visibility:document.visibilityState,frameCount,lastFrameAge:performance.now()-previous,input:input(),inputSampler:inputSampler.diagnostics(),localPosition:local?{x:local.x,y:local.y,z:local.z}:null,localVelocity:local?{x:local.vx,y:local.vy,z:local.vz}:null,cameraFractionSeconds:Math.max(0,Math.min(PREDICTION_DT,physicsAccumulator)),unackedInputs:pendingCommands.length,inputSeq,ackInputSeq:player()?.ackInputSeq,lastCorrection,predictionRecoveryActive:recoveryCorrection,visualCorrection:{...correction},impacts:shotEffects.info().decals,shotEffects:shotEffects.info(),playerHitEffects:playerHitEffects.info(),recoilYaw,recoilPitch,maxBurst,maxRecoilPitch,cameraY:camera.position.y,cameraMode:playerCamera.mode,cameraDiagnostics:playerCamera.diagnostics(),cameraPosition:{x:camera.position.x,y:camera.position.y,z:camera.position.z},money:player()?.money??null,character:player()?.character??null,armour:player()?.armour??0,buyMenuOpen:shop.isOpen,gameMenuOpen:!$('resume').hidden,weaponHand:viewmodelSettings.hand,mouseSensitivity:mouseSettings.value,scopedSensitivity:scopedSettings.value,weapon:player()?.weapon??null,weaponModel:{...(weaponView?.info()||{source:'unavailable',fallback:true}),...(weaponModelError?{error:weaponModelError}:{})},flashOpacity,smokeOpacity,grenadeCount:GRENADE_IDS.reduce((sum,id)=>sum+(player()?.grenades?.[id]||0),0),worldEffects:worldEffects.info(),remoteModels:[...remote].map(([id,r])=>({...r.actor.info(),playerId:id,character:r.p.character,team:r.p.team,position:r.actor.group.position.toArray()})),fov:camera.fov,lastWeapon})};
+window.lanStrike={getState:()=>state,getId:()=>myId,getPerformance:()=>({...frameMetrics.snapshot(),quality:resolution.quality,pixelRatio:renderSurface.ratio,renderSurface:renderSurface.diagnostics(),gpuTimerSupported:gpuTimer.supported,gpuMs,gpuTimer:gpuTimer.diagnostics(),renderBudget:resolution.diagnostics(),autoResolution:gpuTimer.supported?'gpu-timed':'manual-only-no-gpu-timer',skinning:'gpu',drawingBuffer:{width:canvas.width,height:canvas.height}}),getRenderInfo:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,frame:renderer.info.render.frame}),getDiagnostics:()=>({presentationWarmup:presentationWarmup.diagnostics(),audio:audio?.diagnostics()||null,audioRouting:worldAudio.diagnostics(),acoustics:acoustics.diagnostics(),soundSurface:mapRender.soundMaterials,presentation:presentationSettings.values,actorScheduling:actorScheduler.diagnostics(),landing:viewFeedback.diagnostics(),pointerInput:pointerInput.diagnostics(),weaponCosmetics:weaponCosmetics.info(),hitRecoveryVersion:local?.hitRecoveryVersion??0,velocityModifier:local?.velocityModifier??1,transport:socket.transport,connection:socket.diagnostics(),interpolation:snapshotBuffer.diagnostics(),shotFeedback:shotFeedback.diagnostics(),awpView:awpView.diagnostics(),grenadePrediction:grenadePrediction.diagnostics(),mapVersion:MAP_VERSION,mapFaces:mapRender.faces,terrainTriangles:mapRender.triangles,mapTextures:mapRender.textures,sourceSHA256:mapRender.sourceSHA256,preview,view,renderedView,locked,visibility:document.visibilityState,frameCount,lastFrameAge:performance.now()-previous,input:input(),inputSampler:inputSampler.diagnostics(),localPosition:local?{x:local.x,y:local.y,z:local.z}:null,localVelocity:local?{x:local.vx,y:local.vy,z:local.vz}:null,cameraFractionSeconds:Math.max(0,Math.min(PREDICTION_DT,physicsAccumulator)),unackedInputs:pendingCommands.length,inputSeq,ackInputSeq:player()?.ackInputSeq,lastCorrection,predictionRecoveryActive:recoveryCorrection,visualCorrection:{...correction},impacts:shotEffects.info().decals,shotEffects:shotEffects.info(),playerHitEffects:playerHitEffects.info(),recoilYaw,recoilPitch,maxBurst,maxRecoilPitch,viewRoll:camera.rotation.z,cameraY:camera.position.y,cameraMode:playerCamera.mode,cameraDiagnostics:playerCamera.diagnostics(),cameraPosition:{x:camera.position.x,y:camera.position.y,z:camera.position.z},money:player()?.money??null,character:player()?.character??null,armour:player()?.armour??0,buyMenuOpen:shop.isOpen,gameMenuOpen:!$('resume').hidden,weaponHand:viewmodelSettings.hand,mouseSensitivity:mouseSettings.value,scopedSensitivity:scopedSettings.value,weapon:player()?.weapon??null,weaponModel:{...(weaponView?.info()||{source:'unavailable',fallback:true}),...(weaponModelError?{error:weaponModelError}:{})},flashOpacity,smokeOpacity,grenadeCount:GRENADE_IDS.reduce((sum,id)=>sum+(player()?.grenades?.[id]||0),0),worldEffects:worldEffects.info(),remoteModels:[...remote].map(([id,r])=>({...r.actor.info(),playerId:id,character:r.p.character,team:r.p.team,visible:r.actor.group.visible,position:r.actor.group.position.toArray()})),fov:camera.fov,lastWeapon})};
 function diagnosticReport(){
   const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
   const current=window.lanStrike.getPerformance();
@@ -405,7 +423,7 @@ function diagnosticReport(){
 window.lanStrike.getDiagnosticReport=diagnosticReport;
 function refreshDiagnosticUI(){
   if($('resume').hidden)return;
-  text('audioRuntimeStatus',audioControls.status());
+  text('audioRuntimeStatus',audioControls.status());text('rawMouseStatus',pointerInput.status());const calibration=mouseCalibration(mouseSettings.radiansPerPixel,presentationSettings.values.dpi);text('mouseCalibration',`普通视角每360°约 ${calibration.countsPerTurn.toFixed(0)} 个鼠标计数${calibration.cmPerTurn===null?'':` · 约 ${calibration.cmPerTurn.toFixed(1)} cm（按填写DPI估算）`}`);
   const budget=resolution.diagnostics();text('frameTargetStatus',`${resolution.quality==='auto'?'自动画质':'固定画质'} · 性能预算 ${budget.targetHz} FPS${budget.target==='auto'?'（自动）':''}`);
   const r=networkDiagnostics.snapshot(),fmt=v=>Number.isFinite(v)?v.toFixed(1):'—';
   text('networkDiagnosticsStatus',`已采样 ${(r.durationMs/1000).toFixed(0)} 秒 · ${r.totals.receivedStates} 个状态 · ${r.totals.longTasks} 次长任务`);

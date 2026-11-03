@@ -103,7 +103,7 @@ test('automatic fire lets the shared flinch animation advance; head reaction has
  g.time+=.08;const before=hitboxAnimation(q,g.time);g.damage(q,1,p,{kind:'mp5navy',hitgroup:'chest'});assert.equal(q.flinchAt,started);assert.equal(hitboxAnimation(q,g.time).playerFrame,before.playerFrame);assert.ok(before.playerFrame>0);
  g.time+=.02;g.damage(q,1,p,{kind:'ak47',hitgroup:'head'});assert.equal(q.flinchAt,g.time);assert.equal(q.flinchHead,true);const headStart=g.time;
  g.time+=.07;g.damage(q,1,p,{kind:'mp5navy',hitgroup:'chest'});assert.equal(q.flinchAt,headStart);assert.equal(q.flinchHead,true);
- g.time+=.1;g.damage(q,1,p,{kind:'mp5navy',hitgroup:'chest'});assert.equal(q.flinchAt,g.time);assert.equal(q.flinchHead,false);assert.equal(q.hp,9995);
+ g.time+=.15;g.damage(q,1,p,{kind:'mp5navy',hitgroup:'chest'});assert.equal(q.flinchAt,g.time);assert.equal(q.flinchHead,false);assert.equal(q.hp,9995);
  const snap=g.snapshot(p.id).players.find(v=>v.id===q.id);assert.equal(snap.playerFrame,hitboxAnimation(q,g.time).playerFrame);assert.deepEqual(playerHitboxes(snap,g.time),playerHitboxes(q,g.time));
 });
 

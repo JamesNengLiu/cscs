@@ -1,7 +1,7 @@
 import {RULES,WEAPONS,SPAWN_POINTS,blankInput,sanitizedInput,movePlayer,eyeHeight,rayBox,wallDistance,trace,siteAt,supportHeight,isGrounded,resetWeapon,updateWeapon,MAP_VERSION,buyZoneAt,direction,HIT_SLOWDOWN_VERSION,COLLISION_VERSION,JUMP_FATIGUE_VERSION} from './public/shared.js';
 import {GUNS,EQUIPMENT} from './public/arsenal.js';
 import {spreadDirection} from './public/weapons.js';
-import {rayPlayer,hitboxAnimation,hitboxDiagnostics} from './hitboxes.mjs';
+import {rayPlayer,hitboxAnimation,hitboxDiagnostics,HIT_REACTION} from './hitboxes.mjs';
 import {bulletProperties,materialAt,penetrationExit,materialDamage,groundSoundSurface,soundMaterialAt} from './ballistics.mjs';
 import {createMovementSoundState,movementSoundStep,RADIO_MENUS} from './public/movement-audio.js';
 import {safeSound} from './public/sound-catalog.js';
@@ -269,7 +269,7 @@ export class Game {
     const healthDamage=Math.trunc(result.healthDamage);
     if(GUNS[options.kind]&&killer&&killer!==p){
       if(healthDamage>0||result.armourDamage>0){
-        const head=options.hitgroup==='head',reacting=this.time-p.flinchAt>=0&&this.time-p.flinchAt<.16;
+        const head=options.hitgroup==='head',reacting=this.time-p.flinchAt>=0&&this.time-p.flinchAt<HIT_REACTION.duration;
         // Let a reaction finish under automatic fire; head hits can supersede a
         // body reaction. The same phase feeds rendered and historical hitboxes.
         if(!reacting||(head&&!p.flinchHead)){p.flinchAt=this.time;p.flinchHead=head;}

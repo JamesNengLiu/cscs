@@ -13,11 +13,13 @@ function fixture(options={}){
     stop(){this.stops++;this.onended?.();}start(when){this.started=true;this.startAt=when;}
   }
   class Context{
-    constructor(){this.state='running';this.currentTime=0;this.destination={};this.panners=[];this.sources=[];this.gains=[];
+    constructor(){this.state='running';this.currentTime=0;this.destination={};this.panners=[];this.sources=[];this.gains=[];this.filters=[];this.delays=[];
       this.listener=Object.fromEntries(['positionX','positionY','positionZ','forwardX','forwardY','forwardZ','upX','upY','upZ'].map(k=>[k,{value:0}]));contexts.push(this);}
     createGain(){const n=Object.assign(new Node('gain'),{gain:{value:0}});this.gains.push(n);return n;}
     createBufferSource(){const n=new Node('source');n.playbackRate={value:1};this.sources.push(n);return n;}
     createPanner(){const n=Object.assign(new Node('panner'),{positionX:{value:0},positionY:{value:0},positionZ:{value:0}});this.panners.push(n);return n;}
+    createBiquadFilter(){const n=Object.assign(new Node('filter'),{frequency:{value:0}});this.filters.push(n);return n;}
+    createDelay(){const n=Object.assign(new Node('delay'),{delayTime:{value:0}});this.delays.push(n);return n;}
     async decodeAudioData(b){return decodeHook?decodeHook(b):{length:1024,numberOfChannels:1};}
     async resume(){this.state='running';}close(){this.state='closed';return Promise.resolve();}
   }
@@ -180,4 +182,36 @@ test('mode-specific gun volume, attenuation and source pitch reach actual graph 
   assert.equal(f.contexts[0].sources[0].playbackRate.value,.96);assert.equal(f.contexts[0].sources[0].connections[0].gain.value,1);
   await f.audio.shot({weapon:'tmp',soundPitch:109},{x:1,y:0,z:0});assert.equal(f.contexts[0].sources[1].playbackRate.value,1.09);
   assert.equal(f.contexts[0].panners[0].maxDistance,1000/40/.8);assert.equal(f.contexts[0].sources[1].connections[0].gain.value,1);f.audio.dispose();
+});
+
+test('default audio adds no acoustic filters or delays and skips identical listener writes',async()=>{
+ let samples=0;const f=fixture({sampleAcoustics:()=>{samples++;return {gain:.62,cutoff:1800};},sampleRoom:()=>.09});await f.audio.resume();
+ await f.audio.play('weapons/awp1.wav',{position:{x:1,y:0,z:0}});const c=f.contexts[0],writes=f.audio.diagnostics().acoustics.listenerWrites;
+ for(let i=0;i<144;i++)f.audio.listen({x:0,y:0,z:0},{x:0,y:0,z:-1});
+ assert.equal(f.audio.diagnostics().acoustics.listenerWrites,writes);assert.equal(samples,0);assert.equal(c.filters.length,0);assert.equal(c.delays.length,0);f.audio.dispose();
+});
+test('optional obstruction keeps world sound audible, updates slowly and restores its dry gain',async()=>{
+ let blocked=true,samples=0;const f=fixture({settings:{occlusion:true},sampleAcoustics:()=>{samples++;return blocked?{gain:.62,cutoff:1800}:{gain:1,cutoff:22000};}});await f.audio.resume();
+ assert.equal(await f.audio.play('weapons/awp1.wav',{position:{x:1,y:0,z:0},volume:.8}),true);const c=f.contexts[0],gain=c.sources[0].connections[0],filter=c.filters[0];
+ assert.ok(Math.abs(gain.gain.value-.8*.62)<1e-12);assert.equal(filter.frequency.value,1800);assert.equal(c.panners[0].connections.at(-1),filter);assert.equal(filter.connections[0],c.gains[1]);
+ f.audio.listen({x:0,y:0,z:0},{x:0,y:0,z:-1});const n=samples;for(let i=0;i<144;i++)f.audio.listen({x:0,y:0,z:0},{x:0,y:0,z:-1});assert.equal(samples,n);
+ blocked=false;f.setClock(101);f.audio.listen({x:0,y:0,z:0},{x:0,y:0,z:-1});assert.equal(gain.gain.value,.8);assert.equal(filter.frequency.value,22000);
+ blocked=true;f.audio.setSettings({occlusion:false});assert.equal(gain.gain.value,.8);assert.equal(filter.frequency.value,22000);f.audio.stopAll();assert.equal(filter.disconnected,true);f.audio.dispose();
+});
+test('optional room tail uses only the effects bus and stopAll clears every tail before reuse',async()=>{
+ const f=fixture({settings:{environment:true},sampleRoom:()=>.09});await f.audio.resume();const c=f.contexts[0];
+ assert.deepEqual(c.delays.map(n=>n.delayTime.value),[.045,.09]);assert.equal(c.gains[1].connections.length,2);assert.equal(c.gains[2].connections.length,1);
+ assert.equal(f.audio.diagnostics().acoustics.roomWet,.09);const old=[...c.delays,...c.filters];f.audio.stopAll();assert.ok(old.every(n=>n.disconnected));assert.equal(f.audio.diagnostics().acoustics.environmentActive,false);
+ assert.equal(await f.audio.play('weapons/awp1.wav'),true);assert.equal(c.delays.length,4);assert.equal(f.audio.diagnostics().acoustics.environmentActive,true);f.audio.dispose();assert.ok(c.delays.every(n=>n.disconnected));
+});
+test('quiet distant voices cannot replace foreground gunfire when the voice budget is full',async()=>{
+ const f=fixture();await f.audio.resume();for(let i=0;i<AUDIO_LIMITS.voices;i++)assert.equal(await f.audio.play('weapons/awp1.wav',{volume:1,priority:10}),true);
+ assert.equal(await f.audio.play('weapons/awp1.wav',{position:{x:30,y:0,z:0},volume:.05,priority:10}),false);assert.equal(f.audio.diagnostics().voices,AUDIO_LIMITS.voices);assert.equal(f.contexts[0].sources[0].stops,0);f.audio.dispose();
+});
+test('failed acoustic callbacks do not prevent ordinary gunfire',async()=>{
+ const f=fixture({settings:{occlusion:true,environment:true},sampleAcoustics:()=>{throw Error('fixture');},sampleRoom:()=>{throw Error('fixture');}});await f.audio.resume();assert.equal(await f.audio.play('weapons/awp1.wav',{position:{x:1,y:0,z:0}}),true);assert.equal(f.audio.diagnostics().acoustics.roomWet,0);f.audio.dispose();
+});
+test('optional DSP allocation failure restores ordinary sound instead of dropping a shot',async()=>{
+ const f=fixture({sampleAcoustics:()=>({gain:.62,cutoff:1800})});await f.audio.resume();const c=f.contexts[0];c.createBiquadFilter=()=>{throw Error('unsupported DSP');};
+ f.audio.setSettings({environment:true,occlusion:true});assert.equal(f.audio.diagnostics().acoustics.environmentFailed,true);assert.equal(await f.audio.play('weapons/awp1.wav',{position:{x:1,y:0,z:0}}),true);assert.equal(c.panners[0].connections.at(-1),c.gains[1]);assert.ok(f.audio.diagnostics().acoustics.failures>=2);f.audio.dispose();
 });

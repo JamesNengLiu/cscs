@@ -1,4 +1,5 @@
-import {check,LIMIT,fetchPlayerBytes,validatePlayerModel,freezePlayerMetadata,playerAssetPath} from './player-asset-validation.js';
+import {parseModelJSON,consumeCooperatively,decodeModelUTF8} from './cooperative-json.js';
+import {check,LIMIT,fetchPlayerBytes,validatePlayerModel,validatePlayerModelSteps,freezePlayerMetadata,playerAssetPath} from './player-asset-validation.js';
 export const PREPARED_PLAYER_VERSION=1;
 const MAX_PREPARED_BYTES=192*1024*1024;
 const keys=(value,names)=>Object.fromEntries(names.filter(k=>value[k]!==undefined).map(k=>[k,value[k]]));
@@ -40,18 +41,50 @@ export function packPlayerAsset(data){
  }
  check(preparedPlayerBytes(packed)<=MAX_PREPARED_BYTES,'Prepared model exceeds byte budget');return packed;
 }
+function* hasLargeIndex(values){for(let i=0;i<values.length;i++){if(values[i]>=65535)return true;if(i%4096===0)yield;}return false;}
+function* copySamples(target,values,offset){for(let at=0;at<values.length;at+=4096){target.set(values.slice(at,at+4096),offset+at);yield;}}
+export function* packPlayerAssetSteps(data){
+ const sets=[],sequences=[];for(const s of data.sequences){
+  if(s.flags!=null)check(Number.isInteger(s.flags),'Invalid sequence flags');if(s.motionType!=null)check(Number.isInteger(s.motionType),'Invalid motion type');
+  const result=keys(s,['name','fps','flags','frames','blendCount','motionType','motionBone']);
+  for(const [key,length]of [['linearMovement',3],['blendStart',2],['blendEnd',2],['blendType',2]]){const values=optionalNumbers(s,key,length);if(values)result[key]=values;}
+  const add=t=>{const id=sets.length;sets.push({frames:s.frames,tracks:t});return id;};
+  if(s.blendTracks)result.blendSets=s.blendTracks.map(add);
+  if(s.tracks)result.trackSet=result.blendSets&&sameTracks(s.tracks,s.blendTracks[0])?result.blendSets[0]:add(s.tracks);
+  sequences.push(result);yield;
+ }
+ let samples=0,holds=0,entries=0;for(const set of sets){for(const channels of set.tracks)for(const c of channels)if(c){samples+=c.values.length;holds+=c.positionHold?.length||0;entries++;}yield;}
+ let floats=0,bones=0,indices=0;for(const m of data.meshes){floats+=m.positions.length+m.normals.length+m.uvPixels.length;bones+=m.vertexBones.length+m.normalBones.length;indices+=m.indices.length;}
+ const packed={version:PREPARED_PLAYER_VERSION,header:{schema:data.schema,metadata:metadata(data.metadata),bones:data.bones.map(b=>({...keys(b,['name','parent']),value:b.value.slice(),scale:b.scale.slice(),controllers:(b.controllers||[-1,-1,-1,-1,-1,-1]).slice()})),controllers:(data.controllers||[]).map(c=>keys(c,['bone','type','start','end','rest'])),textures:data.textures.map(t=>keys(t,['file','width','height','flags'])),skins:data.skins.map(s=>s.slice()),bodyparts:data.bodyparts.map(b=>({base:b.base,models:b.models.map(()=>({}))})),attachments:(data.attachments||[]).map(a=>({bone:a.bone,origin:a.origin.slice()})),sequences,meshes:[]},
+  values:new Int16Array(samples),holds:new Uint16Array(holds),entries:new Int32Array(entries*4),setStarts:new Uint32Array(sets.length+1),setFrames:new Uint16Array(sets.length),geometry:new Float64Array(floats),vertexBones:new Uint16Array(bones),indices:new Uint32Array(indices)};
+ let vi=0,hi=0,ei=0;for(let si=0;si<sets.length;si++){const set=sets[si];packed.setStarts[si]=ei;packed.setFrames[si]=set.frames;
+  for(let bone=0;bone<set.tracks.length;bone++)for(let axis=0;axis<6;axis++){const c=set.tracks[bone][axis];if(!c)continue;packed.entries.set([bone*6+axis,vi,c.positionHold?hi:-1,c.positionHold?.length||0],ei*4);packed.values.set(c.values,vi);vi+=c.values.length;if(c.positionHold){packed.holds.set(c.positionHold,hi);hi+=c.positionHold.length;}ei++;yield;}
+ }packed.setStarts[sets.length]=ei;
+ let fi=0,bi=0,ii=0;for(const m of data.meshes){const spec={...keys(m,['bodypart','model','skinref']),vertices:m.vertexBones.length,indexCount:m.indices.length,index32:(yield* hasLargeIndex(m.indices))};
+  for(const k of ['positions','normals','uvPixels']){spec[k]=fi;yield* copySamples(packed.geometry,m[k],fi);fi+=m[k].length;}
+  for(const k of ['vertexBones','normalBones']){spec[k]=bi;yield* copySamples(packed.vertexBones,m[k],bi);bi+=m[k].length;}
+  spec.indices=ii;yield* copySamples(packed.indices,m.indices,ii);ii+=m.indices.length;packed.header.meshes.push(spec);
+ }
+ check(preparedPlayerBytes(packed)<=MAX_PREPARED_BYTES,'Prepared model exceeds byte budget');return packed;
+}
 export const playerTransferList=p=>['values','holds','entries','setStarts','setFrames','geometry','vertexBones','indices'].map(k=>p[k].buffer);
 export const preparedPlayerBytes=p=>playerTransferList(p).reduce((n,b)=>n+b.byteLength,0);
 export const yieldPlayerTask=()=>new Promise(resolve=>{
  if(typeof document!=='undefined'&&!document.hidden&&typeof requestAnimationFrame==='function')requestAnimationFrame(()=>setTimeout(resolve,0));
  else if(typeof setImmediate==='function')setImmediate(resolve);else setTimeout(resolve,0);
 });
-export async function preparePlayerAsset(request,{yieldTask=null}={}){
+// Large inline preparation may need hundreds of slices. Let input/rendering run
+// between tasks without requiring a full display frame for every 3 ms of work.
+function preparationYield(){let task=0;return ()=>++task%2===0?yieldPlayerTask():typeof globalThis.scheduler?.yield==='function'?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,0));}
+export async function preparePlayerAsset(request,{yieldTask=null,budgetMs=3,cancelled=()=>false,cooperative=typeof document!=='undefined'&&typeof requestAnimationFrame==='function'}={}){
  const {url,id,entry,weapon=false}=request;check(typeof url==='string'&&url.startsWith('/assets/players/'),'Unsafe player asset URL');check(playerAssetPath(url.slice('/assets/players/'.length))===url,'Unsafe player asset URL');
  const start=performance.now(),{bytes,verified}=await fetchPlayerBytes(url,LIMIT.json,entry.convertedSHA256),fetched=performance.now();if(yieldTask)await yieldTask();
- const decodeStart=performance.now(),text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),decoded=performance.now(),data=JSON.parse(text),parsed=performance.now();if(yieldTask)await yieldTask();
- const validateStart=performance.now();validatePlayerModel(data,id,entry,weapon);const validated=performance.now();if(yieldTask)await yieldTask();
- const packStart=performance.now(),packed=packPlayerAsset(data),done=performance.now();return {packed,verified,metrics:{sourceBytes:bytes.byteLength,preparedBytes:preparedPlayerBytes(packed),fetchMs:fetched-start,decodeMs:decoded-decodeStart,parseMs:parsed-decoded,validateMs:validated-validateStart,packMs:done-packStart}};
+ const decodeStart=performance.now(),options={yieldTask:cooperative&&yieldTask===yieldPlayerTask?preparationYield():yieldTask,budgetMs,cancelled};let text,data,packed,decoded,decodeMetrics=null,parseMetrics=null,validateMetrics=null,packMetrics=null;
+ if(yieldTask&&cooperative){const decodedResult=await consumeCooperatively(decodeModelUTF8(bytes),options);text=decodedResult.value;decodeMetrics=decodedResult.metrics;decoded=performance.now();const result=await parseModelJSON(text,options);data=result.value;parseMetrics=result.metrics;}
+ else{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);decoded=performance.now();data=JSON.parse(text);}const parsed=performance.now();if(yieldTask)await yieldTask();
+ const validateStart=performance.now();if(yieldTask&&cooperative)validateMetrics=(await consumeCooperatively(validatePlayerModelSteps(data,id,entry,weapon),options)).metrics;else validatePlayerModel(data,id,entry,weapon);const validated=performance.now();if(yieldTask)await yieldTask();
+ const packStart=performance.now();if(yieldTask&&cooperative){const result=await consumeCooperatively(packPlayerAssetSteps(data),options);packed=result.value;packMetrics=result.metrics;}else packed=packPlayerAsset(data);const done=performance.now();
+ return {packed,verified,metrics:{sourceBytes:bytes.byteLength,preparedBytes:preparedPlayerBytes(packed),fetchMs:fetched-start,decodeMs:decoded-decodeStart,parseMs:parsed-decoded,validateMs:validated-validateStart,packMs:done-packStart,parseMode:parseMetrics?'cooperative':'native',parseChunks:parseMetrics?.chunks||1,prepareMaxChunkMs:Math.max(decodeMetrics?.maxWorkMs||0,parseMetrics?.maxWorkMs||0,validateMetrics?.maxWorkMs||0,packMetrics?.maxWorkMs||0)}};
 }
 export async function hydratePlayerAsset(packed,{yieldTask=yieldPlayerTask,budgetMs=3}={}){
  check(packed?.version===PREPARED_PLAYER_VERSION,'Wrong prepared model version');const types={values:Int16Array,holds:Uint16Array,entries:Int32Array,setStarts:Uint32Array,setFrames:Uint16Array,geometry:Float64Array,vertexBones:Uint16Array,indices:Uint32Array};for(const [k,T]of Object.entries(types))check(packed[k] instanceof T,'Invalid prepared buffer '+k);

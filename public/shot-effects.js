@@ -1,3 +1,5 @@
+import {prepareCosmetics} from './prepare-cosmetics.js';
+import {impactProfile,cosmeticRandom} from './impact-profile.js';
 // Original procedural impact art; no imported game decals or visible bullet trails.
 export const SHOT_FX_LIMITS=Object.freeze({decals:256,variants:4,dust:128,debris:192,decalSeconds:60,dustSeconds:.32,debrisSeconds:.8});
 const validVector=v=>v&&[v.x,v.y,v.z].every(Number.isFinite);
@@ -25,7 +27,7 @@ function craterTexture(THREE,variant){
   return texture;
 }
 
-export function createShotEffects(THREE,scene,{random=Math.random}={}){
+export function createShotEffects(THREE,scene,{random=null}={}){
   const plane=new THREE.PlaneGeometry(1,1),dustGeometry=new THREE.IcosahedronGeometry(1,0),debrisGeometry=new THREE.TetrahedronGeometry(1);
   const capacity=SHOT_FX_LIMITS.decals/SHOT_FX_LIMITS.variants;
   const matrix=new THREE.Matrix4(),zero=new THREE.Matrix4().makeScale(0,0,0);
@@ -45,21 +47,25 @@ export function createShotEffects(THREE,scene,{random=Math.random}={}){
   const dustMesh=new THREE.InstancedMesh(dustGeometry,dustMaterial,SHOT_FX_LIMITS.dust);
   dustMesh.name='bullet-impact-dust';dustMesh.count=0;dustMesh.visible=false;dustMesh.frustumCulled=false;
   dustMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(dustMesh);
+  const glow=new THREE.InstancedBufferAttribute(new Float32Array(SHOT_FX_LIMITS.debris),1);glow.setUsage(THREE.DynamicDrawUsage);debrisGeometry.setAttribute('impactGlow',glow);
   const debrisMaterial=new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true,depthTest:true,depthWrite:true});
+  const glowMaterial=debrisMaterial.clone();
+  glowMaterial.onBeforeCompile=shader=>{shader.vertexShader='attribute float impactGlow;varying float vImpactGlow;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvImpactGlow=impactGlow;');shader.fragmentShader='varying float vImpactGlow;\n'+shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vColor.rgb*vImpactGlow;');};glowMaterial.customProgramCacheKey=()=> 'impact-glow-v1';
   const debrisMesh=new THREE.InstancedMesh(debrisGeometry,debrisMaterial,SHOT_FX_LIMITS.debris);
   debrisMesh.name='bullet-impact-debris';debrisMesh.count=0;debrisMesh.visible=false;debrisMesh.frustumCulled=false;
   debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(debrisMesh);
   debrisMesh.setColorAt(0,new THREE.Color(1,1,1));
   const dust=Array(SHOT_FX_LIMITS.dust).fill(null),debris=Array(SHOT_FX_LIMITS.debris).fill(null);
-  let nextDust=0,nextDebris=0,decals=0,disposed=false;
-  const unit=()=>Math.max(0,Math.min(.999999,Number(random())||0));
+  let nextDust=0,nextDebris=0,decals=0,disposed=false,nextExpiry=Infinity,recipe=impactProfile('concrete'),rand=()=>.5,glowReady=true;
+  const unit=()=>Math.max(0,Math.min(.999999,Number(rand())||0));
   function clear(){
     if(disposed)return;
     for(const v of variants){v.slots.fill(null);v.next=0;v.mesh.count=0;v.mesh.visible=false;}
-    dust.fill(null);nextDust=0;decals=0;dustMesh.count=0;dustMesh.visible=false;
-    debris.fill(null);nextDebris=0;debrisMesh.count=0;debrisMesh.visible=false;
+    dust.fill(null);glow.array.fill(0);glow.needsUpdate=true;nextExpiry=Infinity;nextDust=0;decals=0;dustMesh.count=0;dustMesh.visible=false;
+    debris.fill(null);nextDebris=0;debrisMesh.count=0;debrisMesh.visible=false;debrisMesh.material=debrisMaterial;
   }
   return {
+    warm(renderer,camera){glowReady=false;const clone=debrisMesh.clone();clone.material=glowMaterial;return prepareCosmetics(THREE,renderer,camera,scene,{objects:[clone]}).then(ok=>{if(!disposed)glowReady=ok;return ok;});},
     prepare(){return {objects:[...variants.map(v=>v.mesh),dustMesh,debrisMesh],textures:variants.map(v=>v.texture),valid:()=>!disposed};},
     add(event,time){
       const impact=event?.impact;
@@ -68,14 +74,15 @@ export function createShotEffects(THREE,scene,{random=Math.random}={}){
       normal.set(impact.normal.x,impact.normal.y,impact.normal.z);
       const length=normal.length();if(!Number.isFinite(length)||length<.5)return false;
       normal.divideScalar(length);position.set(impact.position.x,impact.position.y,impact.position.z).addScaledVector(normal,.0015);
+      rand=typeof random==='function'?random:cosmeticRandom(event.shotId||event.eventId||`${impact.position.x}:${impact.position.y}:${impact.position.z}:${time}`);recipe=impactProfile(impact.soundSurface?.material||impact.material);
       const v=variants[Math.floor(unit()*variants.length)],index=v.next++%capacity,size=(.12+unit()*.04)*1.8;
       if(v.slots[index]===null)decals++;
-      v.slots[index]=time+SHOT_FX_LIMITS.decalSeconds;
+      v.slots[index]=time+SHOT_FX_LIMITS.decalSeconds;nextExpiry=Math.min(nextExpiry,v.slots[index]);
       orientation.setFromUnitVectors(front,normal);spin.setFromAxisAngle(front,unit()*Math.PI*2);orientation.multiply(spin);
       matrix.compose(position,orientation,scale.set(size,size,1));v.mesh.setMatrixAt(index,matrix);
       v.mesh.instanceMatrix.needsUpdate=true;v.mesh.count=Math.max(v.mesh.count,index+1);v.mesh.visible=true;
       tangent.set(1,0,0).applyQuaternion(orientation);bitangent.set(0,1,0).applyQuaternion(orientation);
-      for(let i=0;i<5;i++){
+      for(let i=0;i<recipe.dust;i++){
         const slot=nextDust++%dust.length,a=(unit()-.5)*1.5,b=(unit()-.5)*1.5,out=.45+unit()*.8;
         dust[slot]={time,x:position.x,y:position.y,z:position.z,
           vx:tangent.x*a+bitangent.x*b+normal.x*out,vy:tangent.y*a+bitangent.y*b+normal.y*out,vz:tangent.z*a+bitangent.z*b+normal.z*out,
@@ -85,30 +92,37 @@ export function createShotEffects(THREE,scene,{random=Math.random}={}){
       // One instanced batch for all chips, with analytic motion instead of
       // per-fragment world traces. Shrink at the end rather than sorting alpha.
       const material=impact.soundSurface?.material||impact.material;
-      const tint=material==='wood'?0x91704b:['metal','vent','grate'].includes(material)?0x8b9093:material==='glass'?0xa9c1c3:0xb9a589;
-      for(let i=0;i<8;i++){
+      const tint=recipe.tint;
+      for(let i=0;i<recipe.chips;i++){
         const slot=nextDebris++%debris.length,a=(unit()-.5)*3.3,b=(unit()-.5)*3.3,out=1.6+unit()*2;
         debris[slot]={time,x:position.x,y:position.y,z:position.z,
           vx:tangent.x*a+bitangent.x*b+normal.x*out,vy:tangent.y*a+bitangent.y*b+normal.y*out,vz:tangent.z*a+bitangent.z*b+normal.z*out,
-          out,ny:normal.y,size:i<2?.05+unit()*.025:.032+unit()*.028,life:SHOT_FX_LIMITS.debrisSeconds*(.65+unit()*.35),
+          shape:recipe.shape,glow:0,out,ny:normal.y,size:i<2?.05+unit()*.025:.032+unit()*.028,life:SHOT_FX_LIMITS.debrisSeconds*(.65+unit()*.35),
           rx:unit()*6.28,ry:unit()*6.28,rz:unit()*6.28,spin:(unit()-.5)*22};
         debrisColor.setHex(tint).multiplyScalar(i<2?1.15+unit()*.3:.65+unit()*.55);debrisMesh.setColorAt(slot,debrisColor);
-        debrisMesh.setMatrixAt(slot,zero);debrisMesh.count=Math.max(debrisMesh.count,slot+1);
+        glow.array[slot]=0;debrisMesh.setMatrixAt(slot,zero);debrisMesh.count=Math.max(debrisMesh.count,slot+1);
       }
+      for(let i=0;glowReady&&i<recipe.sparks;i++){
+        const slot=nextDebris++%debris.length,a=(unit()-.5)*4,b=(unit()-.5)*4,out=2+unit()*3;
+        debris[slot]={time,x:position.x,y:position.y,z:position.z,vx:tangent.x*a+bitangent.x*b+normal.x*out,vy:tangent.y*a+bitangent.y*b+normal.y*out,vz:tangent.z*a+bitangent.z*b+normal.z*out,out,ny:normal.y,size:.025+unit()*.02,life:.07+unit()*.09,rx:unit()*6.28,ry:unit()*6.28,rz:unit()*6.28,spin:0,shape:[.13,4,.13],glow:1};
+        glow.array[slot]=2;debrisColor.setHex(0xffc77b);debrisMesh.setColorAt(slot,debrisColor);debrisMesh.setMatrixAt(slot,zero);debrisMesh.count=Math.max(debrisMesh.count,slot+1);
+      }
+      glow.needsUpdate=true;debrisMesh.material=glowReady&&debris.some(p=>p?.glow)?glowMaterial:debrisMaterial;
       debrisMesh.instanceMatrix.needsUpdate=true;debrisMesh.instanceColor.needsUpdate=true;debrisMesh.visible=true;
-      dustMesh.instanceMatrix.needsUpdate=true;dustMesh.visible=true;return true;
+      dustMesh.instanceMatrix.needsUpdate=true;dustMesh.visible=dust.some(Boolean);return true;
     },
     update(time){
       if(disposed||!Number.isFinite(time))return false;
       let changed=false;
-      for(const v of variants){let active=false,dirty=false;
+      if(time>=nextExpiry){nextExpiry=Infinity;for(const v of variants){let active=false,dirty=false;
         for(let i=0;i<v.slots.length;i++)if(v.slots[i]!==null){
-          if(time>=v.slots[i]){v.slots[i]=null;decals--;v.mesh.setMatrixAt(i,zero);dirty=true;changed=true;}else active=true;
+          if(time>=v.slots[i]){v.slots[i]=null;decals--;v.mesh.setMatrixAt(i,zero);dirty=true;changed=true;}else {active=true;nextExpiry=Math.min(nextExpiry,v.slots[i]);}
         }
         if(dirty)v.mesh.instanceMatrix.needsUpdate=true;v.mesh.visible=active;
       }
+      }
       let activeDust=0,dirty=false;
-      for(let i=0;i<dust.length;i++){const p=dust[i];if(!p)continue;
+      for(let i=0;dustMesh.visible&&i<dust.length;i++){const p=dust[i];if(!p)continue;
         const age=Math.max(0,time-p.time),life=age/SHOT_FX_LIMITS.dustSeconds;
         if(life>=1){dust[i]=null;dustMesh.setMatrixAt(i,zero);}else{
           const size=p.size*Math.sin(Math.PI*life);
@@ -119,26 +133,26 @@ export function createShotEffects(THREE,scene,{random=Math.random}={}){
       }
       if(dirty){dustMesh.instanceMatrix.needsUpdate=true;changed=true;}dustMesh.visible=activeDust>0;
       let activeDebris=0;dirty=false;
-      for(let i=0;i<debris.length;i++){const p=debris[i];if(!p)continue;
+      for(let i=0;debrisMesh.visible&&i<debris.length;i++){const p=debris[i];if(!p)continue;
         const age=Math.max(0,time-p.time),life=age/p.life;
         // Do not fall back through the struck floor/slope plane.
         if(life>=1||.0015+p.out*age-4*p.ny*age*age<0){debris[i]=null;debrisMesh.setMatrixAt(i,zero);}else{
           const size=p.size*Math.min(1,(1-life)/.3);
           position.set(p.x+p.vx*age,p.y+p.vy*age-4*age*age,p.z+p.vz*age);
           orientation.setFromEuler(debrisRotation.set(p.rx+age*p.spin,p.ry+age*p.spin*.7,p.rz-age*p.spin*.4));
-          matrix.compose(position,orientation,scale.set(size,size*.65,size*.4));debrisMesh.setMatrixAt(i,matrix);activeDebris++;
+          matrix.compose(position,orientation,scale.set(size*p.shape[0],size*p.shape[1],size*p.shape[2]));debrisMesh.setMatrixAt(i,matrix);activeDebris++;
         }
         dirty=true;
       }
-      if(dirty){debrisMesh.instanceMatrix.needsUpdate=true;changed=true;}debrisMesh.visible=activeDebris>0;
+      if(dirty){debrisMesh.instanceMatrix.needsUpdate=true;changed=true;debrisMesh.material=glowReady&&debris.some(p=>p?.glow)?glowMaterial:debrisMaterial;}debrisMesh.visible=activeDebris>0;
       return changed;
     },
     clear,
-    info(){return {decals,dust:dust.filter(Boolean).length,debris:debris.filter(Boolean).length,decalCapacity:SHOT_FX_LIMITS.decals,dustCapacity:SHOT_FX_LIMITS.dust,debrisCapacity:SHOT_FX_LIMITS.debris,variants:variants.length,tracers:0};},
+    info(){return {glowReady,sparks:debris.filter(p=>p?.glow).length,material:recipe.kind,decals,dust:dust.filter(Boolean).length,debris:debris.filter(Boolean).length,decalCapacity:SHOT_FX_LIMITS.decals,dustCapacity:SHOT_FX_LIMITS.dust,debrisCapacity:SHOT_FX_LIMITS.debris,variants:variants.length,tracers:0};},
     dispose(){if(disposed)return;clear();disposed=true;
       for(const v of variants){scene.remove(v.mesh);v.mesh.dispose();v.material.dispose();v.texture.dispose();}
       scene.remove(dustMesh);dustMesh.dispose();plane.dispose();dustGeometry.dispose();dustMaterial.dispose();
-      scene.remove(debrisMesh);debrisMesh.dispose();debrisGeometry.dispose();debrisMaterial.dispose();
+      scene.remove(debrisMesh);debrisMesh.dispose();debrisGeometry.dispose();debrisMaterial.dispose();glowMaterial.dispose();
     }
   };
 }

@@ -191,7 +191,8 @@ async function buildOriginal(THREE, id, entry, skinningMode) {
     if (attachment) target.fromArray(attachment.origin).applyMatrix4(matrices[attachment.bone]).applyMatrix4(root.matrix);
     else target.set(0, 0, -0.43);
   }
-  return {root, data, pose, muzzlePosition, verified,textures:[...materials.map(m=>m.map),skinning.texture].filter(Boolean), dispose() {
+  function ejectionPosition(target){const attachment=data.attachments[1];if(!attachment)return false;target.fromArray(attachment.origin).applyMatrix4(matrices[attachment.bone]).applyMatrix4(root.matrix);return true;}
+  return {root, data, pose, muzzlePosition,ejectionPosition, verified,textures:[...materials.map(m=>m.map),skinning.texture].filter(Boolean), dispose() {
     skinning.dispose(); meshes.forEach(m => m.geometry.dispose());
     materials.forEach(m => { m.map.dispose(); m.dispose(); });
   }};
@@ -358,5 +359,5 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     cache.clear();readyModels.clear();flash.dispose();group.removeFromParent();
   }
   await setWeapon('glock18');
-  return {group,muzzle,setWeapon,update,info,dispose,prepare(){const model=active;return {objects:model?[model.root,muzzle]:[muzzle],textures:[muzzle.material.map,...(model?.textures||[])],valid:()=>!disposed&&active===model};}};
+  return {group,muzzle,setWeapon,update,info,dispose,ejectionPosition:target=>active?.ejectionPosition(target)||false,prepare(){const model=active;return {objects:model?[model.root,muzzle]:[muzzle],textures:[muzzle.material.map,...(model?.textures||[])],valid:()=>!disposed&&active===model};}};
 }

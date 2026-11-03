@@ -18,21 +18,38 @@ const channelKey=(entity,channel)=>identifier(entity)&&identifier(channel)&&chan
 const param=(node,key,value)=>{if(node[key])node[key].value=value;};
 
 export function createGameAudio({Context=globalThis.AudioContext||globalThis.webkitAudioContext,
-  fetcher=globalThis.fetch,settings:initialSettings={},now=()=>globalThis.performance?.now()??Date.now()}={}){
+  fetcher=globalThis.fetch,settings:initialSettings={},sampleAcoustics=null,sampleRoom=null,now=()=>globalThis.performance?.now()??Date.now()}={}){
   let context=null,master=null,buses=null,disposed=false,resuming=null,warmed=false,epoch=0,cacheBytes=0;
   let settings=normalizeAudioSettings(initialSettings),listener={x:0,y:0,z:0},forward={x:0,y:0,z:-1};
   let missing=0,played=0,impactPlayed=0,activeLoads=0,dropped=0,stale=0,deduplicated=0;
   const cache=new Map(),loads=new Map(),queue=[],voices=new Set(),pending=new Set(),channels=new Map(),events=new Map();
-  let announcerAt=0,announcerLoad=Promise.resolve();
+  let announcerAt=0,announcerLoad=Promise.resolve(),acousticAt=-Infinity,roomWet=0,environmentNodes=[],wetInput=null,occlusionSamples=0,listenerWrites=0,environmentFailed=false,acousticFailures=0;
+  function smoothParam(node,key,value){const p=node?.[key];if(!p)return;if(p.setTargetAtTime)p.setTargetAtTime(value,context.currentTime,.035);else p.value=value;}
+  function updateAcoustic(v){
+    if(!v.position)return;if(!settings.occlusion&&!v.filter){v.occludedGain=1;return;}let value;try{value=settings.occlusion?sampleAcoustics?.(v.position,listener):{gain:1,cutoff:22000};}catch{return;}if(!value)return;
+    occlusionSamples++;v.occludedGain=clamp(value.gain,.15,1,1);
+    if(settings.occlusion&&!v.filter&&!v.filterFailed&&context.createBiquadFilter&&v.panner){let filter;try{filter=context.createBiquadFilter();filter.type='lowpass';filter.connect(buses[v.category]);v.panner.disconnect();v.panner.connect(filter);v.filter=filter;}catch{acousticFailures++;v.filterFailed=true;try{filter?.disconnect();v.panner.disconnect();v.panner.connect(buses[v.category]);}catch{}}}
+    smoothParam(v.gain,'gain',v.volume*v.occludedGain);smoothParam(v.filter,'frequency',clamp(value.cutoff,600,22000,22000));
+  }
+  function updateRoom(){if(!wetInput)return;try{roomWet=settings.environment?clamp(sampleRoom?.(listener),0,.12,0):0;}catch{roomWet=0;}smoothParam(wetInput,'gain',roomWet);}
+  function setupEnvironment(){
+    if(wetInput||environmentFailed||!settings.enabled||!settings.environment||!context.createDelay||!context.createBiquadFilter)return;
+    const nodes=[];try{const input=context.createGain();nodes.push(input);input.gain.value=0;
+     for(const [seconds,level]of [[.045,1],[.09,.45]]){const delay=context.createDelay(.2);nodes.push(delay);const filter=context.createBiquadFilter();nodes.push(filter);const gain=context.createGain();nodes.push(gain);delay.delayTime.value=seconds;filter.type='lowpass';filter.frequency.value=2600;gain.gain.value=level;input.connect(delay);delay.connect(filter);filter.connect(gain);gain.connect(master);}
+     buses.effects.connect(input);wetInput=input;environmentNodes=nodes;
+    }catch{environmentFailed=true;acousticFailures++;for(const node of nodes)try{node.disconnect();}catch{}}
+  }
+  function audibility(v){const distance=v.position?Math.hypot(v.position.x-listener.x,v.position.y-listener.y,v.position.z-listener.z):0;return v.volume*(v.position&&v.attenuation>0?Math.max(0,1-distance/v.range):1)*(v.category==='voice'?settings.voice:settings.effects)*(v.occludedGain??1);}
+  const importance=v=>v.priority+4*Math.log2(Math.max(.001,audibility(v)));
   function applySettings(){
-    if(!master)return;
+    if(!master)return;setupEnvironment();
     master.gain.value=settings.enabled?settings.master:0;
     buses.effects.gain.value=settings.effects;buses.voice.gain.value=settings.voice;
-    for(const v of voices)if(v.panner)v.panner.panningModel=settings.spatialMode==='hrtf'?'HRTF':'equalpower';
+    for(const v of voices){if(v.panner)v.panner.panningModel=settings.spatialMode==='hrtf'?'HRTF':'equalpower';updateAcoustic(v);}updateRoom();
   }
   function applyListener(){
     if(!context)return;
-    const l=context.listener;
+    listenerWrites++;const l=context.listener;
     if(l.positionX){for(const k of ['x','y','z'])param(l,'position'+k.toUpperCase(),listener[k]);}
     else l.setPosition?.(listener.x,listener.y,listener.z);
     if(l.forwardX){
@@ -103,7 +120,7 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
   function release(v){
     if(v.released)return;v.released=true;voices.delete(v);
     if(v.key&&channels.get(v.key)===v)channels.delete(v.key);
-    for(const node of [v.source,v.gain,v.panner])try{node?.disconnect();}catch{}
+    for(const node of [v.source,v.gain,v.panner,v.filter])try{node?.disconnect();}catch{}
   }
   function stop(v){
     v.cancelled=true;
@@ -113,7 +130,8 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
   function stopChannel(entityId,channel){
     const key=channelKey(entityId,channel),v=key&&channels.get(key);if(!v)return false;stop(v);return true;
   }
-  function stopAll(){epoch++;announcerAt=0;announcerLoad=Promise.resolve();for(const p of pending)stop(p);for(const v of [...voices])stop(v);channels.clear();}
+  function clearEnvironment(){try{if(wetInput)buses?.effects.disconnect(wetInput);}catch{}for(const node of environmentNodes)try{node.disconnect();}catch{}environmentNodes=[];wetInput=null;roomWet=0;}
+  function stopAll(){clearEnvironment();epoch++;announcerAt=0;announcerLoad=Promise.resolve();for(const p of pending)stop(p);for(const v of [...voices])stop(v);channels.clear();}
   function acceptEvent(eventId){
     if(eventId===undefined||eventId===null)return true;
     if(!identifier(eventId))return false;
@@ -124,7 +142,7 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
   }
   async function play(name,{position=null,volume=.7,category='effects',attenuation=.8,entityId,
     channel='auto',eventId,loop=false,priority=0,pitch=100,queue:playQueue=null}={}){
-    if(disposed||!context||context.state!=='running'||!settings.enabled||!safeSound(name))return false;
+    if(disposed||!context||context.state!=='running'||!settings.enabled||!safeSound(name))return false;setupEnvironment();
     if(position!==null&&!xyz(position))return false;
     // Reject non-finite values rather than passing NaN/Infinity to native AudioParams.
     if(!Number.isFinite(volume)||!Number.isFinite(attenuation)||!Number.isFinite(priority)||!Number.isFinite(pitch))return false;
@@ -136,7 +154,7 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
     if(!acceptEvent(eventId))return false;
     const queued=playQueue==='announcer'&&category==='voice'&&!position;
     const key=queued?null:channelKey(entityId,channel),old=key&&channels.get(key);if(old)stop(old);
-    const ctx=context,ticket={key,cancelled:false,epoch,priority},time=now(),audioTime=ctx.currentTime;
+    const ctx=context,ticket={key,cancelled:false,epoch,priority,position,range,volume,attenuation,category:category==='voice'?'voice':'effects'},time=now(),audioTime=ctx.currentTime;
     const predecessor=queued?announcerLoad:null;let unlock;
     if(queued)announcerLoad=new Promise(resolve=>{unlock=resolve;});
     pending.add(ticket);if(key)channels.set(key,ticket);
@@ -146,8 +164,8 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
       if(!buffer||ticket.cancelled||disposed||epoch!==ticket.epoch||context!==ctx||ctx.state!=='running'||!settings.enabled)return false;
       if(now()-time>AUDIO_LIMITS.staleMs||(ctx.currentTime-audioTime)*1000>AUDIO_LIMITS.staleMs){stale++;return false;}
       if(voices.size>=AUDIO_LIMITS.voices){
-        let victim=null;for(const v of voices)if(!victim||v.priority<victim.priority)victim=v;
-        if(victim.priority>priority){dropped++;return false;}stop(victim);
+        let victim=null;for(const v of voices)if(!victim||importance(v)<importance(victim))victim=v;
+        if(importance(victim)>importance(ticket)){dropped++;return false;}stop(victim);
       }
       ticket.source=ctx.createBufferSource();ticket.gain=ctx.createGain();
       const rate=clamp(pitch,25,255,100)/100;
@@ -162,6 +180,7 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
         else p.setPosition(position.x,position.y,position.z);
         ticket.gain.connect(p);p.connect(buses[category==='voice'?'voice':'effects']);
       }else ticket.gain.connect(buses[category==='voice'?'voice':'effects']);
+      updateAcoustic(ticket);
       const when=queued?Math.max(ctx.currentTime,announcerAt):ctx.currentTime;
       if(queued&&when-ctx.currentTime>5){stop(ticket);dropped++;return false;}
       if(queued)announcerAt=when+(Number.isFinite(buffer.duration)?buffer.duration:buffer.length/(ctx.sampleRate||48000))/rate;
@@ -177,7 +196,7 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
       resuming=(async()=>{
         try{
           if(!context&&Context){context=new Context();master=context.createGain();buses={effects:context.createGain(),voice:context.createGain()};
-            buses.effects.connect(master);buses.voice.connect(master);master.connect(context.destination);applySettings();applyListener();}
+            buses.effects.connect(master);buses.voice.connect(master);master.connect(context.destination);setupEnvironment();applySettings();applyListener();}
           if(!context)return false;await context.resume();if(disposed)return false;
           if(!warmed){
             warmed=true;
@@ -199,19 +218,21 @@ export function createGameAudio({Context=globalThis.AudioContext||globalThis.web
       const length=Math.hypot(direction.x,direction.y,direction.z);if(length<1e-6)return false;
       // Avoid a forward vector parallel to fixed world-up (undefined listener basis).
       const horizontal=Math.hypot(direction.x,direction.z);if(horizontal<1e-6)return false;
-      listener=copy(position);forward={x:direction.x/length,y:direction.y/length,z:direction.z/length};applyListener();return true;
+      const f={x:direction.x/length,y:direction.y/length,z:direction.z/length};
+      if(position.x!==listener.x||position.y!==listener.y||position.z!==listener.z||f.x!==forward.x||f.y!==forward.y||f.z!==forward.z){listener=copy(position);forward=f;applyListener();}
+      const t=now();if(t-acousticAt>=100&&(settings.occlusion||settings.environment)){acousticAt=t;updateRoom();for(const v of [...voices].sort((a,b)=>importance(b)-importance(a)))updateAcoustic(v);}return true;
     },
     setSettings(value){settings=normalizeAudioSettings(value,settings);applySettings();if(!settings.enabled)stopAll();return {...settings};},
     getSettings:()=>({...settings}),stopChannel,stopAll,
     diagnostics:()=>({source:'local-wav',cached:cache.size,cacheBytes,voices:voices.size,played,impactPlayed,missing,
-      ready:!disposed&&context?.state==='running',pendingPlays:pending.size,activeLoads,queuedLoads:queue.length,
+      acoustics:{occlusionSamples,environmentSupported:typeof context?.createDelay==='function',environmentActive:!!wetInput,environmentFailed,failures:acousticFailures,roomWet,listenerWrites},ready:!disposed&&context?.state==='running',pendingPlays:pending.size,activeLoads,queuedLoads:queue.length,
       channels:channels.size,events:events.size,dropped,stale,deduplicated,settings:{...settings},disposed}),
     dispose(){
       if(disposed)return;disposed=true;stopAll();cache.clear();cacheBytes=0;events.clear();
       for(const job of loads.values()){clearTimeout(job.timer);job.expired=true;job.controller?.abort();job.resolve(null);}queue.length=0;
       // Keep active slots occupied until actual fetch/decode settles; never spawn unbounded zombie decoders.
       for(const [name,job] of loads)if(!job.controller)loads.delete(name);
-      for(const node of [buses?.effects,buses?.voice,master])try{node?.disconnect();}catch{}
+      for(const node of [...environmentNodes,buses?.effects,buses?.voice,master])try{node?.disconnect();}catch{}
       const ctx=context;context=null;master=null;buses=null;
       try{const closed=ctx?.close();closed?.catch?.(()=>{});}catch{}
     },

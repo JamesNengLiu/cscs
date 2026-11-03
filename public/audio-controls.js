@@ -6,10 +6,11 @@ export function bindAudioControls(root,{getAudio,ensureAudio,storage,getListener
   function render(){
     for(const [key,id] of Object.entries(controls))if($(id)){$(id).value=String(Math.round(settings[key]*100));$(id+'Value').textContent=Math.round(settings[key]*100)+'%';}
     if($('audioMode'))$('audioMode').value=settings.spatialMode;
-    if($('audioEnabled'))$('audioEnabled').checked=settings.enabled;
+    if($('audioEnabled'))$('audioEnabled').checked=settings.enabled;for(const [id,key]of [['audioOcclusion','occlusion'],['audioEnvironment','environment']])if($(id))$(id).checked=settings[key];
   }
   function update(patch){settings={...settings,...patch};getAudio()?.setSettings(settings);const saved=saveAudioSettings(settings,storage);render();if(!saved&&$('audioSettingsStatus'))$('audioSettingsStatus').textContent='设置已生效；浏览器禁止保存，刷新后会恢复默认。';}
   for(const [key,id] of Object.entries(controls))$(id)?.addEventListener('input',()=>update({[key]:Number($(id).value)/100}));
+  for(const [id,key]of [['audioOcclusion','occlusion'],['audioEnvironment','environment']])$(id)?.addEventListener('change',()=>update({[key]:$(id).checked}));
   $('audioMode')?.addEventListener('change',()=>update({spatialMode:$('audioMode').value}));
   $('audioEnabled')?.addEventListener('change',()=>update({enabled:$('audioEnabled').checked}));
   $('resetAudioSettings')?.addEventListener('click',()=>update({...DEFAULT_AUDIO_SETTINGS}));

@@ -18,6 +18,8 @@ const snapshot=()=>({...g.snapshot(p.id),players:g.snapshot(p.id).players.filter
 const stats=values=>{const a=[...values].sort((a,b)=>a-b),at=q=>a[Math.max(0,Math.ceil(a.length*q)-1)];return {samples:a.length,mean:a.length?values.reduce((a,b)=>a+b,0)/a.length:null,p95:at(.95)??null,p99:at(.99)??null,max:a.at(-1)??null};};
 try{
  await mkdir(root+'/artifacts',{recursive:true});browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});page=await browser.newPage({viewport:{width:1280,height:800}});page.on('pageerror',e=>report.errors.push(e.message));
+ page.on('console',m=>{if(m.type()==='error'&&/shader|WebGLProgram|GL_INVALID/i.test(m.text()))report.errors.push(m.text());});
+ if(process.env.COSMETIC_TEST_ALL==='1')await page.addInitScript(()=>localStorage.setItem('lan-strike.presentation.v1',JSON.stringify({muzzleLight:true,shells:true,gunSmoke:true})));
  await page.exposeFunction('toGame',m=>{if(m.type==='join'){joined=true;previous=performance.now();return [{type:'joined',id:p.id},snapshot()];}if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='ping')return[{type:'pong',sent:m.sent}];return[];});
  await page.addInitScript(()=>{
   window.loadingAudit={phase:null,frames:[],inputs:[],longTasks:[],parses:[],workers:0};const a=window.loadingAudit,parse=JSON.parse;JSON.parse=function(value,...args){const start=performance.now(),result=parse.call(this,value,...args);if(typeof value==='string'&&value.length>1000000)a.parses.push({phase:a.phase,at:start,ms:performance.now()-start,chars:value.length});return result;};
@@ -40,7 +42,27 @@ try{
   report.cases.push({name,modelReadyMs:ready-started,frameIntervalMs:stats(intervals),frameCpuMs:stats(rows.map(r=>r.cpuMs)),inputIntervalMs:stats(inputIntervals),longTasks:audit.longTasks.filter(t=>t.start>=started&&t.start<ended),mainLargeParses:audit.parses.filter(r=>r.phase===name),shots:p.shotsFired-shots,workerCount:audit.workers,models:info});assert.ok(p.shotsFired>shots,'shooting continued');assert.ok(inputs.length>30,'input commands continued');if(!before){const c=report.cases.at(-1);assert.equal(c.mainLargeParses.length,0,'large model parsing stayed off the main thread');assert.equal(c.workerCount,1,'one shared worker');assert.ok(c.models.every(m=>m.assetPreparation?.lane==='worker'),'worker path was actually used');assert.equal(c.longTasks.length,0,'no main-thread long task during joins');assert.ok(c.frameIntervalMs.max<50,'joins do not stall rendered frames');}
  }
  await page.mouse.up();await page.keyboard.up('KeyW');mark=null;await page.evaluate(()=>window.loadingAudit.phase=null);report.performance=await page.evaluate(()=>window.lanStrike.getPerformance());report.render=await page.evaluate(()=>window.lanStrike.getRenderInfo());
- if(!before){const fallback=await browser.newPage();await fallback.addInitScript(()=>{window.Worker=class{constructor(){throw Error('Controlled worker unavailable');}};});await fallback.goto(base+'/asset-probe');report.nativeFallback=await fallback.evaluate(async()=>{const THREE=await import('/vendor/three.module.js'),{createPlayerActor}=await import('/player-model.js'),a=createPlayerActor(THREE),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,1,.1,10),renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas')});await a.setCharacter('urban');a.update(0,{weapon:null});scene.add(a.group);camera.position.set(2,1,-3);camera.lookAt(0,1,0);renderer.render(scene,camera);const info=a.info(),result={source:info.source,verified:info.convertedSHA256Verified,lane:info.assetPreparation?.lane,reason:info.assetLoader?.disabledReason,triangles:renderer.info.render.triangles};a.dispose();renderer.dispose();return result;});assert.equal(report.nativeFallback.source,'original-mdl');assert.equal(report.nativeFallback.verified,true);assert.equal(report.nativeFallback.lane,'inline-fallback');assert.ok(report.nativeFallback.triangles>0);await fallback.close();}
+ if(!before){
+  const fallback=await browser.newPage();fallback.on('pageerror',e=>report.errors.push(e.message));
+  await fallback.addInitScript(()=>{
+   window.Worker=class{constructor(){throw Error('Controlled worker unavailable');}};
+   const a=window.fallbackAudit={parses:[],longTasks:[],frames:[],recording:false},native=JSON.parse;
+   JSON.parse=function(value,...args){const start=performance.now(),result=native.call(this,value,...args);if(typeof value==='string'&&value.length>1000000)a.parses.push({ms:performance.now()-start,chars:value.length});return result;};
+   if(window.PerformanceObserver)try{new PerformanceObserver(list=>{if(a.recording)for(const t of list.getEntries())a.longTasks.push({start:t.startTime,ms:t.duration});}).observe({entryTypes:['longtask']});}catch{}
+  });
+  await fallback.goto(base+'/asset-probe');report.nativeFallback=await fallback.evaluate(async()=>{
+   const THREE=await import('/vendor/three.module.js'),{createPlayerActor}=await import('/player-model.js'),a=createPlayerActor(THREE),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,1,.1,10),renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas')}),audit=window.fallbackAudit;
+   audit.recording=true;function pulse(t){if(audit.recording){audit.frames.push(t);requestAnimationFrame(pulse);}}requestAnimationFrame(pulse);
+   const started=performance.now();await a.setCharacter('urban');audit.recording=false;const ready=performance.now(),info=a.info();
+   a.update(0,{weapon:null});scene.add(a.group);camera.position.set(2,1,-3);camera.lookAt(0,1,0);renderer.render(scene,camera);
+   const result={source:info.source,verified:info.convertedSHA256Verified,lane:info.assetPreparation?.lane,preparation:info.assetPreparation,reason:info.assetLoader?.disabledReason,triangles:renderer.info.render.triangles,readyMs:ready-started,frames:audit.frames.length,maxFrameIntervalMs:Math.max(0,...audit.frames.slice(1).map((t,i)=>t-audit.frames[i])),largeParses:audit.parses,longTasks:audit.longTasks.filter(t=>t.start>=started&&t.start<ready)};
+   a.dispose();renderer.dispose();return result;
+  });
+  assert.equal(report.nativeFallback.source,'original-mdl');assert.equal(report.nativeFallback.verified,true);assert.equal(report.nativeFallback.lane,'inline-fallback');assert.ok(report.nativeFallback.triangles>0);
+  assert.equal(report.nativeFallback.preparation.parseMode,'cooperative');assert.equal(report.nativeFallback.largeParses.length,0);assert.ok(report.nativeFallback.frames>10,'fallback yielded to rendered frames');assert.ok(report.nativeFallback.preparation.prepareMaxChunkMs<15,'fallback model preparation kept short work slices');
+  assert.ok(report.nativeFallback.maxFrameIntervalMs<50,'short tasks must also yield actual rendering opportunities');
+  await fallback.close();
+ }
  assert.deepEqual(report.errors,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;process.exitCode=1;}
 finally{closed=true;clearInterval(timer);await browser?.close();server.closeAllConnections();await new Promise(r=>server.close(r));await writeFile(root+'/artifacts/player-loading-'+tag+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}

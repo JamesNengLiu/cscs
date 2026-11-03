@@ -7,11 +7,11 @@ import {performance} from 'node:perf_hooks';
 import * as THREE from 'three';
 import {chromium} from 'playwright';
 import {Game} from '../game.mjs';
-import {supportHeight,eyeHeight,direction} from '../public/shared.js';
+import {supportHeight,eyeHeight,direction,trace} from '../public/shared.js';
 import {playerHitboxes} from '../hitboxes.mjs';
 const g=new Game({random:()=>.5,hitRecovery:process.env.HIT_RECOVERY_PROFILE||'baseline'}),p=g.add('local','Shooter','T'),q=g.add('target','Opponent','CT');g.begin();g.phase='live';g.time=10;g.buy(p.id,'ak47');g.buy(q.id,'m4a1');
 const report={status:'running',checks:[],errors:[],externalRequests:[],scope:'Isolated native-GPU Chrome at 1280x800 with production client and two authoritative offline Game players over IPC. No physical multiplayer or retail-client parity claim.'};
-let page,browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,moving=false,moveDir=1,stress=false,extras=[];
+let page,browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,moving=false,moveDir=1,stress=false,stressBehind=false,extras=[];
 function place(){
  for(const [a,z] of [[p,22],[q,18]])Object.assign(a,{x:-18.4,z,y:supportHeight(-18.4,z,3.3),yaw:0,pitch:0,vx:0,vy:0,vz:0,grounded:true,hp:10000,armour:0,helmet:false,flinchAt:-100,gaitDistance:0,airTime:0,nextAttackAt:0,lastShot:-100});
  g.phase='live';g.endAt=g.time+1000;q.input={f:0,s:0,yaw:0,pitch:0,fire:false};
@@ -22,6 +22,7 @@ try{
  browser=await chromium.launch({headless:process.env.CAMERA_TEST_HEADED!=='1',executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:[...(process.env.CAMERA_TEST_HEADED==='1'?['--window-position=0,0']:[]),'--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
  page=await browser.newPage({viewport:{width:1280,height:800}});page.setDefaultTimeout(15000);
  page.on('pageerror',e=>report.errors.push(e.message));page.on('request',r=>{if(!r.url().startsWith('https://player-feedback.test/')&&!r.url().startsWith('data:'))report.externalRequests.push(r.url());});
+ page.on('console',m=>{if(m.type()==='error'&&/shader|WebGLProgram|GL_INVALID/i.test(m.text()))report.errors.push(m.text());});
  await page.exposeFunction('sendToGame',m=>{
   if(m.type==='join'){joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}
   if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='equip')g.equip(p.id,m.weapon);else if(m.type==='ping')return [{type:'pong',sent:m.sent}];return [];
@@ -39,13 +40,13 @@ try{
   const pathname=new URL(route.request().url()).pathname,name=pathname==='/'?'index.html':pathname.slice(1);if(name.includes('..'))return route.abort();
   const file=name.startsWith('vendor/')?new URL(`../node_modules/three/build/${name.slice(7)}`,import.meta.url):new URL(`../public/${name}`,import.meta.url);
   const type=name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':name.endsWith('.json')?'application/json':name.endsWith('.png')?'image/png':name.endsWith('.wav')?'audio/wav':'text/html';
-  try{await route.fulfill({contentType:type,body:await readFile(file)});}catch{await route.fulfill({status:404,body:'Missing fixture asset'});}
+  try{let body=await readFile(file);if(name==='client.js'&&process.env.ACTOR_SCHEDULING_OFF==='1')body=body.toString().replace('visible=actorScheduler.shouldPose(pose)','visible=true');await route.fulfill({contentType:type,body});}catch{await route.fulfill({status:404,body:'Missing fixture asset'});}
  });
  timer=setInterval(async()=>{
   const now=performance.now();accumulator+=Math.min(.1,(now-previous)/1000);previous=now;if(!joined||closed){accumulator=0;return;}let steps=0;
   while(accumulator>=1/60){
    if(moving){if(q.x>-19.2)moveDir=-1;if(q.x<-22.2)moveDir=1;g.input(q.id,{s:moveDir,yaw:0,fire:true});}
-   g.step();if(stress)for(const a of [q,...extras]){a.vx=3;a.vz=0;a.grounded=true;a.gaitDistance=(a.gaitDistance||0)+3/60;}accumulator-=1/60;tick++;steps++;
+   g.step();if(stress)for(const [i,a]of [q,...extras].entries()){a.x=-20.6+(i%3)*2.2;a.z=stressBehind?34:19.5-Math.floor(i/3)*1.3;a.y=supportHeight(a.x,a.z,3.3);a.vx=3;a.vz=0;a.grounded=true;a.gaitDistance=(a.gaitDistance||0)+3/60;}accumulator-=1/60;tick++;steps++;
   }
   if(!steps||busy)return;busy=true;
   try{const messages=[],events=g.events.splice(0);if(events.length)messages.push({type:'events',events});if(tick%2===0)messages.push(g.snapshot(p.id));if(messages.length)await page.evaluate(ms=>ms.forEach(m=>window.feedbackSocket.emit(m)),messages);}
@@ -89,9 +90,22 @@ try{
  await page.evaluate(m=>window.feedbackSocket.emit(m),g.snapshot(p.id));joined=true;previous=performance.now();
  await page.waitForFunction(()=>{const a=window.lanStrike.getDiagnostics().remoteModels;return a.length===9&&a.every(m=>!m.loading);});
  await page.evaluate(()=>window.feedback.case=null);await page.evaluate(()=>new Promise(r=>setTimeout(r,4500)));
- report.renderStress={scope:'One local view plus nine animated remote render actors; no physical multiplayer throughput claim.',performance:await page.evaluate(()=>window.lanStrike.getPerformance()),render:await page.evaluate(()=>window.lanStrike.getRenderInfo())};
+ report.renderStress={scope:'One local view plus nine animated remote render actors; no physical multiplayer throughput claim.',performance:await page.evaluate(()=>window.lanStrike.getPerformance()),scheduling:await page.evaluate(()=>window.lanStrike.getDiagnostics().actorScheduling),render:await page.evaluate(()=>window.lanStrike.getRenderInfo())};
  report.checks.push('nine remote animated actors render with the new shared gait layer in the isolated native-GPU scene');
+ stressBehind=true;await page.evaluate(()=>new Promise(r=>setTimeout(r,3500)));report.offscreenStress={scope:'Same nine scene actors behind the camera; logical positions/time continue, pose work may be deferred.',performance:await page.evaluate(()=>window.lanStrike.getPerformance()),scheduling:await page.evaluate(()=>window.lanStrike.getDiagnostics().actorScheduling),render:await page.evaluate(()=>window.lanStrike.getRenderInfo())};
+ if(process.env.ACTOR_SCHEDULING_OFF!=='1'){
+  assert.equal(report.renderStress.scheduling.visible,9);assert.equal(report.offscreenStress.scheduling.deferred,9);
+  assert.ok(await page.evaluate(()=>window.lanStrike.getDiagnostics().remoteModels.every(a=>a.presentation.poseSkipped&&a.presentation.logicalUpdates>a.presentation.poseUpdates)));
+  stressBehind=false;await page.waitForFunction(()=>window.lanStrike.getDiagnostics().remoteModels.every(a=>a.visible&&!a.presentation.poseSkipped));
+  assert.equal(g.buy(p.id,'m249'),true);p.nextAttackAt=0;await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.weaponModel.id==='m249'&&!d.weaponModel.loading;});
+  await page.evaluate(()=>{for(const key of ['muzzleLight','shells','gunSmoke']){const c=document.querySelector(`[data-presentation="${key}"]`);c.checked=true;c.dispatchEvent(new Event('change'));}});
+  await page.waitForFunction(()=>window.lanStrike.getDiagnostics().weaponCosmetics.light.pending===0);
+  const bursts=[q,...extras].map((a,i)=>{const from={x:a.x,y:a.y+1.3,z:a.z},hit=trace(from,{...from,z:from.z-30}),material=['concrete','metal','wood'][i%3];return {type:'shot',id:a.id,weapon:'ak47',round:g.round,from,to:hit.end,hit:false,impact:{position:hit.end,normal:{x:hit.normal[0],y:hit.normal[1],z:hit.normal[2]},material}};});
+  await page.mouse.down();await page.evaluate(async bursts=>{let n=0;const fire=()=>window.feedbackSocket.emit({type:'events',events:bursts.map(e=>({...e,shotId:`pressure-${e.id}-${n}`,shotOrdinal:n}))});const timer=setInterval(()=>{n++;fire();},100);await new Promise(r=>setTimeout(r,4500));clearInterval(timer);},bursts);await page.mouse.up();
+  const d=await page.evaluate(()=>window.lanStrike.getDiagnostics());report.effectsStress={scope:'Nine visible actors plus 90 scripted remote shot presentations per second and a real local M249 burst, all optional weapon lighting/casing/smoke effects. Render pressure fixture, not nine physical clients.',performance:await page.evaluate(()=>window.lanStrike.getPerformance()),render:await page.evaluate(()=>window.lanStrike.getRenderInfo()),cosmetics:d.weaponCosmetics,impacts:d.shotEffects};
+  assert.ok(d.weaponCosmetics.shells<=64&&d.weaponCosmetics.smoke<=16);assert.ok(d.shotEffects.dust<=128&&d.shotEffects.debris<=192);assert.equal(d.weaponCosmetics.light.failures,0);
+ }
  report.graphics=await page.evaluate(()=>{const gl=document.getElementById('game').getContext('webgl2'),e=gl.getExtension('WEBGL_debug_renderer_info');return e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);});
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.externalRequests,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;report.debug={p:{weapon:p.weapon,ammo:p.ammo,input:p.input,yaw:p.yaw,pitch:p.pitch,x:p.x,y:p.y,z:p.z},q:{x:q.x,y:q.y,z:q.z,yaw:q.yaw,hp:q.hp},events:await page?.evaluate(()=>window.feedback?.events.slice(-25)),diagnostics:await page?.evaluate(()=>window.lanStrike?.getDiagnostics())};console.error(e);process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/player-feedback-browser-report'+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,checks:report.checks,graphics:report.graphics,performance:report.motion?.performance,renderStress:report.renderStress,errors:report.errors,failure:report.failure,fixtures:report.fixtures,debug:report.debug},null,2));}
+finally{closed=true;clearInterval(timer);await browser?.close();await writeFile('artifacts/player-feedback-browser-report'+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,checks:report.checks,graphics:report.graphics,performance:report.motion?.performance,renderStress:report.renderStress,offscreenStress:report.offscreenStress,errors:report.errors,failure:report.failure,fixtures:report.fixtures,debug:report.debug},null,2));}

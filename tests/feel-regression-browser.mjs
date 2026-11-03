@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';import {performance} from 'node:perf_hooks';
-import {Game} from '../game.mjs';import {GUNS} from '../public/arsenal.js';import {supportHeight} from '../public/shared.js';
+import {Game} from '../game.mjs';import {GUNS} from '../public/arsenal.js';import {supportHeight,trace} from '../public/shared.js';
 const root=fileURLToPath(new URL('..',import.meta.url)),g=new Game({random:()=>.27,hitRecovery:process.env.HIT_RECOVERY_PROFILE||'baseline'}),p=g.add('local','Feel regression','T');g.begin();g.time=10;g.buy(p.id,'ak47');Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});
 let browser,timer,joined=false,closed=false,busy=false,previous=performance.now(),accumulator=0,tick=0,blocked=false,heldEvents=[];
 const report={scope:'Production client and offline Game, native isolated headless Chrome; synthetic browser mouse/wheel events and deliberately held outgoing confirmation. Not physical mouse-to-photon or retail-CS timing.',errors:[]};
 try{
  await mkdir(new URL('../artifacts/',import.meta.url),{recursive:true});
  browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling']});
- const page=await browser.newPage({viewport:{width:1280,height:800}});page.on('pageerror',e=>report.errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:1280,height:800}});page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|WebGLProgram|GL_INVALID/i.test(m.text()))report.errors.push(m.text());});
  await page.exposeFunction('toGame',m=>{if(m.type==='join'){if(m.grenadeProtocol)g.enableGrenadeIntents(p.id);joined=true;previous=performance.now();return [{type:'joined',id:p.id},g.snapshot(p.id)];}if(m.type==='inputBatch'||m.type==='inputCritical')g.inputBatch(p.id,m.commands);else if(m.type==='input')g.input(p.id,m.input);else if(m.type==='equip')g.equip(p.id,m.weapon);else if(m.type==='secondary')g.secondary(p.id);else if(m.type==='ping')return[{type:'pong',sent:m.sent}];return[];});
  await page.addInitScript(()=>{
   window.audit={rows:[],commands:[],marks:[],label:null};
@@ -43,7 +43,7 @@ try{
  // Main weapons use the authoritative punch curve without an extra display tail.
  assert.equal(await page.evaluate(()=>window.lanStrike.getState().ballisticsVersion),1);
  const setup=async weapon=>{
-  joined=false;while(busy)await new Promise(r=>setTimeout(r,2));p.team=GUNS[weapon].teams[0];p.alive=false;g.begin();p.money=16000;g.buy(p.id,weapon);
+  joined=false;while(busy)await new Promise(r=>setTimeout(r,2));p.team=GUNS[weapon].teams[0];p.alive=false;g.begin();p.money=16000;if(p.weapon!==weapon)g.buy(p.id,weapon);
   Object.assign(p,{x:-18.4,z:22,y:supportHeight(-18.4,22,3.3),yaw:0,pitch:0,nextAttackAt:0,recoilSeed:123456});g.endAt=g.time+1000;g.events=[];heldEvents=[];
   await page.evaluate(state=>window.auditSocket.emit(state),g.snapshot(p.id));joined=true;previous=performance.now();
   await page.waitForFunction(weapon=>{const d=window.lanStrike.getDiagnostics();return d.locked&&d.weapon===weapon&&d.weaponModel.id===weapon&&!d.weaponModel.loading;},weapon);
@@ -70,6 +70,25 @@ try{
  assert.equal(await page.evaluate(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).zoom;}),90);
  await page.mouse.down({button:'right'});await page.mouse.up({button:'right'});await page.waitForFunction(()=>!document.querySelector('#scopeOverlay').hidden);
  report.mainWeapons.push({weapon:'awp',scopedShot:true,cameraRecovered:true,manualScopeAfterSwitch:true});
+ report.singleWeapons=[];
+ for(const weapon of ['glock18','usp','deagle','m3','scout','g3sg1']){
+  await setup(weapon);await page.evaluate(weapon=>window.audit.label='single-'+weapon,weapon);await page.mouse.down();await page.waitForTimeout(50);await page.mouse.up();await page.waitForFunction(()=>{const s=window.lanStrike;return s.getState().players.find(p=>p.id===s.getId()).shotsFired>=1;});
+  await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.shotFeedback.recoil?.pitch===0&&d.recoilPitch===0;});
+  const rows=await page.evaluate(()=>window.audit.rows.filter(r=>r.label===window.audit.label));assert.ok(rows.length>0);if(weapon==='glock18')assert.ok(rows.every(r=>r.recoilPitch===0),'Glock preserves its existing zero punch');else assert.ok(rows.some(r=>r.recoilPitch>0),weapon+' produced visible punch');for(const r of rows)if(r.simulated?.weapon===weapon){assert.ok(Math.hypot(r.recoilPitch,r.recoilYaw)<=Math.hypot(r.simulated.pitch,r.simulated.yaw)+1e-10);if(!r.simulated.pitch&&!r.simulated.yaw)assert.equal(r.recoilPitch,0);}report.singleWeapons.push({weapon,recovered:true,noExtraTail:true});
+ }
+ if(process.env.COMBAT_SWEEP==='1'){
+  await setup('ak47');await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);
+  for(const key of ['muzzleLight','landing','shells','gunSmoke'])await page.locator(`[data-presentation="${key}"]`).check();await page.selectOption('[data-presentation="bob"]','classic');await page.locator('#audioOcclusion').check();await page.locator('#audioEnvironment').check();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked&&window.lanStrike.getDiagnostics().weaponCosmetics.light.pending===0);assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().weaponCosmetics.light.failures),0);
+  for(const material of ['concrete','wood','metal','glass','dirt']){
+   const from={x:p.x,y:p.y+1.32,z:p.z},hit=trace(from,{...from,z:from.z-22}),event={type:'shot',id:'effect-fixture',weapon:'ak47',round:g.round,shotId:'surface-'+material,shotOrdinal:1,from,to:hit.end,hit:false,impact:{position:hit.end,normal:{x:hit.normal[0],y:hit.normal[1],z:hit.normal[2]},material,soundSurface:{material,texture:'fixture'}}};await page.evaluate(e=>window.auditSocket.emit({type:'events',events:[e]}),event);await page.waitForFunction(material=>window.lanStrike.getDiagnostics().shotEffects.material===(material==='concrete'?'stone':material),material);if(material==='metal')assert.ok(await page.evaluate(()=>window.lanStrike.getDiagnostics().shotEffects.sparks>0));await page.screenshot({path:'artifacts/sweep-impact-'+material+'.png'});
+  }
+  report.optionalEffects=await page.evaluate(()=>window.lanStrike.getDiagnostics().weaponCosmetics);await page.mouse.down();await page.waitForTimeout(100);await page.mouse.up();assert.ok(await page.evaluate(()=>window.lanStrike.getDiagnostics().weaponCosmetics.shells>0));
+  for(const enabled of [true,false]){
+   await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);await page.locator('[data-presentation="landing"]').setChecked(enabled);await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);
+   joined=false;while(busy)await new Promise(r=>setTimeout(r,2));Object.assign(p,{x:-12,z:12,y:supportHeight(-12,12,3.3)+4,vx:0,vy:0,vz:0,grounded:false,recoilPitch:0,recoilYaw:0,nextAttackAt:0});g.events=[];heldEvents=[];await page.evaluate(s=>{window.auditSocket.emit(s);window.audit.landingTrace=[];const end=performance.now()+2500;function sample(){const d=window.lanStrike.getDiagnostics(),p=window.lanStrike.getState().players.find(p=>p.id===window.lanStrike.getId());window.audit.landingTrace.push({roll:d.viewRoll,landing:d.landing,local:d.localPosition,vy:d.localVelocity.y,grounded:p.grounded,fall:p.landedSpeed,alive:p.alive});if(performance.now()<end)requestAnimationFrame(sample);}requestAnimationFrame(sample);},g.snapshot(p.id));joined=true;previous=performance.now();try{if(enabled){await page.waitForFunction(()=>Math.abs(window.lanStrike.getDiagnostics().viewRoll)>.0001);assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().recoilPitch),0);}}catch(error){report.landingFailure=await page.evaluate(()=>({trace:window.audit.landingTrace,settings:window.lanStrike.getDiagnostics().presentation}));throw error;}await page.waitForTimeout(1000);assert.ok(Math.abs(await page.evaluate(()=>window.lanStrike.getDiagnostics().viewRoll))<1e-10);assert.equal(p.grounded,true);
+  }
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().gameMenuOpen);await page.locator('[data-presentation="rawMouse"]').check();await page.click('#resumeButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);report.rawInput=await page.evaluate(()=>window.lanStrike.getDiagnostics().pointerInput);assert.notEqual(report.rawInput.mode,'failed');
+ }
  assert.deepEqual(report.errors,[]);report.status='passed';
 }catch(e){report.status='failed';report.failure=e.stack;console.error(e);process.exitCode=1;}
-finally{closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/feel-regression-browser-report'+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+'.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,summary:report.summary,mainWeapons:report.mainWeapons,errors:report.errors,failure:report.failure},null,2));}
+finally{closed=true;clearInterval(timer);await browser?.close();await writeFile(new URL('../artifacts/feel-regression-browser-report'+(process.env.CAMERA_TEST_TAG?'-'+process.env.CAMERA_TEST_TAG:'')+'.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,summary:report.summary,mainWeapons:report.mainWeapons,singleWeapons:report.singleWeapons,optionalEffects:report.optionalEffects,rawInput:report.rawInput,errors:report.errors,failure:report.failure},null,2));}

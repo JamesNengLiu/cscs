@@ -1,6 +1,6 @@
 // Persistence is opt-in: the mixer itself never accesses browser storage.
 export const AUDIO_SETTINGS_KEY='lan-strike.audio.v1';
-export const DEFAULT_AUDIO_SETTINGS=Object.freeze({master:.28,effects:1,voice:1,spatialMode:'hrtf',enabled:true});
+export const DEFAULT_AUDIO_SETTINGS=Object.freeze({master:.28,effects:1,voice:1,spatialMode:'hrtf',enabled:true,occlusion:false,environment:false});
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value)?value:{};
 export function normalizeAudioSettings(value={},base=DEFAULT_AUDIO_SETTINGS){
   value=object(value);base={...DEFAULT_AUDIO_SETTINGS,...object(base)};
@@ -12,6 +12,7 @@ export function normalizeAudioSettings(value={},base=DEFAULT_AUDIO_SETTINGS){
   result.spatialMode=['hrtf','equalpower'].includes(value.spatialMode)?value.spatialMode:
     ['hrtf','equalpower'].includes(base.spatialMode)?base.spatialMode:'hrtf';
   result.enabled=typeof value.enabled==='boolean'?value.enabled:typeof base.enabled==='boolean'?base.enabled:true;
+  for(const key of ['occlusion','environment'])result[key]=typeof value[key]==='boolean'?value[key]:typeof base[key]==='boolean'?base[key]:false;
   return result;
 }
 function defaultStorage(){try{return globalThis.localStorage;}catch{return null;}}

@@ -44,6 +44,10 @@
       <p id="scopedSensitivityHelp" class="menu-help">0.10×–5.00×，相对于普通鼠标灵敏度；在武器开镜时生效，默认 1.00×。</p>
       <div class="sensitivity-footer"><small id="mouseSettingsStatus" role="status" aria-live="polite"></small><button id="resetMouseSettings" class="secondary" type="button">恢复默认灵敏度</button></div>
     </fieldset>
+    <fieldset class="menu-section"><legend>鼠标输入与标定</legend>
+      <label><input type="checkbox" data-presentation="rawMouse">请求原始鼠标输入（不支持时回退）</label><small id="rawMouseStatus"></small>
+      <label>DPI 标定值（0 表示未填写，仅用于估算）<input type="number" min="0" max="64000" step="50" data-presentation="dpi"></label><small id="mouseCalibration"></small>
+    </fieldset>
     <fieldset class="menu-section"><legend>持枪与操作</legend>
       <label for="weaponHand">持枪方向<select id="weaponHand" aria-describedby="weaponHandHelp"><option value="right">右手持枪</option><option value="left">左手持枪</option></select></label>
       <p id="weaponHandHelp" class="menu-help">切换持枪手，准星和开镜保持居中。</p><small id="weaponHandStatus" role="status" aria-live="polite"></small>
@@ -57,7 +61,16 @@
       <div class="audio-volume"><label for="audioVoice">无线电与播报 <output id="audioVoiceValue">100%</output></label><input id="audioVoice" type="range" min="0" max="100" step="1" value="100"></div>
       <p class="menu-help">敌人的脚步、枪声和爆炸来自实际声源，随距离衰减、随视角转动改变方向，不依赖是否看见敌人。建议关闭系统/耳机额外的虚拟环绕，避免与 HRTF 重复处理。前后辨位需要双声道耳机，并受设备与个体影响。</p>
       <div class="diagnostics-actions"><button id="testAudioPosition" type="button" class="secondary">方位试听 · 左 / 右 / 前 / 后</button><button id="resetAudioSettings" type="button" class="secondary">恢复默认声音设置</button></div>
+      <label><input type="checkbox" id="audioOcclusion">隔墙柔化（近似，可选，不会静音墙后声音）</label><label><input type="checkbox" id="audioEnvironment">轻微环境尾音（近似，可选）</label>
       <small id="audioSettingsStatus" role="status" aria-live="polite">点击继续游戏或方位试听后启用声音。</small><small id="audioRuntimeStatus"></small>
+    </fieldset>
+    <fieldset class="menu-section"><legend>落地与枪械表现</legend>
+      <label><input type="checkbox" data-presentation="landing">较大落差的轻微落地反馈</label>
+      <label>落地反馈强度<input type="range" min="0" max="1" step="0.05" data-presentation="landingStrength"></label>
+      <label>枪模摆动<select data-presentation="bob"><option value="current">当前轻微摆动</option><option value="classic">经典风格摆动与侧倾</option><option value="off">关闭</option></select></label>
+      <label>经典摆动强度<input type="range" min="0" max="1" step="0.05" data-presentation="bobStrength"></label>
+      <label><input type="checkbox" data-presentation="shells">弹壳</label><label><input type="checkbox" data-presentation="gunSmoke">短促枪口烟</label><label><input type="checkbox" data-presentation="muzzleLight">本机枪口照明（可选）</label>
+      <button id="resetPresentation" type="button" class="secondary">恢复默认表现</button>
     </fieldset>
     <fieldset class="menu-section"><legend>图形与性能</legend>
       <label for="cameraMode">位置镜头响应 · A/B 对比<select id="cameraMode" aria-describedby="cameraModeHelp"><option value="baseline">A · 现有稳定插值</option><option value="responsive">B · 低延迟预览（实验）</option></select></label>

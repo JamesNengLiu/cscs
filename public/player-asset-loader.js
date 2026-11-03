@@ -14,7 +14,7 @@ export function createPlayerAssetLoader({workerFactory=typeof Worker==='function
   }catch(error){finish(job,error);}
  }
  async function inline(job){
-  totals.inlineJobs++;job.stage='inline';try{const result=await preparePlayerAsset(job.request,{yieldTask});if(disposed||active!==job)return;await install(job,result,'inline-fallback');}catch(error){finish(job,error);}
+  totals.inlineJobs++;job.stage='inline';try{const result=await preparePlayerAsset(job.request,{yieldTask,budgetMs,cancelled:()=>disposed||active!==job});if(disposed||active!==job)return;await install(job,result,'inline-fallback');}catch(error){finish(job,error);}
  }
  function disable(cause,current){
   if(current!==worker)return;disabled=String(cause?.message||cause||'Worker failed').slice(0,256);totals.workerFailures++;clearTimer();try{worker?.terminate();}catch{}worker=null;

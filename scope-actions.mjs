@@ -12,12 +12,17 @@ export function applyScopeAwareAction(game,id,message,{onAck=()=>{},onError=()=>
   if(!p||message.round!==game.round||(seq!==0&&!validInputSequence(seq))||seq>p.ackInputSeq+MAX_INPUT_QUEUE||!Array.isArray(message.commands)||message.commands.length>MAX_INPUT_BATCH)throw Error('Invalid weapon input barrier');
   if(message.commands.some(raw=>{const c=normalizeInputCommand(raw,game.round);return !c||c.seq>seq;}))throw Error('Invalid weapon input commands');
   const accepted=[];game.inputBatch(id,message.commands,accepted);game.lagComp?.view(id,accepted,{viewTime:message.viewTime,interpDelayMs:message.interpDelayMs,viewAgeMs:message.viewAgeMs,now:game.time,round:game.round});
-  const action={type:message.type,weapon:message.weapon,round:message.round,...(tracked?{scopeSeq:message.scopeSeq}:{})};
+  const action={type:message.type,weapon:message.weapon,fallbackWeapon:message.fallbackWeapon,round:message.round,...(tracked?{scopeSeq:message.scopeSeq}:{})};
   game.queueInputAction(id,{seq,round:message.round},allowed=>{try{const ack=allowed?applyScopeAwareAction(game,id,action):reply(false);if(ack)onAck(ack);}catch(error){onError(error);}});return null;
  }
  let ok=false;
  if(message.type==='secondary')ok=game.secondary(id);
- else if(message.type==='equip')ok=game.equip(id,message.weapon);
+ else if(message.type==='equip'){
+  ok=game.equip(id,message.weapon);
+  // A thrown grenade or dropped gun may no longer be owned. Preserve the
+  // client's last valid fallback, but only after resolving the ordered Q.
+  if(!ok&&message.weapon==='last'&&typeof message.fallbackWeapon==='string')ok=game.equip(id,message.fallbackWeapon);
+ }
  else if(message.type==='drop')ok=game.drop(id);
  else if(message.type==='reload'){const before=p?.reloadAt||0;game.reload(id);ok=(p?.reloadAt||0)>before;}
  else throw Error('Unknown weapon action');

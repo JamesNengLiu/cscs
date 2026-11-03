@@ -129,10 +129,10 @@ let inputSeq=0,pendingCommands=[],physicsAccumulator=0,correction={x:0,y:0,z:0},
 const socket=new GameConnection({deferStates:true});
 const weaponActionOrder=createWeaponActionOrder(),renderedInputView=createRenderedInputView();let weaponActionProtocol=false,inputViewProtocol=0,combatOrderVersion=0;
 const grenadePrediction=createGrenadePrediction({send:message=>send(message)});
-function canSwitchWeapon(p,key){
+function canSwitchWeapon(p,key,fallback){
   if(!p)return false;
   const owned=ownedWeapons(p,state?.bomb);
-  if(key==='last')key=p.previousWeapon;
+  if(key==='last')key=owned.includes(p.previousWeapon)?p.previousWeapon:fallback;
   if(typeof key==='number'||/^[1-5]$/.test(String(key))){
     const gs=GRENADE_IDS.filter(g=>p.grenades?.[g]>0);
     key=({1:p.primary||(p.shield?p.pistol:null),2:p.pistol,3:'knife',4:gs[(gs.indexOf(p.weapon)+1)%gs.length],5:owned.includes('c4')?'c4':null})[key];
@@ -140,7 +140,7 @@ function canSwitchWeapon(p,key){
   return owned.includes(key)&&key!==p.weapon;
 }
 function weaponActionContext(){return {supported:weaponActionProtocol,round:state?.round,seq:inputSeq,ack:player()?.ackInputSeq||0,commands:pendingCommands,firePending:inputSampler.diagnostics().pendingPresses.includes('fire'),active:locked&&player()?.alive&&allowsPlayerActions(state?.phase),viewTime:snapshotBuffer.diagnostics().playbackTimeMs/1000,interpDelayMs:snapshotBuffer.diagnostics().delayMs};}
-function transmit(m){if(socket.readyState===WebSocket.OPEN){if(isWeaponAction(m.type))m=awpView.intent(m,player(),{round:state?.round,stateTime:serverTime(),phase:state?.phase,canSwitch:m.type==='equip'&&canSwitchWeapon(player(),m.weapon)});if(m.type==='ping')networkDiagnostics.ping(m.sent);socket.send(JSON.stringify(m));networkDiagnostics.queues(socket.bufferedAmount);}}
+function transmit(m){if(socket.readyState===WebSocket.OPEN){if(isWeaponAction(m.type))m=awpView.intent(m,player(),{round:state?.round,stateTime:serverTime(),phase:state?.phase,canSwitch:m.type==='equip'&&canSwitchWeapon(player(),m.weapon,m.fallbackWeapon)});if(m.type==='ping')networkDiagnostics.ping(m.sent);socket.send(JSON.stringify(m));networkDiagnostics.queues(socket.bufferedAmount);}}
 function send(m){if(socket.readyState!==WebSocket.OPEN)return;if(weaponActionProtocol&&isWeaponAction(m.type))m=weaponActionOrder.prepare(m,weaponActionContext());if(m)transmit(m);}
 function flushWeaponActions(){for(const m of weaponActionOrder.flush(weaponActionContext()))transmit(m);}
 function notify(text,seconds=3){$('notice').textContent=text;noticeUntil=performance.now()+seconds*1000;}
@@ -301,7 +301,8 @@ document.addEventListener('keydown',e=>{
   const weapon={Digit1:1,Digit2:2,Digit3:3,Digit4:4,Digit5:5}[e.code];if(weapon&&!e.repeat)send({type:'equip',weapon});
   if(e.code==='KeyG'&&!e.repeat)send({type:'drop'});
   if(e.code==='KeyN'&&!e.repeat)send({type:'nightvision'});
-  if(e.code==='KeyQ'&&!e.repeat&&lastWeapon&&ownedWeapons(player(),state?.bomb).includes(lastWeapon))send({type:'equip',weapon:lastWeapon});
+  // Resolve each Q against the preceding ordered switch, even before its snapshot arrives.
+  if(e.code==='KeyQ'&&!e.repeat&&player()?.alive)send({type:'equip',weapon:'last',fallbackWeapon:lastWeapon});
   if(locked&&!e.repeat)queueInputEdge();
 });
 document.addEventListener('keyup',e=>{keys.delete(e.code);queueInputEdge();if(e.code==='Tab'){$('board').hidden=true;e.preventDefault();}});

@@ -19,6 +19,31 @@ function fixture(weapon='awp'){
 }
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 
+for(const separateInputs of [false,true])for(const first of ['last',3])test(`quick return resolves after the preceding switch: ${first}, separate inputs ${separateInputs}`,()=>{
+ const f=fixture(),{g,p,q}=f;g.equip(p.id,'knife');g.equip(p.id,'awp');p.zoom=40;p.nextAttackAt=0;
+ f.dispatch(f.action(1,{weapon:first,scopeSeq:1}));
+ f.dispatch(f.action(separateInputs?2:1,{weapon:'last',scopeSeq:2,commands:[f.command(separateInputs?2:1,separateInputs?{fire:false}:{})]}));
+ assert.equal(p.weapon,'awp');assert.equal(f.acks.length,0);
+ g.step();if(separateInputs){assert.equal(p.weapon,'knife');g.step();}
+ assert.equal(p.weapon,'awp');assert.equal(p.ammo,9);assert.equal(f.shots(),1);assert.equal(q.hp,886);
+ assert.deepEqual(f.acks.map(a=>a.weapon),['knife','awp']);assert.ok(f.acks.every(a=>a.ok));assert.deepEqual(f.errors,[]);
+ assert.equal(p.zoom,90);assert.equal(p.resumeZoomAt,0);assert.ok(p.nextShotAt>g.time);
+ g.inputBatch(p.id,[f.command(separateInputs?3:2)]);g.step();assert.equal(f.shots(),1);assert.equal(p.ammo,9);
+});
+
+test('Q fallback survives an exhausted grenade and is re-evaluated after each queued switch',()=>{
+ const f=fixture(),{g,p}=f;g.equip(p.id,'hegrenade');p.grenades.hegrenade=0;g.equip(p.id,'awp');p.nextAttackAt=0;
+ f.dispatch(f.action(1,{weapon:'last',fallbackWeapon:p.pistol,scopeSeq:1}));
+ f.dispatch(f.action(1,{weapon:'last',fallbackWeapon:p.pistol,scopeSeq:2}));g.step();
+ assert.deepEqual(f.acks.map(a=>a.weapon),[p.pistol,'awp']);assert.ok(f.acks.every(a=>a.ok));assert.equal(p.ammo,9);assert.equal(f.shots(),1);
+});
+
+for(const fallbackWeapon of ['ak47',3,{},'hegrenade'])test(`Q fallback cannot equip unowned or invalid weapons: ${JSON.stringify(fallbackWeapon)}`,()=>{
+ const f=fixture(),{g,p}=f;g.equip(p.id,'hegrenade');p.grenades.hegrenade=0;g.equip(p.id,'awp');p.nextAttackAt=0;
+ f.dispatch(f.action(1,{weapon:'last',fallbackWeapon,scopeSeq:1}));g.step();
+ assert.equal(p.weapon,'awp');assert.equal(f.acks[0].ok,false);assert.equal(p.ammo,9);assert.equal(f.shots(),1);
+});
+
 for(const weapon of ['ak47','m4a1','aug','sg552','galil','famas','mp5navy','p90'])test(`${weapon} first shot also survives an immediate switch`,()=>{
  const f=fixture(weapon);f.dispatch(f.action(1,{scopeSeq:undefined}));f.g.step();assert.equal(f.shots(),1);assert.equal(f.p.inventory[weapon].ammo,GUNS[weapon].clip-1);assert.ok(f.q.hp<1000);assert.equal(f.p.weapon,'knife');
 });

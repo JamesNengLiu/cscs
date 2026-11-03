@@ -224,7 +224,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
   try { manifest = await loadWeaponManifest(); }
   catch (error) { manifestError = String(error.message || error); }
   let id = null, active = null, placeholder = null, generation = 0, pending = null, error = null, disposed = false;
-  let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0, soundFrame=-1;
+  let sequence = null, elapsed = 0, frame = 0, idle = null, previous = {}, explicitKey = null, skin = 0, body = 0, soundFrame=-1,deployAt=-Infinity;
   const find = pattern => active?.data.sequences.find(s => s.tracks && pattern.test(s.name));
   function start(s) { sequence = s || idle; elapsed = 0; frame = 0;soundFrame=-1; }
   function removeCurrent() {
@@ -247,7 +247,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
     const ticket = ++generation;
     removeCurrent();
     previous = {}; explicitKey = null; sequence = idle = null; frame = elapsed = skin = body = 0;
-    error = null;
+    error = null;deployAt=-Infinity;
     muzzle.visible = false;
     muzzle.position.set(0, 0, -0.43);
     pending=null;
@@ -300,10 +300,13 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
       const variant=['m4a1','usp'].includes(id)&&!state.silenced?'_unsil':'';
       const named=name=>active.data.sequences.find(s=>s.tracks&&s.name===name);
       idle=named('idle'+variant)||named('idle1')||find(/^idle/i);
+      const newDeploy=state.weaponDeployToken!=null&&state.weaponDeployToken!==previous.weaponDeployToken;
+      if(newDeploy)deployAt=Number.isFinite(state.weaponDeployAt)?state.weaponDeployAt:time;
       const shot=state.weaponShotToken!=null
-        ?state.weaponShotToken!==previous.weaponShotToken&&Number.isFinite(time)&&Number.isFinite(state.weaponShotAt)&&time-state.weaponShotAt>=0&&time-state.weaponShotAt<.15
+        ?state.weaponShotToken!==previous.weaponShotToken&&Number.isFinite(time)&&Number.isFinite(state.weaponShotAt)&&time-state.weaponShotAt>=0&&time-state.weaponShotAt<.15&&(!state.weaponLocalClock||state.weaponShotAt>=deployAt)
         :Number.isFinite(state.lastShot)&&Number.isFinite(previous.lastShot)&&state.lastShot>previous.lastShot;
-      if(previous.silenced!==undefined&&previous.silenced!==state.silenced&&['m4a1','usp'].includes(id))start(named(state.silenced?'add_silencer':'detach_silencer'));
+      if(newDeploy)start(named('draw'+variant)||find(/^(draw|deploy)/i)||idle);
+      else if(previous.silenced!==undefined&&previous.silenced!==state.silenced&&['m4a1','usp'].includes(id))start(named(state.silenced?'add_silencer':'detach_silencer'));
       else if(previous.silenced===undefined&&variant)start(named('draw'+variant)||find(/^(draw|deploy)/i));
       else if(id==='shield'&&previous.shieldRaised!==state.shieldRaised)start(named(state.shieldRaised?'shield_up':'shield_down'));
       else if(id==='c4'&&state.action==='plant'&&previous.action!=='plant')start(named('pressbutton'));
@@ -316,7 +319,7 @@ export async function createWeaponView(THREE, camera, {skinning = 'gpu',onSound=
         else if(state.reloadAt!==previous.reloadAt)start(named('insert'));
       }else if(reloading&&!previous.reloading)start(named('reload'+variant)||find(/^reload/i));
       else if(!reloading&&previous.reloading&&['m3','xm1014'].includes(id))start(named('after_reload'));
-      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,weaponShotToken:state.weaponShotToken,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
+      previous = {reloading, ammo: state.ammo, lastShot: state.lastShot,weaponShotToken:state.weaponShotToken,weaponDeployToken:state.weaponDeployToken,reloadAt:state.reloadAt,silenced:state.silenced,shieldRaised:state.shieldRaised,action:state.action};
     }
     explicitKey = key;
     // Arrival jitter can regress the estimated server clock. An unchanged

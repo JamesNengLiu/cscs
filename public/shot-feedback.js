@@ -43,7 +43,8 @@ export function createShotFeedback({maxAgeMs=1200}={}){
       cursor=at;const w=GUNS[copy.weapon];
       if(copy.resumeZoomAt&&at>=copy.resumeZoomAt){copy.zoom=copy.resumeZoom||90;copy.resumeZoomAt=0;}
       if(copy.reloadAt&&at+1e-8>=copy.reloadAt&&w){const n=Math.min(w.clip-copy.ammo,copy.reserve,w.reloadStyle==='per-shell'?1:Infinity);copy.ammo+=n;copy.reserve-=n;copy.reloadAt=w.reloadStyle==='per-shell'&&copy.ammo<w.clip&&copy.reserve>0?copy.reloadAt+w.reload:0;}
-      if(copy.alive&&!copy.shieldRaised){
+      if(c.switchBlocked)copy.burstRemaining=0;
+      if(copy.alive&&!copy.shieldRaised&&!c.switchBlocked){
         if(copy.burstRemaining>0&&at+1e-8>=copy.nextBurstAt){const p=consumeGunShot(copy,at,true,()=>.5);if(p){copy.burstRemaining--;shots.push(remember(copy,c,true,p));}else copy.burstRemaining=0;copy.nextBurstAt=at+.1;}
         if(c.input.fire&&!copy.action&&(w?.automatic||copy.burstMode||!copy.fireHeld)){const p=consumeGunShot(copy,at,false,()=>.5);if(p)shots.push(remember(copy,c,false,p));}
       }
@@ -69,11 +70,11 @@ export function createShotFeedback({maxAgeMs=1200}={}){
       }
       lastAuth=Math.max(lastAuth,ordinal);rebuild(player,stateTime);return result;
     },
-    sample({player,pose,input,seq,round:currentRound,time,stateTime=time,fixedStep=false,nowMs,allowed}){
+    sample({player,pose,input,seq,round:currentRound,time,stateTime=time,fixedStep=false,nowMs,allowed,switchBlocked=false}){
       identity(player,currentRound);prune(nowMs);
       if(!allowed||!player?.alive||!GUNS[player.weapon]||player.shieldRaised){view=null;return null;}
       if(!Number.isSafeInteger(seq)||seq<=0||!Number.isFinite(stateTime)||(!fixedStep&&!Number.isFinite(time))||history.some(c=>c.seq===seq))return null;
-      history.push({seq,round:currentRound,input:{...input},pose:poseCopy(pose||player),time,at:nowMs,fixed:fixedStep});
+      history.push({seq,round:currentRound,input:{...input},pose:poseCopy(pose||player),time,at:nowMs,fixed:fixedStep,switchBlocked});
       const shots=rebuild(player,stateTime),fresh=shots.find(s=>s.seq===seq&&!s.played);
       if(!fresh)return null;const result=present(fresh,nowMs);if(result)predicted++;return result;
     },

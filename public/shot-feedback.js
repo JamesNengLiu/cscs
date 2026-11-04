@@ -1,6 +1,8 @@
 import {GUNS} from './arsenal.js';
+import {WEAPONS} from './config.js';
 import {updateWeapon} from './weapons.js';
 import {consumeGunShot} from './gun-state.js';
+import {decayPunch} from './weapon-feel.js';
 import {INPUT_DT,MAX_INPUT_QUEUE} from './input-protocol.js';
 const POSE=['x','y','z','yaw','pitch','vx','vy','vz','grounded','groundPlayer','crouch','duckAmount','walk'];
 const poseCopy=p=>Object.fromEntries(POSE.filter(k=>p?.[k]!==undefined).map(k=>[k,p[k]]));
@@ -13,7 +15,9 @@ export function createShotFeedback({maxAgeMs=1200}={}){
   function reset(){history=[];pending=[];known.clear();confirmed.clear();canceled=[];weapon=round=null;view=lastVisual=null;lastAuth=0;}
   function identity(player,currentRound){
     if(round!==currentRound){reset();round=currentRound;}
-    if(weapon!==player?.weapon){history=[];pending=[];view=lastVisual=null;weapon=player?.weapon;}
+    // Commands also carry the recoil clock. A switch retires gun-specific
+    // presentation, but must not rewind that clock to an older snapshot.
+    if(weapon!==player?.weapon){pending=[];view=lastVisual=null;weapon=player?.weapon;}
   }
   function prune(now){
     history=history.filter(c=>now-c.at<=maxAgeMs);
@@ -39,12 +43,12 @@ export function createShotFeedback({maxAgeMs=1200}={}){
       const c=history[i],at=c.fixed?stateTime+(i+1)*INPUT_DT:Math.max(cursor,c.time);
       Object.assign(copy,c.pose);copy.input=c.input;
       // Decay uses bounded simulation-sized steps even in legacy sparse callers.
-      let elapsed=Math.max(0,at-cursor);while(elapsed>1e-8){const dt=Math.min(INPUT_DT,elapsed);updateWeapon(copy,dt,at-elapsed+dt);elapsed-=dt;}
+      let elapsed=Math.max(0,at-cursor);while(elapsed>1e-8){const dt=Math.min(INPUT_DT,elapsed);if(GUNS[copy.weapon])updateWeapon(copy,dt,at-elapsed+dt);else decayPunch(copy,dt);elapsed-=dt;}
       cursor=at;const w=GUNS[copy.weapon];
       if(copy.resumeZoomAt&&at>=copy.resumeZoomAt){copy.zoom=copy.resumeZoom||90;copy.resumeZoomAt=0;}
       if(copy.reloadAt&&at+1e-8>=copy.reloadAt&&w){const n=Math.min(w.clip-copy.ammo,copy.reserve,w.reloadStyle==='per-shell'?1:Infinity);copy.ammo+=n;copy.reserve-=n;copy.reloadAt=w.reloadStyle==='per-shell'&&copy.ammo<w.clip&&copy.reserve>0?copy.reloadAt+w.reload:0;}
       if(c.switchBlocked)copy.burstRemaining=0;
-      if(copy.alive&&!copy.shieldRaised&&!c.switchBlocked){
+      if(w&&c.weapon===copy.weapon&&copy.alive&&!copy.shieldRaised&&!c.switchBlocked){
         if(copy.burstRemaining>0&&at+1e-8>=copy.nextBurstAt){const p=consumeGunShot(copy,at,true,()=>.5);if(p){copy.burstRemaining--;shots.push(remember(copy,c,true,p));}else copy.burstRemaining=0;copy.nextBurstAt=at+.1;}
         if(c.input.fire&&!copy.action&&(w?.automatic||copy.burstMode||!copy.fireHeld)){const p=consumeGunShot(copy,at,false,()=>.5);if(p)shots.push(remember(copy,c,false,p));}
       }
@@ -72,9 +76,9 @@ export function createShotFeedback({maxAgeMs=1200}={}){
     },
     sample({player,pose,input,seq,round:currentRound,time,stateTime=time,fixedStep=false,nowMs,allowed,switchBlocked=false}){
       identity(player,currentRound);prune(nowMs);
-      if(!allowed||!player?.alive||!GUNS[player.weapon]||player.shieldRaised){view=null;return null;}
+      if(!allowed||!player?.alive||!Object.hasOwn(WEAPONS,player.weapon)||player.shieldRaised){view=null;return null;}
       if(!Number.isSafeInteger(seq)||seq<=0||!Number.isFinite(stateTime)||(!fixedStep&&!Number.isFinite(time))||history.some(c=>c.seq===seq))return null;
-      history.push({seq,round:currentRound,input:{...input},pose:poseCopy(pose||player),time,at:nowMs,fixed:fixedStep,switchBlocked});
+      history.push({seq,round:currentRound,weapon:player.weapon,input:{...input},pose:poseCopy(pose||player),time,at:nowMs,fixed:fixedStep,switchBlocked});
       const shots=rebuild(player,stateTime),fresh=shots.find(s=>s.seq===seq&&!s.played);
       if(!fresh)return null;const result=present(fresh,nowMs);if(result)predicted++;return result;
     },

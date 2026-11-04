@@ -145,6 +145,21 @@ async function checkClient(browser){
   await page.locator('[data-item="smokegrenade"]').click();
   assert.ok(await page.evaluate(()=>window.clientSent.some(m=>m.type==='buy'&&m.item==='smokegrenade')));
   assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().money),10000);
+  await page.evaluate(()=>document.addEventListener('contextmenu',e=>window.buyContextPrevented=e.defaultPrevented));
+  for(const selector of ['[data-item="smokegrenade"]','[data-item="hegrenade"]','.buy-column-title']){
+    const count=await page.evaluate(()=>window.clientSent.filter(m=>['buy','secondary'].includes(m.type)).length);
+    // Native right-clicks also reach disabled cards; locator.click would wait
+    // for them to become enabled, hiding precisely that UI case.
+    const box=await page.locator(selector).first().boundingBox();assert.ok(box);
+    await page.mouse.click(box.x+box.width/2,box.y+box.height/2,{button:'right'});
+    await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return d.locked&&!d.buyMenuOpen&&!d.gameMenuOpen&&document.pointerLockElement===document.getElementById('game');});
+    assert.equal(await page.evaluate(()=>window.buyContextPrevented),true);
+    assert.equal(await page.evaluate(()=>window.clientSent.filter(m=>['buy','secondary'].includes(m.type)).length),count,'closing click must not buy or trigger a secondary attack');
+    assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().input.fire),false);
+    await page.keyboard.press('KeyB');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().buyMenuOpen&&!document.pointerLockElement);
+  }
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>{const d=window.lanStrike.getDiagnostics();return !d.buyMenuOpen&&d.gameMenuOpen;});
+  await page.click('#openBuyButton');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().buyMenuOpen);
   await page.click('#buyResume');await page.waitForFunction(()=>window.lanStrike.getDiagnostics().locked);
   assert.equal(await page.evaluate(()=>window.lanStrike.getDiagnostics().input.fire),false);
   for(const key of ['Digit1','Digit2','Digit3','Digit4','Digit5','KeyR','KeyG'])await page.keyboard.press(key);
@@ -156,7 +171,8 @@ async function checkClient(browser){
   assert.ok(sent.some(m=>m.type==='equip'&&m.weapon==='flashbang'));
   assert.ok(!sent.some(m=>m.type==='equip'&&['rifle','pistol','sniper'].includes(m.weapon)));
   await page.evaluate(()=>{window.clientSnapshot.players[0].weapon='glock18';window.fixtureWS.emit(window.clientSnapshot);});
-  await page.keyboard.press('KeyQ');assert.ok(await page.evaluate(()=>window.clientSent.some(m=>m.type==='equip'&&m.weapon==='ak47')));
+  // Q uses the ordered relative-switch protocol; the owned last gun is fallback.
+  await page.keyboard.press('KeyQ');assert.ok(await page.evaluate(()=>window.clientSent.some(m=>m.type==='equip'&&m.weapon==='last'&&m.fallbackWeapon==='ak47')));
   await page.evaluate(()=>{window.clientSnapshot.players[0].weapon='awp';window.clientSnapshot.players[0].zoom=40;window.fixtureWS.emit(window.clientSnapshot);});
   await page.waitForFunction(()=>Math.abs(window.lanStrike.getDiagnostics().fov-2*Math.atan(Math.tan(40*Math.PI/360)/(4/3))*180/Math.PI)<1e-8);assert.equal(await page.locator('#scopeOverlay').isVisible(),true);
   await page.keyboard.press('KeyB');await page.waitForFunction(()=>!document.pointerLockElement);
@@ -175,5 +191,5 @@ async function checkClient(browser){
   assert.ok(await page.evaluate(()=>window.lanStrike.getDiagnostics().weaponModel.source));
   assert.ok(idleFrames>0);assert.deepEqual(errors,[]);
   await page.close();
-  console.log('PASS real client with intercepted snapshots: static lobby rendering, pointer lock/shop transitions, neutral held input, inventory intents, Q/wheel, zoom, local-only unlocked flash decay, smoke and model diagnostics');
+  console.log('PASS real client with intercepted snapshots: static lobby rendering, pointer lock/shop transitions, right-click resume over enabled/disabled cards and headings without purchase/secondary leakage, neutral held input, inventory intents, Q/wheel, zoom, local-only unlocked flash decay, smoke and model diagnostics');
 }

@@ -256,7 +256,10 @@ document.addEventListener('pointerlockerror',()=>{if(!pointerInput.inflight&&doc
 document.addEventListener('mousemove',e=>{if(locked&&!document.hidden&&$('resume').hidden){if(!pointerInput.observe(e.movementX,e.movementY))return;const p=player(),viewPlayer=p?.weapon==='awp'?{alive:p.alive,weapon:p.weapon,zoom:awpView.zoom(p,{stateTime:serverTime()})}:p;const factor=mouseTurnFactor(mouseSettings,scopedSettings,viewPlayer);yaw-=e.movementX*factor;pitch=clamp(pitch-e.movementY*factor,-PITCH_LIMIT,PITCH_LIMIT);}});
 document.addEventListener('mousedown',e=>{if(!locked||shop.isOpen||!$('resume').hidden)return;if(e.button===0&&!mouseFire){mouseFire=true;grenadePrediction.press(player(),{round:lastRound,stateTime:serverTime(),phase:state?.phase,yaw,pitch});queueInputEdge();sceneDirty=true;}if(e.button===2){e.preventDefault();send({type:'secondary'});}});
 document.addEventListener('mouseup',e=>{if(e.button===0){mouseFire=false;grenadePrediction.release({yaw,pitch});queueInputEdge();sceneDirty=true;}});
-document.addEventListener('contextmenu',e=>{if(locked)e.preventDefault();});
+document.addEventListener('contextmenu',e=>{
+  if(shop.isOpen){e.preventDefault();resumeGame();}
+  else if(locked)e.preventDefault();
+});
 document.addEventListener('wheel',e=>{if(!locked||shop.isOpen||!$('resume').hidden)return;e.preventDefault();if(!e.deltaY||!player()?.alive)return;
   if(e.deltaY>0){inputSampler.wheel(input());return;}
   if(performance.now()-wheelAt<150)return;wheelAt=performance.now();

@@ -1,0 +1,1227 @@
+{
+  "scope": "Independent C++: fixed ReGameDLL PM_CheckParameters; ReHLDS v_angle copy; AK vector addition and GoldSrc basis. Alive, stationary, no movement. Numeric inputs/outputs only; not a retail-client recording.",
+  "sources": [
+    "https://github.com/rehlds/ReGameDLL_CS/tree/4a50c42e85fd3778c2b7d24731c7d30c83bbab01",
+    "https://github.com/rehlds/ReHLDS/blob/master/rehlds/engine/sv_user.cpp"
+  ],
+  "referenceProgramSHA256": "b1d3214a0410919e63aa368f959f0cab25bde73c6c6c9a8329a481b53136728f",
+  "cases": [
+    {
+      "yaw": 0,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -1.5199999911110522,
+        "rayYaw": 0.0,
+        "direction": {
+          "x": -0.0026483470623143925,
+          "y": -0.9988578432788163,
+          "z": -0.04770739123269436
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": -1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -1.4538041927399337,
+        "rayYaw": -0.02482332452062858,
+        "direction": {
+          "x": 0.02908360196620978,
+          "y": -0.9929147648082726,
+          "z": -0.11521464282982358
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -1.3265253326584308,
+        "rayYaw": 0.05888355696608799,
+        "direction": {
+          "x": -0.003928380267829848,
+          "y": -0.9762559268102617,
+          "z": -0.2165847021290013
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -0.6000000070036828,
+        "rayYaw": 0.0,
+        "direction": {
+          "x": -0.0026483470623143448,
+          "y": -0.5671721504163748,
+          "z": -0.8235950085144412
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": -0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -0.5338043417906188,
+        "rayYaw": -0.02482332452062858,
+        "direction": {
+          "x": 0.047557175604505515,
+          "y": -0.509316863531757,
+          "z": -0.8592640150563132
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -0.4065254817091158,
+        "rayYaw": 0.05888355696608799,
+        "direction": {
+          "x": -0.0446166103686354,
+          "y": -0.41923522961319104,
+          "z": -0.9067806682601853
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.0,
+        "rayYaw": 0.0,
+        "direction": {
+          "x": -0.0026483470623143344,
+          "y": -0.0030706458365187257,
+          "z": -0.9999917786621969
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.06619569850257767,
+        "rayYaw": -0.02482332452062858,
+        "direction": {
+          "x": 0.05096604035566881,
+          "y": 0.06533668482786877,
+          "z": -0.9965608763874729
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.19347455858408066,
+        "rayYaw": 0.05888355696608799,
+        "direction": {
+          "x": -0.049215796298536334,
+          "y": 0.16659233860260314,
+          "z": -0.9847968308811806
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.6000000070036828,
+        "rayYaw": 0.0,
+        "direction": {
+          "x": -0.0026483470623143448,
+          "y": 0.562103523701355,
+          "z": -0.8270626426700445
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.6661956722167469,
+        "rayYaw": -0.02482332452062858,
+        "direction": {
+          "x": 0.04572580702138298,
+          "y": 0.6171661940984329,
+          "z": -0.7855030486473612
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.7934745322982498,
+        "rayYaw": 0.05888355696608799,
+        "direction": {
+          "x": -0.033545236399809795,
+          "y": 0.6942243545552353,
+          "z": -0.718976538321834
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 1.5199999911110522,
+        "rayYaw": 0.0,
+        "direction": {
+          "x": -0.0026483470623143925,
+          "y": 0.9985460223027717,
+          "z": -0.05384076152089787
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 1.5861957894821708,
+        "rayYaw": -0.02482332452062858,
+        "direction": {
+          "x": 0.025844366226298154,
+          "y": 0.9995496491235151,
+          "z": 0.015250169553775254
+        }
+      }
+    },
+    {
+      "yaw": 0,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 1.7134746495636737,
+        "rayYaw": 0.05888355696608799,
+        "direction": {
+          "x": 0.015654103529175477,
+          "y": 0.9931732201403873,
+          "z": 0.11559370155277397
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -1.5199999911110522,
+        "rayYaw": 0.6999999083024224,
+        "direction": {
+          "x": -0.03275950961442669,
+          "y": -0.9988578432788163,
+          "z": -0.034782516444531675
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -1.4538041927399337,
+        "rayYaw": 0.6751765837817938,
+        "direction": {
+          "x": -0.05197893519925254,
+          "y": -0.9929147648082726,
+          "z": -0.10685719499071945
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -1.3265253326584308,
+        "rayYaw": 0.7588834652685104,
+        "direction": {
+          "x": -0.14253227189521347,
+          "y": -0.9762559268102617,
+          "z": -0.16312239832783798
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -0.6000000070036828,
+        "rayYaw": 0.6999999083024224,
+        "direction": {
+          "x": -0.5325999815597958,
+          "y": -0.5671721504163748,
+          "z": -0.628214144567416
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -0.5338043417906188,
+        "rayYaw": 0.6751765837817938,
+        "direction": {
+          "x": -0.5171792792225979,
+          "y": -0.509316863531757,
+          "z": -0.6878385898341033
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -0.4065254817091158,
+        "rayYaw": 0.7588834652685104,
+        "direction": {
+          "x": -0.61828874984132,
+          "y": -0.41923522961319093,
+          "z": -0.6648013568509261
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.0,
+        "rayYaw": 0.6999999083024224,
+        "direction": {
+          "x": -0.6462378884891391,
+          "y": -0.0030706458365187257,
+          "z": -0.7631298464974658
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.06619569850257767,
+        "rayYaw": 0.6751765837817938,
+        "direction": {
+          "x": -0.6030210922913398,
+          "y": 0.06533668482786877,
+          "z": -0.7950450803995099
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.19347455858408066,
+        "rayYaw": 0.7588834652685104,
+        "direction": {
+          "x": -0.6720657879186198,
+          "y": 0.16659233860260314,
+          "z": -0.7215085373217981
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.6000000070036828,
+        "rayYaw": 0.6999999083024224,
+        "direction": {
+          "x": -0.5348338925725054,
+          "y": 0.562103523701355,
+          "z": -0.6308663376645341
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.6661956722167469,
+        "rayYaw": 0.6751765837817938,
+        "direction": {
+          "x": -0.47106187326839505,
+          "y": 0.617166194098433,
+          "z": -0.6302432866877092
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.7934745322982498,
+        "rayYaw": 0.7588834652685104,
+        "direction": {
+          "x": -0.4888341662336543,
+          "y": 0.6942243545552353,
+          "z": -0.5282931983898853
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 1.5199999911110522,
+        "rayYaw": 0.6999999083024224,
+        "direction": {
+          "x": -0.03671073480630665,
+          "y": 0.9985460223027717,
+          "z": -0.03947357715350475
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 1.5861957894821708,
+        "rayYaw": 0.6751765837817938,
+        "direction": {
+          "x": 0.029591291010570234,
+          "y": 0.9995496491235151,
+          "z": -0.004985422087011241
+        }
+      }
+    },
+    {
+      "yaw": 0.7,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 1.7134746495636737,
+        "rayYaw": 0.7588834652685104,
+        "direction": {
+          "x": 0.08644041867447301,
+          "y": 0.9931732201403873,
+          "z": 0.07832629708696653
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -1.5199999911110522,
+        "rayYaw": 1.5707963267948966,
+        "direction": {
+          "x": -0.04770739123269436,
+          "y": -0.9988578432788163,
+          "z": 0.00264834706231439
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -1.4538041927399337,
+        "rayYaw": 1.545973002274268,
+        "direction": {
+          "x": -0.11521464282982356,
+          "y": -0.9929147648082726,
+          "z": -0.029083601966209783
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -1.3265253326584308,
+        "rayYaw": -4.6535054234186015,
+        "direction": {
+          "x": -0.2165847021290013,
+          "y": -0.9762559268102617,
+          "z": 0.00392838026782984
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -0.6000000070036828,
+        "rayYaw": 1.5707963267948966,
+        "direction": {
+          "x": -0.8235950085144412,
+          "y": -0.5671721504163748,
+          "z": 0.0026483470623142945
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -0.5338043417906188,
+        "rayYaw": 1.545973002274268,
+        "direction": {
+          "x": -0.8592640150563131,
+          "y": -0.509316863531757,
+          "z": -0.047557175604505564
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -0.4065254817091158,
+        "rayYaw": -4.6535054234186015,
+        "direction": {
+          "x": -0.9067806682601853,
+          "y": -0.41923522961319104,
+          "z": 0.04461661036863537
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.0,
+        "rayYaw": 1.5707963267948966,
+        "direction": {
+          "x": -0.9999917786621969,
+          "y": -0.0030706458365187257,
+          "z": 0.002648347062314273
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.06619569850257767,
+        "rayYaw": 1.545973002274268,
+        "direction": {
+          "x": -0.9965608763874728,
+          "y": 0.06533668482786877,
+          "z": -0.050966040355668873
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.19347455858408066,
+        "rayYaw": -4.6535054234186015,
+        "direction": {
+          "x": -0.9847968308811806,
+          "y": 0.16659233860260314,
+          "z": 0.0492157962985363
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.6000000070036828,
+        "rayYaw": 1.5707963267948966,
+        "direction": {
+          "x": -0.8270626426700445,
+          "y": 0.562103523701355,
+          "z": 0.0026483470623142945
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.6661956722167469,
+        "rayYaw": 1.545973002274268,
+        "direction": {
+          "x": -0.7855030486473612,
+          "y": 0.6171661940984329,
+          "z": -0.04572580702138303
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.7934745322982498,
+        "rayYaw": -4.6535054234186015,
+        "direction": {
+          "x": -0.718976538321834,
+          "y": 0.6942243545552353,
+          "z": 0.033545236399809775
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 1.5199999911110522,
+        "rayYaw": 1.5707963267948966,
+        "direction": {
+          "x": -0.05384076152089787,
+          "y": 0.9985460223027717,
+          "z": 0.002648347062314389
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 1.5861957894821708,
+        "rayYaw": 1.545973002274268,
+        "direction": {
+          "x": 0.015250169553775254,
+          "y": 0.9995496491235151,
+          "z": -0.02584436622629815
+        }
+      }
+    },
+    {
+      "yaw": 1.5707963267948966,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 1.7134746495636737,
+        "rayYaw": -4.6535054234186015,
+        "direction": {
+          "x": 0.11559370155277397,
+          "y": 0.9931732201403873,
+          "z": -0.01565410352917547
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -1.5199999911110522,
+        "rayYaw": -3.141592653589793,
+        "direction": {
+          "x": 0.0026483470623143985,
+          "y": -0.9988578432788163,
+          "z": 0.04770739123269436
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -1.4538041927399337,
+        "rayYaw": -3.166416244426531,
+        "direction": {
+          "x": -0.029083632649724106,
+          "y": -0.9929147648082726,
+          "z": 0.11521463508438777
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -1.3265253326584308,
+        "rayYaw": -3.0827090966237054,
+        "direction": {
+          "x": 0.003928380267829875,
+          "y": -0.9762559268102617,
+          "z": 0.2165847021290013
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": -0.6000000070036828,
+        "rayYaw": -3.141592653589793,
+        "direction": {
+          "x": 0.0026483470623144463,
+          "y": -0.5671721504163748,
+          "z": 0.8235950085144412
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": -0.5338043417906188,
+        "rayYaw": -3.166416244426531,
+        "direction": {
+          "x": -0.047557404440352766,
+          "y": -0.509316863531757,
+          "z": 0.8592640023910407
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": -0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": -0.4065254817091158,
+        "rayYaw": -3.0827090966237054,
+        "direction": {
+          "x": 0.04461661036863552,
+          "y": -0.41923522961319104,
+          "z": 0.9067806682601853
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.0,
+        "rayYaw": -3.141592653589793,
+        "direction": {
+          "x": 0.0026483470623144567,
+          "y": -0.0030706458365187257,
+          "z": 0.9999917786621969
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.06619569850257767,
+        "rayYaw": -3.166416244426531,
+        "direction": {
+          "x": -0.050966305755881805,
+          "y": 0.06533668482786877,
+          "z": 0.99656086281436
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.19347455858408066,
+        "rayYaw": -3.0827090966237054,
+        "direction": {
+          "x": 0.04921579629853645,
+          "y": 0.16659233860260314,
+          "z": 0.9847968308811806
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 0.6000000070036828,
+        "rayYaw": -3.141592653589793,
+        "direction": {
+          "x": 0.0026483470623144463,
+          "y": 0.562103523701355,
+          "z": 0.8270626426700445
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0.6,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 0.6661956722167469,
+        "rayYaw": -3.166416244426531,
+        "direction": {
+          "x": -0.04572601621349674,
+          "y": 0.6171661940984329,
+          "z": 0.7855030364698143
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 0.6,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 0.7934745322982498,
+        "rayYaw": -3.0827090966237054,
+        "direction": {
+          "x": 0.033545236399809886,
+          "y": 0.6942243545552353,
+          "z": 0.718976538321834
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0,
+      "initialRecoilPitch": 0,
+      "dt": 0.01,
+      "accuracy": 0.2,
+      "seed": 0,
+      "expected": {
+        "recoilPitchAfterMove": 0.0,
+        "recoilYawAfterMove": 0.0,
+        "rayPitch": 1.5199999911110522,
+        "rayYaw": -3.141592653589793,
+        "direction": {
+          "x": 0.0026483470623143985,
+          "y": 0.9985460223027717,
+          "z": 0.05384076152089787
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 1.52,
+      "initialRecoilYaw": -0.013089969389957472,
+      "initialRecoilPitch": 0.03490658503988659,
+      "dt": 0.01,
+      "accuracy": 1.25,
+      "seed": 42,
+      "expected": {
+        "recoilPitchAfterMove": 0.033097849251288836,
+        "recoilYawAfterMove": -0.012411693469233313,
+        "rayPitch": 1.5861957894821708,
+        "rayYaw": -3.166416244426531,
+        "direction": {
+          "x": -0.025844362164931425,
+          "y": 0.9995496491235151,
+          "z": -0.015250176436545759
+        }
+      }
+    },
+    {
+      "yaw": 3.141592653589793,
+      "pitch": 1.52,
+      "initialRecoilYaw": 0.030543261909900768,
+      "initialRecoilPitch": 0.10035643198967395,
+      "dt": 0.016666666666666666,
+      "accuracy": 1.25,
+      "seed": 255,
+      "expected": {
+        "recoilPitchAfterMove": 0.09673727929204033,
+        "recoilYawAfterMove": 0.029441780563638595,
+        "rayPitch": 1.7134746495636737,
+        "rayYaw": -3.0827090966237054,
+        "direction": {
+          "x": -0.01565410352917549,
+          "y": 0.9931732201403873,
+          "z": -0.11559370155277397
+        }
+      }
+    }
+  ],
+  "sourceFiles": [
+    {
+      "name": "sv_user.cpp",
+      "url": "https://raw.githubusercontent.com/rehlds/ReHLDS/master/rehlds/engine/sv_user.cpp",
+      "sha256": "12175fdc1f6b35fb63a8872378fa21ec9cf60cc1df5c1732480053702fdd17bb"
+    },
+    {
+      "name": "pm_shared.cpp",
+      "url": "https://raw.githubusercontent.com/rehlds/ReGameDLL_CS/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/pm_shared/pm_shared.cpp",
+      "sha256": "c2ed74461ee309947292f252ae2192f5da36d92c41e709d88b0c4f72675d6815"
+    },
+    {
+      "name": "player.cpp",
+      "url": "https://raw.githubusercontent.com/rehlds/ReGameDLL_CS/4a50c42e85fd3778c2b7d24731c7d30c83bbab01/regamedll/dlls/player.cpp",
+      "sha256": "6afaca6ed7fd31c270e2bc64fe342e2609e7880a9389ae2b62ab7be1151d85aa"
+    }
+  ]
+}

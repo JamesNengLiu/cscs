@@ -4,6 +4,7 @@ import {clamp,direction} from './math.js';
 import {isGrounded} from './map.js';
 import {baseAccuracy,advanceAccuracy,accuracySpread,applyKick,decayPunch,usesMainAutoRules} from './weapon-feel.js';
 import {PITCH_LIMIT} from './view-settings.js';
+import {sourcePlayerSpread} from './source-spread.js';
 const grounded=p=>Boolean(p.groundPlayer&&p.grounded)||isGrounded(p);
 export function resetWeapon(p,{keepPunch=false}={}){p.burstCount=0;p.accuracy=baseAccuracy(p.weapon);p.recoveryAt=0;p.recoilDirection=0;
   if(usesMainAutoRules(p))p.delayFire=false;
@@ -30,14 +31,28 @@ export function weaponSpread(p){const w=WEAPONS[p.weapon],speed=Math.hypot(p.vx|
   const spread=accuracySpread(p,grounded(p));if(spread!==null)return spread;
   return (w.spread+w.moveSpread*speed*speed+(isGrounded(p)?0:w.airSpread)+w.heatSpread*Math.min(p.burstCount||0,12)+(GUNS[p.weapon]?.category==='sniper'&&(!p.zoom||p.zoom===90)?.08:0))*(p.crouch?.7:1);
 }
-export function spreadDirection(profile,random=Math.random){
-  const {yaw,pitch,spread}=profile,x=(random()+random()-1)*spread,y=(random()+random()-1)*spread,d=direction(yaw,pitch);
+export function spreadDirection(profile,random=Math.random,sampling='legacy'){
+  // Single bullets retain four draws so the fallback recoil stream does not shift.
+  const a=random(),b=random(),c=random(),e=random();let sx=a+b-1,sy=c+e-1;
+  if(sampling==='player'){const offset=sourcePlayerSpread(Math.floor(a*0x100000000)>>>0);sx=offset.x;sy=offset.y;}
+  else if(sampling==='buckshot'){
+    // FireBuckshots rejects the triangular distribution's corners, per pellet.
+    // A broken/injected RNG must not stall the simulation indefinitely.
+    for(let attempts=1;sx*sx+sy*sy>1;attempts++){
+      if(attempts>=32){sx=sy=0;break;}
+      sx=random()+random()-1;sy=random()+random()-1;
+    }
+  }
+  const {yaw,pitch,spread}=profile,x=sx*spread,y=sy*spread,d=direction(yaw,pitch);
   d.x+=x*Math.cos(yaw)+y*Math.sin(yaw)*Math.sin(pitch);d.y+=y*Math.cos(pitch);d.z-=x*Math.sin(yaw)-y*Math.cos(yaw)*Math.sin(pitch);
   const len=Math.hypot(d.x,d.y,d.z);return {x:d.x/len,y:d.y/len,z:d.z/len};
 }
 export function shotProfile(p,random=Math.random,now=p.lastShot,follow=false,kickRandom=random){
-  const spread=follow&&p.weapon==='glock18'?.05:follow&&Number.isFinite(p.burstSpread)?p.burstSpread:weaponSpread(p),yaw=p.yaw+(p.recoilYaw||0),pitch=clamp(p.pitch+(p.recoilPitch||0),-PITCH_LIMIT,PITCH_LIMIT);
-  const profile={spread,yaw,pitch},d=spreadDirection(profile,random);
+  // GoldSrc PMove includes punch in v_angle; every gun adds it again. Keep
+  // this in the pre-shot ray basis only, without scaling player/view recoil.
+  const gun=GUNS[p.weapon],scale=gun?2:1,spread=follow&&p.weapon==='glock18'?.05:follow&&Number.isFinite(p.burstSpread)?p.burstSpread:weaponSpread(p);
+  const yaw=p.yaw+scale*(p.recoilYaw||0),aimPitch=p.pitch+scale*(p.recoilPitch||0),pitch=gun?aimPitch:clamp(aimPitch,-PITCH_LIMIT,PITCH_LIMIT);
+  const profile={spread,yaw,pitch},d=spreadDirection(profile,random,gun?(gun.pellets>1?'buckshot':'player'):'legacy');
   advanceAccuracy(p,now,follow);
   if(!follow){
   p.burstCount=(p.burstCount||0)+1;

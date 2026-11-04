@@ -360,7 +360,7 @@ export class Game {
     const damage=p.silenced&&p.weapon==='usp'?30:p.silenced&&p.weapon==='m4a1'?33:w.damage;
     const shotId=`${this.round}:${p.id}:${p.lastAppliedInputSeq||0}:${this.time}`,rewindTime=this.lagComp?.targetTime(p.id,p.lastAppliedInputSeq,this.time,this.round)??null;
     for(let pellet=0;pellet<w.pellets;pellet++){
-      const d=pellet?spreadDirection(profile,this.random):profile.direction;
+      const d=pellet?spreadDirection(profile,this.random,'buckshot'):profile.direction;
       const properties=bulletProperties(w),excluded=new Set();let origin=null,range=(w.range||8192)/40,remaining=damage,travelled=0;
       for(let penetration=0;penetration<(w.pellets>1?1:properties.hits);penetration++){
       const ray=this.targetRay(p,d,range,0,rewindTime,origin,excluded),blocked=ray.target&&this.shieldBlocks(ray.target,ray);

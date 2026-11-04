@@ -52,7 +52,7 @@ test('input gaps do not masquerade as trigger releases; explicit cancellation st
   for(let i=0;i<40;i++)g.step();assert.equal(p.burstCount,0);near(p.accuracy,baseAccuracy('ak47'),'cancelled recovery');
 });
 
-test('rollout is limited to eleven automatics and AWP, with old-server compatibility',()=>{
+test('the existing recovery and recoil rollout stays limited to eleven automatics and AWP, with old-server compatibility',()=>{
   for(const weapon of Object.keys(GUNS)){
     assert.equal(usesMainAutoRules({weapon}),main.includes(weapon),weapon);
     assert.equal(usesMainWeaponRules({weapon}),main.includes(weapon)||weapon==='awp',weapon);
@@ -78,13 +78,14 @@ test('AWP and main-gun camera punch has no low-pass tail and supports fractional
 });
 
 // Pre-change production numeric trajectories, including warm accuracy, sustained
-// firing and release. These protect the deliberately excluded gun families.
+// firing and release. The later all-gun ray rollout intentionally changes only
+// direction; keep the original spread, recoil, ammo and recovery baseline.
 function compare(actual,expected,label){
   if(typeof expected==='number')near(actual,expected,label,2e-10);
   else if(expected&&typeof expected==='object'){assert.deepEqual(Object.keys(actual),Object.keys(expected),label);for(const key of Object.keys(expected))compare(actual[key],expected[key],`${label}.${key}`);}
   else assert.equal(actual,expected,label);
 }
-for(const weapon of new Set(excluded.scenarios.map(c=>c.weapon)))test(`${weapon}: excluded weapon trajectory and recovery remain unchanged`,()=>{
+for(const weapon of new Set(excluded.scenarios.map(c=>c.weapon)))test(`${weapon}: original accuracy, recoil and recovery remain unchanged after ray calibration`,()=>{
   for(const c of excluded.scenarios.filter(c=>c.weapon===weapon)){
     const p=pose(weapon,{y:supportHeight(-18.4,22,3.3)+(c.air?1:0),grounded:!c.air,crouch:c.mode,vx:c.mode?2:0,yaw:.1,pitch:-.05,silenced:c.mode,burstMode:weapon==='glock18'&&c.mode,zoom:c.mode?40:90});resetWeapon(p);const rows=[];
     for(let tick=0;tick<240;tick++){const now=10+tick/60;p.input.fire=tick<80?tick%10<7:tick>=140&&tick<160;updateWeapon(p,1/60,now);let shot=null;
@@ -92,6 +93,7 @@ for(const weapon of new Set(excluded.scenarios.map(c=>c.weapon)))test(`${weapon}
       if(shot||[80,104,125,139,180,239].includes(tick))rows.push({tick,shot,ammo:p.ammo,accuracy:p.accuracy,burstCount:p.burstCount,recoilPitch:p.recoilPitch,recoilYaw:p.recoilYaw,recoilDirection:p.recoilDirection,lastShot:p.lastShot,nextShotAt:p.nextShotAt,recoveryAt:p.recoveryAt});
     }
     const packed=rows.map(r=>[r.tick,r.shot?.spread??null,...(r.shot?[r.shot.direction.x,r.shot.direction.y,r.shot.direction.z]:[null,null,null]),r.ammo,r.accuracy,r.burstCount,r.recoilPitch,r.recoilYaw,r.recoilDirection,r.lastShot,r.nextShotAt,r.recoveryAt]);
-    compare(packed,c.rows,`${weapon} mode=${c.mode} air=${c.air}`);
+    const stateOnly=row=>[...row.slice(0,2),...row.slice(5)];
+    compare(packed.map(stateOnly),c.rows.map(stateOnly),`${weapon} mode=${c.mode} air=${c.air}`);
   }
 });

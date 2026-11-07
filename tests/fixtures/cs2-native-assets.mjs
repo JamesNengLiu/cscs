@@ -1,0 +1,18 @@
+// Only local asset locations and glTF readers live here. No original or derived
+// Valve meshes, poses, tracks or capsules are embedded in repository tests.
+import {readFile,access} from 'node:fs/promises';
+import path from 'node:path';
+import * as THREE from 'three';
+const root=new URL('../../',import.meta.url).pathname;
+export const nativeEntries={T:{model:'tm_phoenix',rig:'/assets/cs2-content/rigs/T.rig.json'},CT:{model:'ctm_sas',rig:'/assets/cs2-content/rigs/CT.rig.json'}};
+export const nativeAssetPath=url=>path.join(root,'public','.'+url);
+export async function nativeAssetsAvailable(){try{await Promise.all(Object.values(nativeEntries).map(e=>access(nativeAssetPath(e.rig))));return true;}catch{return false;}}
+export async function readNativeAsset(team){const entry=nativeEntries[team],file=nativeAssetPath(entry.rig),rig=JSON.parse(await readFile(file,'utf8')),bytes=await readFile(path.join(path.dirname(file),rig.buffer)),metadata=JSON.parse(await readFile(nativeAssetPath('/assets/cs2-content/models/'+entry.model+'.metadata.json'),'utf8')),model=await readGLTF(nativeAssetPath('/assets/cs2-content/models/'+entry.model+'/'+entry.model+'.gltf'));return{entry,rig,bytes,buffer:bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),metadata,model};}
+export async function readGLTF(file){const doc=JSON.parse(await readFile(file,'utf8')),buffers=await Promise.all((doc.buffers||[]).map(b=>b.uri.startsWith('data:')?Buffer.from(b.uri.split(',')[1],'base64'):readFile(path.resolve(path.dirname(file),b.uri))));return{doc,read(index){const a=doc.accessors[index],view=doc.bufferViews[a.bufferView],width={SCALAR:1,VEC3:3,VEC4:4}[a.type],values=[];if(a.componentType!==5126||!width)throw Error('Unexpected fixture accessor');for(let i=0;i<a.count;i++)for(let k=0;k<width;k++)values.push(buffers[view.buffer].readFloatLE((view.byteOffset||0)+(a.byteOffset||0)+i*(view.byteStride||width*4)+k*4));return values;}};}
+// Independent reference interpolation uses Three's own KeyframeTrack
+// interpolants over the uncompiled glTF accessors, not packed runtime offsets.
+export function referenceNativePose(asset,gltf,time){const named=new Map(asset.model.doc.nodes.map(n=>[n.name,n])),bones=asset.metadata.skeleton.m_boneName.map((name,i)=>{const n=named.get(name),p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3(1,1,1);if(n.matrix)new THREE.Matrix4().fromArray(n.matrix).decompose(p,q,s);else{p.fromArray(n.translation||[0,0,0]);q.fromArray(n.rotation||[0,0,0,1]);s.fromArray(n.scale||[1,1,1]);}return{name,parent:asset.metadata.skeleton.m_nParent[i],p,q,s,local:new THREE.Matrix4(),world:new THREE.Matrix4()};}),map=new Map(bones.map(b=>[b.name,b]));
+ for(const channel of gltf.doc.animations[0].channels){const name=gltf.doc.nodes[channel.target.node].name,bone=map.get(name);if(!bone)continue;const sampler=gltf.doc.animations[0].samplers[channel.sampler],Track=channel.target.path==='rotation'?THREE.QuaternionKeyframeTrack:THREE.VectorKeyframeTrack,track=new Track(name,gltf.read(sampler.input),gltf.read(sampler.output),sampler.interpolation==='STEP'?THREE.InterpolateDiscrete:THREE.InterpolateLinear),values=track.createInterpolant().evaluate(time);(channel.target.path==='rotation'?bone.q:channel.target.path==='scale'?bone.s:bone.p).fromArray(values);if(channel.target.path==='rotation')bone.q.normalize();}
+ const motion=map.get('root_motion'),rest=named.get('root_motion');if(motion){motion.p.x=rest.translation?.[0]||0;motion.p.z=rest.translation?.[2]||0;}
+ for(const b of bones){b.local.compose(b.p,b.q.normalize(),b.s);if(b.parent<0)b.world.copy(b.local);else b.world.multiplyMatrices(bones[b.parent].world,b.local);}return bones;
+}

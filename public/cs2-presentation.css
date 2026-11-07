@@ -1,0 +1,6 @@
+#crosshair i{background:var(--cs2-color,#62ff8b)}
+#crosshair i:nth-child(1),#crosshair i:nth-child(2){height:var(--cs2-thickness,2px);width:var(--cs2-size,6px)}
+#crosshair i:nth-child(3),#crosshair i:nth-child(4){width:var(--cs2-thickness,2px);height:var(--cs2-size,6px)}
+#crosshair.cs2-dot::after{content:"";position:absolute;width:var(--cs2-thickness,2px);height:var(--cs2-thickness,2px);background:var(--cs2-color,#62ff8b);transform:translate(-50%,-50%)}
+
+#crosshair i:nth-child(1){left:calc(-1 * var(--gap) - var(--cs2-size,6px))}#crosshair i:nth-child(3){top:calc(-1 * var(--gap) - var(--cs2-size,6px))}

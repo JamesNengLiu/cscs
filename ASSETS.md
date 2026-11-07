@@ -129,3 +129,19 @@ python3 tools/prepare-sounds.py --source /path/to/cstrike/sound
 需要按当前工具列出的社区镜像准备本地验证素材时，可显式运行 `python3 tools/prepare-sounds.py --fetch`。工具只读取有界 WAV 数据并记录来源和散列，不执行下载内容，也不代表镜像文件获得了再分发许可或官方零售认证。声音名称来自枪械目录和已导入模型的动作事件；不会自动下载到公开仓库或随服务启动获取远程素材。
 
 缺少音频时保留游戏功能，声音诊断的 `missing` 计数反映缺失或解码失败；不会将所有武器替换成同一段合成枪声。实体双机的声场和真人听感需要另行试玩确认。
+
+
+## CS2 分支资源边界
+
+`codex/cs2` 的 `npm start` 启动独立 CS2 验证版，远端 `main` 保留 1.0。CS2 源码、转换器、测试与说明随分支提交，以下原始或派生产物继续只保存在本地忽略目录：
+
+- `public/assets/cs2-physics/`：真实布局、尺寸、碰撞与导航数据。
+- `public/assets/cs2-optimized/`：地图合批几何、材质、贴图分级与 PVS。
+- `public/assets/cs2-content/`：人物、武器、动画、命中区域、声音与生成的 runtime 契约。
+- `.local/cs2/`：原始资源索引、转换缓存、工具、证书及校验收据。
+
+克隆代码不等于取得 CS2 素材；启动前须准备有权使用的本地输入并生成上述资源。现有历史中已跟踪的 1.0 素材本次不修改、不新增，也不能因此视为已解决再分发许可。
+
+内容与坐标转换见 [CS2 内容准备](tools/cs2-content-README.md)，地图与对战接线见 [独立对战版集成](docs/cs2-playable-integration-2026-11-05.md)。资源准备完成后运行 `node tools/prepare-cs2-runtime.mjs` 重建契约；人物 rig 首次生成使用 `--build-rigs`。资源缺失应明确报错，不以旧地图或占位通过验收。
+
+开发机已经准备好资源，切到 CS2 分支不会删除或重新下载这些文件。其他电脑作为浏览器客户端连接主机时，无须安装 Node.js 或单独准备服务器素材。

@@ -5,8 +5,8 @@
   "type": "module",
   "description": "LAN browser FPS graybox prototype. Not a Counter-Strike port.",
   "scripts": {
-    "start": "node tools/start-secure.mjs",
-    "start:ws": "node server.mjs",
+    "start": "node tools/start-cs2-secure.mjs",
+    "start:ws": "node cs2-server.mjs",
     "cert:local": "node tools/local-certificate.mjs",
     "test:webtransport": "node tests/run-webtransport.mjs",
     "test": "node --test --test-reporter=tap tests/*.test.mjs",
@@ -57,7 +57,11 @@
     "test:jump-fatigue:browser": "node tests/jump-fatigue-browser.mjs",
     "test:tuning": "node tests/evaluate-tuning.mjs",
     "import:map": "python3 tools/import-map.py",
-    "test:map": "python3 tools/verify-map.py && node tools/verify-routes.mjs"
+    "test:map": "python3 tools/verify-map.py && node tools/verify-routes.mjs",
+    "start:classic": "node tools/start-secure.mjs",
+    "start:classic:ws": "node server.mjs",
+    "start:cs2": "node tools/start-cs2-secure.mjs",
+    "start:cs2:ws": "node cs2-server.mjs"
   },
   "dependencies": {
     "@fails-components/webtransport": "1.6.11",

@@ -1,0 +1,19 @@
+// Experimental adapter: preserves the proven v1.0 algorithm with the CS2 world.
+import {movePlayer} from './cs2-client-world.js';
+import {INPUT_DT,MAX_INPUT_QUEUE,orderedInputCommands} from './cs2-input-protocol.js';
+export const PREDICTION_DT=INPUT_DT;
+export const MAX_PENDING_COMMANDS=MAX_INPUT_QUEUE;
+// ACK covers applied commands AND explicitly skipped stale/gap/cancelled slots.
+// Replacing Y alone while retaining future X/Z creates an invalid slope pose.
+export function reconcileMovement(authoritative,commands,round,players=[]){
+  const pending=authoritative.playedRound!==undefined&&authoritative.playedRound!==round?[]:
+    orderedInputCommands(commands,round,authoritative.ackInputSeq||0,MAX_PENDING_COMMANDS);
+  const player={...authoritative};
+  for(const command of pending)movePlayer(player,command.input,PREDICTION_DT,players);
+  return {player,pending};
+}
+export function visualCorrection(previous,next,offset={x:0,y:0,z:0},{maxDistance=.5}={}){
+  const value={x:previous.x+offset.x-next.x,y:previous.y+offset.y-next.y,z:previous.z+offset.z-next.z};
+  return Math.hypot(value.x,value.y,value.z)<=maxDistance?value:{x:0,y:0,z:0};
+}
+export function decayCorrection(offset,dt,{maxSpeed=Infinity}={}){const time=Math.max(0,dt),exponential=Math.exp(-16*time);if(!Number.isFinite(maxSpeed))return {x:offset.x*exponential,y:offset.y*exponential,z:offset.z*exponential};const distance=Math.hypot(offset.x,offset.y,offset.z),drop=Math.min(distance*(1-exponential),Math.max(0,maxSpeed)*time),factor=distance?1-drop/distance:0;return {x:offset.x*factor,y:offset.y*factor,z:offset.z*factor};}

@@ -1,0 +1,16 @@
+// Browser ADS adapter, anchored to the real skinned scope-lens primitive. The
+// imported pose is native; transitions/lens compositing are not Source 2 code.
+export function drawnVertexIndices(geometry){const count=geometry.index?.count??geometry.attributes.position.count,start=Math.max(0,geometry.drawRange.start||0),end=Math.min(count,start+geometry.drawRange.count),ids=new Set();for(let i=start;i<end;i++)ids.add(geometry.index?geometry.index.getX(i):i);return[...ids];}
+export function createIronSight(THREE,{group,contentRoot,camera,weapon,parameters}){
+ const lenses=[];weapon.traverse(o=>{if(o.isSkinnedMesh&&/scope_lens/i.test(o.material?.name||'')){const vertices=drawnVertexIndices(o.geometry);if(!vertices.length)return;lenses.push({mesh:o,vertices,original:o.material,clear:new THREE.MeshBasicMaterial({color:0xb9d4db,transparent:true,opacity:.08,depthWrite:false,side:THREE.DoubleSide})});}});
+ const dot=new THREE.Mesh(new THREE.SphereGeometry(.0007,8,6),new THREE.MeshBasicMaterial({color:0xff2518,depthTest:false,depthWrite:false,transparent:true}));dot.name='cs2-optic-reticle-adapter';dot.layers.set(1);dot.renderOrder=120;dot.visible=false;group.add(dot);
+ const vertex=new THREE.Vector3(),offset=new THREE.Vector3(),world=new THREE.Vector3(),aim=new THREE.Vector3(),local=new THREE.Vector3(),target=new THREE.Vector3(),base=new THREE.Vector3(-.25,.24,.42);let amount=0;
+ function lensPoint(out){const l=lenses[0];if(!l)return false;out.set(0,0,0);for(const id of l.vertices){l.mesh.getVertexPosition(id,vertex);out.add(vertex);}out.multiplyScalar(1/l.vertices.length);l.mesh.localToWorld(out);return true;}
+ return{update(state,dt,{beforeAlign=()=>{}}={}){const active=Boolean(parameters&&lenses.length&&state.zoom>0&&state.zoom<90),speed=active?parameters.pullUpSpeed:parameters.putDownSpeed,alpha=1-Math.exp(-Math.max(0,dt)*Math.max(1,speed||8));amount+=(Number(active)-amount)*alpha;beforeAlign(amount);
+   contentRoot.position.copy(base).add(offset);group.updateWorldMatrix(true,true);
+   target.set(0,0,0);if(active&&lensPoint(world)){camera.worldToLocal(aim.copy(world));aim.x=aim.y=0;camera.localToWorld(aim);group.worldToLocal(local.copy(world));group.worldToLocal(aim);target.copy(offset).add(aim.sub(local));target.clampLength(0,.5);}
+   offset.lerp(target,alpha);contentRoot.position.copy(base).add(offset);group.updateWorldMatrix(true,true);
+   for(const l of lenses)l.mesh.material=amount>.1?l.clear:l.original;
+   dot.visible=amount>.05;if(dot.visible&&lensPoint(world)){group.worldToLocal(world);dot.position.copy(world);dot.material.opacity=amount;}
+  },reset(){amount=0;offset.set(0,0,0);contentRoot.position.copy(base);dot.visible=false;for(const l of lenses)l.mesh.material=l.original;},diagnostics:()=>({mode:'native-pose-lens-centred-browser-adapter',lensMeshes:lenses.length,lensReferencedVertices:lenses.map(l=>l.vertices.length),amount,offset:offset.toArray(),reticle:dot.visible,parameters,limitations:['Analytic lens alignment and transparency; no retail Source 2 scope shader or picture-in-picture.']}),dispose(){for(const l of lenses){l.mesh.material=l.original;l.clear.dispose();}dot.removeFromParent();dot.geometry.dispose();dot.material.dispose();}};
+}

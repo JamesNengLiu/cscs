@@ -12,6 +12,7 @@ import {createHitboxRuntime} from './cs2-hitboxes.mjs';
 import {createBallistics} from './cs2-ballistics.mjs';
 import {createInventory,GRENADE_IDS} from './cs2-inventory.mjs';
 import {createGrenadeRuntime,GRENADE_LIMITS} from './cs2-grenades.mjs';
+import {captureGrenadePose,recordGrenadeJump,finalizeGrenadeJumpPunch,selectGrenadeJumpPose,applyGrenadeReleaseView} from './cs2-grenade-launch.mjs';
 import {createMovementSoundState,movementSoundStep,RADIO_MENUS} from './public/movement-audio.js';
 import {safeSound} from './public/sound-catalog.js';
 import {allowsPlayerActions} from './public/round-state.js';
@@ -21,6 +22,7 @@ import {armourDamage} from './public/armour.js';
 import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/cs2-input-protocol.js';
 import {GRENADE_TIMING,resetGrenadeThrow,grenadeActionPhase} from './public/grenade-state.js';
 import {GRENADE_PROTOCOL,normalizeGrenadeIntent} from './public/cs2-grenade-intent.js';
+import {createThrowControl,changeThrowButtons,throwStrength,throwMode} from './public/cs2-grenade-controls.js';
 import {SCOPE_VIEW_PROTOCOL} from './public/awp-view.js';
 import {createLocomotionState,stepLocomotion,copyLocomotion} from './public/player-locomotion.js';
 import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
@@ -28,6 +30,9 @@ import {hitRecoveryProfile} from './public/hit-recovery.js';
 import {WEAPON_ACTION_LIMIT} from './public/cs2-weapon-action-order.js';
 // The legacy movement corrections remain enabled; no old world module loads.
 const HIT_SLOWDOWN_VERSION=1,COLLISION_VERSION=1,JUMP_FATIGUE_VERSION=1;
+// Relative input-edge time affects only strength selection. It never advances
+// preparation, simulation, projectile birth/fuse, movement or weapon clocks.
+function grenadeControlTime(intent,now){return intent?.clientClock?intent.controlAt+intent.edgeElapsed+Math.max(0,now-intent.edgeReceivedAt):now;}
 export function createCS2Game(world,options={}){
  if(!world?.collision?.trace||!world?.movement?.movePlayer||!world?.contract||typeof world.resolveSpawn!=='function')throw Error('An experimental CPU world is required');
  const weaponProfile=typeof options.weaponProfile==='string'?getWeaponProfile(options.weaponProfile):options.weaponProfile||getWeaponProfile('legacy'),METRES_PER_UNIT=weaponProfile.metresPerUnit,cs2=isCS2WeaponProfile(weaponProfile);
@@ -51,6 +56,7 @@ class ExperimentalGame {
   #inputs=new Map();
   #receiptOrder=0;
   #locomotion=new WeakMap();
+  #grenadeJumps=new WeakMap();
   #movementSounds=new Map();
   #bombSounds=null;
   constructor({random=Math.random,audioRandom=Math.random,friendlyFire=false,hitRecovery='baseline'}={}){this.experimental=true;this.world=world;this.worldContract=world.contract;this.weaponProfileId=weaponProfile.id;this.weaponProfile=weaponProfile;this.hitRecovery=hitRecoveryProfile(hitRecovery);this.random=random;this.audioRandom=audioRandom;this.friendlyFire=friendlyFire;this.players=new Map();this.phase='waiting';this.round=0;this.score={T:0,CT:0};this.time=0;this.serverTick=0;this.endAt=0;this.buyEndAt=0;this.events=[];this.bomb={state:'none'};this.message='等待玩家加入';this.lossStreak={T:0,CT:0};this.lossBonus=ECONOMY.lossBase;this.projectiles=[];this.smokes=[];this.drops=[];this.nextDrop=0;}
@@ -71,7 +77,7 @@ class ExperimentalGame {
   activate(p,key,now=this.time,transition=true){
     const changed=p.weapon!==key;
     const before=transition&&p.alive&&p.weapon!==key?hitboxAnimation(p,now):null;
-    this.cancelGrenadeIntent(p);
+    this.cancelGrenadeIntent(p,{preservePending:true});
     activate(p,key,now);
     p.poseFromSequence=before?.playerSequence||null;p.poseFromFrame=before?.playerFrame||0;p.poseChangedAt=now;p.poseFromTime=before?.playerAnimationTime??null;
     if(changed&&transition&&key==='knife')this.sound(p,'weapons/knife_deploy1.wav',{private:true,channel:'item'});
@@ -94,13 +100,13 @@ class ExperimentalGame {
     if(!p.alive||!p.inventory)freshLoadout(p);else saveActive(p);
     this.credit(p,p.pendingMoney||0,'round');p.pendingMoney=0;
     Object.assign(p,{x:s.x,z:s.z,y:s.y,vy:0,vx:0,vz:0,grounded:true,yaw:s.yaw,pitch:0,hp:100,alive:true,crouch:false,jumpHeld:false,jumpFatigue:0,duckElapsed:0,duckAmount:0,ducking:false,stepDistance:0,velocityModifier:1,hitRecoveryVersion:this.hitRecovery.version,shotsFired:0,nextShotAt:0,lastInputSeq:0,ackInputSeq:0,reloadAt:0,progress:0,action:'',lastShot:-100,fireHeld:false,burstRemaining:0,flashUntil:0,flashAmount:0,flashFade:0,zoom:90,resumeZoomAt:0,nextAttackAt:0,shieldRaised:false,playedRound:this.round,input:{...blankInput(),yaw:s.yaw}});
-    delete p.playerLocomotion;this.#locomotion.delete(p);
+    delete p.playerLocomotion;this.#locomotion.delete(p);this.#grenadeJumps.delete(p);
     p.gaitDistance=0;if(advanceAnimation)p.nativeGaitPhase=0;p.gaitYaw=null;p.airTime=0;p.flinchAt=-100;p.flinchHead=false;
     this.#movementSounds.set(p.id,createMovementSoundState());p.radioCount=0;p.nextRadioAt=0;
     p.recoilSeed=this.random===Math.random?Math.floor(Math.random()*0x100000000):null;
     p.lastInput=this.time;
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeIntent:null,actions:[],receivedOrder:0,lastOrder:0,grenadeReceiptSeq:0,grenadeReceiptAction:0});
-    p.grenadeAckSeq=0;p.grenadeActionId=0;p.grenadeIntentStatus='';p.grenadeRejectedActionId=0;
+    p.grenadeAckSeq=0;p.grenadeActionId=0;p.grenadeIntentStatus='';p.grenadeRejectedActionId=0;p.grenadeButtons=0;p.grenadeStrength=1;p.grenadeMode='overhand';
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
     this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
@@ -163,12 +169,16 @@ class ExperimentalGame {
     }
   }
   enableGrenadeIntents(id){const p=this.players.get(id);if(p)p.grenadeProtocol=GRENADE_PROTOCOL;}
-  cancelGrenadeIntent(p){
+  cancelGrenadeIntent(p,{preservePending=false}={}){
+    this.#grenadeJumps.delete(p);
     const state=this.#inputs.get(p.id);
+    if(state){delete state.grenadeLegacyLaunchAt;if(!preservePending&&state.pendingGrenadeLaunch){if(p.grenadeActionId===state.pendingGrenadeLaunch.actionId)p.grenadeIntentStatus='cancelled';delete state.pendingGrenadeLaunch;}}
     if(state?.grenadeIntent){
       const pending=state.grenadeIntent.held;state.grenadeIntent=null;
       if(p.grenadePhase!=='throw'||pending)p.grenadeIntentStatus='cancelled';
     }
+    p.grenadeButtons=0;
+    if(p.grenadePhase!=='throw'){p.grenadeStrength=1;p.grenadeMode='overhand';}
   }
   grenadeIntent(id,raw,{immediate=false,onAck=()=>{},onError=()=>{}}={}){
     const p=this.players.get(id),state=this.#inputs.get(id),c=normalizeGrenadeIntent(raw,this.round);
@@ -199,15 +209,26 @@ class ExperimentalGame {
       return reply(p.grenadePhase==='throw'&&p.grenadeIntentStatus!=='cancelled'?'thrown':'cancelled');
     }
     if(c.kind==='press'){
-      if(!p.alive||!allowsPlayerActions(this.phase)||p.weapon!==c.weapon||!p.grenades[c.weapon]||p.shieldRaised||p.action||state.grenadeIntent?.held||['pin','hold'].includes(p.grenadePhase))return reject('not-ready');
-      state.grenadeIntent={actionId:c.actionId,weapon:c.weapon,held:true,released:false,aim:null};
+      if(!p.alive||!allowsPlayerActions(this.phase)||p.weapon!==c.weapon||p.grenades[c.weapon]-(state.pendingGrenadeLaunch?.weapon===c.weapon?1:0)<=0||p.shieldRaised||p.action||state.grenadeIntent?.held||['pin','hold'].includes(p.grenadePhase))return reject('not-ready');
+      const control=createThrowControl(c.buttons,this.time);
+      state.grenadeIntent={actionId:c.actionId,weapon:c.weapon,held:true,released:false,aim:null,control,controlAt:this.time,edgeElapsed:0,edgeReceivedAt:this.time,clientClock:Number.isFinite(c.elapsed)};
+      p.grenadeButtons=c.buttons;p.grenadeStrength=throwStrength(control,this.time);p.grenadeMode=throwMode(p.grenadeStrength);
       p.grenadeActionId=c.actionId;p.grenadeIntentStatus='pending';this.updateGrenadeIntent(p);
       return reply(p.grenadeIntentStatus);
     }
     const intent=state.grenadeIntent;
     if(!intent||intent.actionId!==c.actionId||intent.weapon!==c.weapon||!p.alive||p.weapon!==c.weapon)return reject('stale-action');
     if(intent.released)return reply(p.grenadeIntentStatus);
+    if(Number.isFinite(c.elapsed)!==intent.clientClock||intent.clientClock&&c.elapsed+1e-8<intent.edgeElapsed){
+      this.cancelGrenadeIntent(p);if(p.grenadePhase!=='throw')resetGrenadeThrow(p);p.grenadeIntentStatus='cancelled';return reject('invalid-clock');
+    }
+    if(intent.clientClock){intent.edgeElapsed=Math.max(intent.edgeElapsed,c.elapsed);intent.edgeReceivedAt=this.time;}
+    const controlNow=grenadeControlTime(intent,this.time);
+    intent.control=changeThrowButtons(intent.control,c.kind==='release'?0:c.buttons,controlNow);
+    p.grenadeButtons=intent.control.buttons;p.grenadeStrength=throwStrength(intent.control,controlNow);p.grenadeMode=throwMode(p.grenadeStrength);
+    if(c.kind==='buttons')return reply(p.grenadeIntentStatus);
     intent.held=false;intent.released=true;intent.aim={yaw:c.yaw,pitch:c.pitch};
+    if(grenadeProfile?.trajectoryVersion===1){intent.releaseAt=this.time;intent.visualThrowAt=Math.max(this.time,p.grenadeStartedAt+GRENADE_TIMING.pinSeconds);intent.launchAt=intent.visualThrowAt+grenadeProfile.releaseDelaySeconds;intent.launchDeferred=false;if(c.afterInputSeq!==undefined)intent.releaseView={...intent.aim,afterInputSeq:c.afterInputSeq};}
     // A tap before deploy/recovery finishes is not queued into a future grenade.
     if(!['pin','hold'].includes(p.grenadePhase)){
       this.cancelGrenadeIntent(p);p.grenadeIntentStatus='cancelled';return reply('cancelled');
@@ -271,7 +292,7 @@ class ExperimentalGame {
     const hasBomb=this.bomb.state==='carried'&&this.bomb.holder===id,owned=ownedWeapons(p,hasBomb);
     if(key==='last')key=p.previousWeapon;
     if(typeof key==='number'||/^[1-5]$/.test(String(key))){const slot=Number(key);if(slot===1)key=p.primary||(p.shield?p.pistol:null);else if(slot===2)key=p.pistol;else if(slot===3)key='knife';else if(slot===5)key=hasBomb?'c4':null;else{const gs=GRENADE_IDS.filter(g=>p.grenades[g]>0);key=gs[(gs.indexOf(p.weapon)+1)%gs.length];}}
-    if(typeof key!=='string'||!owned.includes(key)||key===p.weapon)return false;this.activate(p,key,this.time);return true;
+    if(typeof key!=='string'||!owned.includes(key)||key===p.weapon)return false;this.#reserveReleasedGrenade(p);this.activate(p,key,this.time);return true;
   }
   reload(id){const p=this.players.get(id),w=GUNS[p?.weapon];if(p?.alive&&allowsPlayerActions(this.phase)&&w&&!p.reloadAt&&p.reserve>0&&p.ammo<w.clip){p.reloadStartedAt=this.time;p.reloadAt=this.time+(w.reloadStyle==='per-shell'?w.reloadStart:w.reload);if(w.reloadTimeline){p.reloadEndAt=0;p.reloadStage='intro';p.reloadShellsAdded=0;p.reloadCancelledAt=0;}p.zoom=90;p.resumeZoomAt=0;p.progress=0;p.burstRemaining=0;resetWeapon(p,{keepPunch:true});if(['aug','famas','mac10','mp5navy'].includes(p.weapon))p.accuracy=0;
     // Original ReloadSound has a 512-source-unit hearing radius; local MDL5004 owns local detail.
@@ -415,9 +436,37 @@ class ExperimentalGame {
     }
     saveActive(p);return true;
   }
+  #reserveReleasedGrenade(p){
+    if(grenadeProfile?.trajectoryVersion!==1)return;
+    const state=this.#inputs.get(p.id),intent=state?.grenadeIntent;
+    if(!intent?.released||state.pendingGrenadeLaunch||!p.grenadeReleased||!['pin','hold'].includes(p.grenadePhase)||this.time+1e-8<Math.max(intent.visualThrowAt??Infinity,p.grenadeStartedAt+GRENADE_TIMING.pinSeconds))return;
+    // A released windup can survive an equip without blocking its ACK. Keep a
+    // single inventory reservation; it is consumed only after actual creation.
+    state.pendingGrenadeLaunch={...intent,round:this.round,jumpState:this.#grenadeJumps.get(p)};state.grenadeIntent=null;p.grenadeIntentStatus='released-pending';
+  }
+  #updatePendingGrenade(p){
+    const state=this.#inputs.get(p.id),intent=state?.pendingGrenadeLaunch;
+    if(!intent)return;
+    if(!p.alive||intent.round!==this.round||!allowsPlayerActions(this.phase)){delete state.pendingGrenadeLaunch;return;}
+    if(this.time+1e-8<intent.launchAt)return;
+    const choice=selectGrenadeJumpPose(intent.jumpState,grenadeProfile,this.time,{canDefer:!intent.launchDeferred});
+    if(choice.defer){intent.launchDeferred=true;intent.launchAt+=grenadeProfile.releaseDelaySeconds;return;}
+    delete state.pendingGrenadeLaunch;
+    const kind=intent.weapon,owner=applyGrenadeReleaseView(choice.pose?{...p,...choice.pose}:p,intent,choice.sampleInputSeq??(p.lastAppliedInputSeq||0),choice.sampledAt??this.time);
+    const grenade=this.projectiles.length<GRENADE_LIMITS.active&&p.grenades[kind]>0?createGrenade(owner,kind,this.time,{strength:throwStrength(intent.control,grenadeControlTime(intent,this.time))}):null;
+    if(!grenade){if(!state.grenadeIntent&&p.grenadeActionId===intent.actionId)p.grenadeIntentStatus='cancelled';return;}
+    grenade.actionId=intent.actionId;grenade.round=this.round;p.grenades[kind]--;this.projectiles.push(grenade);
+    if(!state.grenadeIntent&&p.grenadeActionId===intent.actionId)p.grenadeIntentStatus='thrown';
+    // This detached commit must not touch the currently displayed gun/knife,
+    // its deploy, recoil, reload, nextAttackAt, lastShot, scope or quick-switch.
+    this.emit({type:'throw',id:p.id,kind,actionId:grenade.actionId,projectileId:grenade.id,round:this.round,strength:grenade.strength,mode:grenade.mode,launchSource:choice.source,sampledAt:choice.sampledAt??this.time,switchedBeforeLaunch:true});
+    this.sound(p,'radio/ct_fireinhole.wav',{global:true,team:p.team,category:'voice',channel:'radio',priority:20});
+  }
   updateGrenade(p,actualInput){
     const inputState=this.#inputs.get(p.id);
     if(!p.grenadePhase||!GRENADE_IDS.includes(p.weapon))return;
+    const controlIntent=inputState?.grenadeIntent,control=controlIntent?.control;
+    if(control){p.grenadeStrength=throwStrength(control,grenadeControlTime(controlIntent,this.time));p.grenadeMode=throwMode(p.grenadeStrength);}
     if(p.grenadePhase==='throw'){
       const retire=p.grenades[p.weapon]>0?GRENADE_TIMING.retireWithAmmoSeconds:GRENADE_TIMING.recoverSeconds;
       if(this.time+1e-8>=p.grenadeThrownAt+retire)this.activate(p,p.primary||p.pistol||'knife',this.time);
@@ -429,13 +478,29 @@ class ExperimentalGame {
     const nextPhase=grenadeActionPhase(p.grenadeStartedAt,this.time,p.grenadeReleased);
     if(nextPhase==='pin')return;
     p.grenadePhase='hold';if(nextPhase!=='throw')return;
+    const kind=p.weapon,intent=inputState?.grenadeIntent;
+    let launchOwner=intent?.aim?{...p,...intent.aim}:p;
+    if(grenadeProfile?.trajectoryVersion===1){
+      // Position, velocity, eye and angles share one authoritative sample. Old
+      // release-angle overrides remain confined to the v1/v2 compatibility path.
+      launchOwner=p;
+      if(intent){
+        intent.launchAt??=Math.max(this.time,p.grenadeStartedAt+GRENADE_TIMING.pinSeconds)+grenadeProfile.releaseDelaySeconds;
+        if(this.time+1e-8<intent.launchAt)return;
+        const choice=selectGrenadeJumpPose(this.#grenadeJumps.get(p),grenadeProfile,this.time,{canDefer:!intent.launchDeferred});
+        if(choice.defer){intent.launchDeferred=true;intent.launchAt+=grenadeProfile.releaseDelaySeconds;return;}
+        if(choice.pose)launchOwner={...p,...choice.pose};
+        launchOwner=applyGrenadeReleaseView(launchOwner,intent,choice.sampleInputSeq??(p.lastAppliedInputSeq||0),choice.sampledAt??this.time);
+        intent.launchSampleSource=choice.source;intent.launchSampleTime=choice.sampledAt??this.time;
+      }else if(inputState){inputState.grenadeLegacyLaunchAt??=this.time+grenadeProfile.releaseDelaySeconds;if(this.time+1e-8<inputState.grenadeLegacyLaunchAt)return;}
+    }
     if(this.projectiles.length>=GRENADE_LIMITS.active){this.cancelGrenadeIntent(p);resetGrenadeThrow(p);return;}
-    const kind=p.weapon,intent=inputState?.grenadeIntent,grenade=createGrenade(intent?.aim?{...p,...intent.aim}:p,kind,this.time);
+    const grenade=createGrenade(launchOwner,kind,this.time,{strength:intent?.control?throwStrength(intent.control,grenadeControlTime(intent,this.time)):1});
     if(!grenade){this.cancelGrenadeIntent(p);resetGrenadeThrow(p);return;}
     grenade.actionId=intent?.actionId||0;grenade.round=this.round;
-    p.grenades[kind]--;this.projectiles.push(grenade);p.grenadePhase='throw';p.grenadeThrownAt=this.time;
+    this.#grenadeJumps.delete(p);p.grenades[kind]--;this.projectiles.push(grenade);p.grenadePhase='throw';p.grenadeThrownAt=this.time;
     p.grenadeIntentStatus='thrown';p.nextAttackAt=this.time+GRENADE_TIMING.recoverSeconds;p.lastShot=this.time;
-    this.emit({type:'throw',id:p.id,kind,actionId:grenade.actionId,projectileId:grenade.id,round:this.round});
+    this.emit({type:'throw',id:p.id,kind,actionId:grenade.actionId,projectileId:grenade.id,round:this.round,strength:grenade.strength,mode:grenade.mode,...(grenadeProfile?.trajectoryVersion===1?{launchSource:intent?.launchSampleSource||'live',sampledAt:intent?.launchSampleTime??this.time}:{} )});
     this.sound(p,'radio/ct_fireinhole.wav',{global:true,team:p.team,category:'voice',channel:'radio',priority:20});
   }
   canReach(p,b,radius){if(Math.hypot(p.x-b.x,p.z-b.z)>=radius||Math.abs(p.y-(b.y||0))>1.3)return false;
@@ -466,7 +531,14 @@ class ExperimentalGame {
   }
   #playerCombat({p,command,preserveEdges},dt){
     const heldFire=p.fireHeld;
-    updateWeapon(p,dt,this.time,preserveEdges);this.pickup(p);
+    updateWeapon(p,dt,this.time,preserveEdges);
+    if(grenadeProfile?.trajectoryVersion===1){
+      const latch=this.#grenadeJumps.get(p);
+      if(latch?.punchPending){const sample=finalizeGrenadeJumpPunch(latch,p,this.time);if(sample)this.#grenadeJumps.set(p,sample);else this.#grenadeJumps.delete(p);}
+      const pending=this.#inputs.get(p.id)?.pendingGrenadeLaunch;
+      if(pending?.jumpState?.punchPending)pending.jumpState=finalizeGrenadeJumpPunch(pending.jumpState,p,this.time);
+    }
+    this.pickup(p);
     const w=GUNS[p.weapon];
     if(p.resumeZoomAt&&this.time>=p.resumeZoomAt){p.zoom=p.resumeZoom||90;p.resumeZoomAt=0;}
     if(updateReload(p,this.time))saveActive(p);
@@ -475,6 +547,7 @@ class ExperimentalGame {
     this.updateGrenadeIntent(p);
     if(p.input.fire&&!p.action&&!(p.grenadeProtocol===GRENADE_PROTOCOL&&GRENADE_IDS.includes(p.weapon))&&(p.weapon==='knife'||GRENADE_IDS.includes(p.weapon)||w?.automatic||p.burstMode||!p.fireHeld))this.shoot(p);p.fireHeld=preserveEdges?heldFire:p.input.fire;
     this.updateGrenade(p,Boolean(command.seq)||(!preserveEdges&&this.time-p.lastInput<=LEGACY_INPUT_GRACE_SECONDS));
+    this.#updatePendingGrenade(p);
     // Reload an empty active firearm even after the trigger is released.
     if(GUNS[p.weapon]&&p.ammo===0)this.reload(p.id);
     return true;
@@ -506,7 +579,11 @@ class ExperimentalGame {
       const command=this.#nextInput(p),beforeAck=p.ackInputSeq;p.input=command.input||command;
       const preserveEdges=!command.seq&&this.#inputs.get(p.id).sequenced,heldJump=p.jumpHeld;
       const locomotion=this.#locomotion.get(p)||createLocomotionState(p);
+      const latchEnabled=grenadeProfile?.trajectoryVersion===1&&grenadeProfile.jumpLatchEnabled,latchActive=latchEnabled&&(p.grenadePhase==='pin'||p.grenadePhase==='hold')&&GRENADE_IDS.includes(p.weapon),pending=latchEnabled?this.#inputs.get(p.id)?.pendingGrenadeLaunch:null,jumpState=latchActive?this.#grenadeJumps.get(p):null,
+        sampleJump=(latchActive||pending)&&(jumpState&&!jumpState.pose||pending?.jumpState&&!pending.jumpState.pose||p.grounded&&p.input.jump&&!heldJump),jumpBefore=sampleJump?captureGrenadePose(p,eyeHeight(p)):null;
       const beforeMove={x:p.x,y:p.y,z:p.z,vx:p.vx,vy:p.vy,vz:p.vz,grounded:p.grounded};movePlayer(p,p.input,dt,all);
+      if(jumpBefore){const after=captureGrenadePose(p,eyeHeight(p),command.seq||p.lastAppliedInputSeq||0);if(latchActive){const state=recordGrenadeJump(jumpState,grenadeProfile,jumpBefore,after,this.time-dt,this.time,p.input.jump&&!heldJump);if(state)this.#grenadeJumps.set(p,state);else this.#grenadeJumps.delete(p);}if(pending)pending.jumpState=recordGrenadeJump(pending.jumpState,grenadeProfile,jumpBefore,after,this.time-dt,this.time,p.input.jump&&!heldJump);}
+      else{if(jumpState&&(p.grounded||this.time-jumpState.cachedAt>grenadeProfile.jumpLatchWindowSeconds))this.#grenadeJumps.delete(p);if(pending?.jumpState&&(p.grounded||this.time-pending.jumpState.cachedAt>grenadeProfile.jumpLatchWindowSeconds))pending.jumpState=null;}
       const presentation=stepLocomotion(locomotion,p,dt);this.#locomotion.set(p,presentation.state);p.playerLocomotion=presentation.pose;
       // Advance native presentation exactly once from newly simulated travel.
       // Snapshot, equip and historical pose reads must remain side-effect free.
@@ -528,9 +605,11 @@ class ExperimentalGame {
     const present=team=>all.some(p=>p.team===team),alive=team=>all.some(p=>p.alive&&p.team===team);
     if(present('CT')&&!alive('CT'))this.finish('T','对方全灭');else if(present('T')&&!alive('T')&&this.bomb.state!=='planted')this.finish('CT','对方全灭');else if(this.time>=this.endAt&&this.bomb.state!=='planted')this.finish('CT','守住回合时间','timeout');
   }
-  snapshot(viewerId=null){return {type:'state',version:'cs2-experimental-v1',experimental:true,worldContract:world.contract,weaponProfileId:weaponProfile.id,movementProfileId:world.contract.rulesVersion,grenadeProfileId:grenadeProfile?.id||'legacy-grenade-v1',ballisticsVersion:MAIN_BALLISTICS_VERSION,hitSlowdownVersion:HIT_SLOWDOWN_VERSION,hitRecoveryVersion:this.hitRecovery.version,collisionVersion:COLLISION_VERSION,jumpFatigueVersion:JUMP_FATIGUE_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId})),smokes:this.smokes.map(s=>structuredClone(s)),drops:this.drops.map(d=>({...d})),
+  snapshot(viewerId=null){return {type:'state',version:'cs2-experimental-v1',experimental:true,worldContract:world.contract,weaponProfileId:weaponProfile.id,movementProfileId:world.contract.rulesVersion,grenadeProfileId:grenadeProfile?.id||'legacy-grenade-v1',ballisticsVersion:MAIN_BALLISTICS_VERSION,hitSlowdownVersion:HIT_SLOWDOWN_VERSION,hitRecoveryVersion:this.hitRecovery.version,collisionVersion:COLLISION_VERSION,jumpFatigueVersion:JUMP_FATIGUE_VERSION,scopeProtocol:SCOPE_VIEW_PROTOCOL,movementSync:MOVEMENT_SYNC,serverTick:this.serverTick,mapVersion:MAP_VERSION,time:this.time,phase:this.phase,round:this.round,score:{...this.score},endAt:this.endAt,buyEndAt:this.buyEndAt,message:this.message,bomb:{...this.bomb},projectiles:this.projectiles.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,z:g.z,bornAt:g.bornAt,resting:!!g.resting,actionId:g.actionId||0,round:g.round,ownerId:g.ownerId,...(grenadeProfile?.trajectoryVersion===1&&Number.isFinite(g.simulatedAt)?{simulatedAt:Math.min(this.time,Math.max(Number.isFinite(g.bornAt)?g.bornAt:0,g.simulatedAt))}:{})})),smokes:this.smokes.map(s=>structuredClone(s)),drops:this.drops.map(d=>({...d})),
       players:[...this.players.values()].map(player=>{
-        const {input,lastInput,lastInputSeq,pendingMoney,...p}=player,animation=hitboxAnimation(player,this.time);
+        const {input,lastInput,lastInputSeq,pendingMoney,grenadeButtons,grenadeStrength,grenadeMode,...p}=player,animation=hitboxAnimation(player,this.time);
+        if(p.grenadePhase){Object.assign(p,{grenadeButtons,grenadeStrength,grenadeMode});if(grenadeProfile?.trajectoryVersion===1){const intent=this.#inputs.get(p.id)?.grenadeIntent;if(intent){p.grenadeLaunchAt=intent.launchAt||0;p.grenadeLaunchDeferred=!!intent.launchDeferred;p.grenadeVisualThrowAt=intent.visualThrowAt||0;}}}
+        const pending=this.#inputs.get(p.id)?.pendingGrenadeLaunch;if(pending){p.pendingGrenadeActionId=pending.actionId;p.pendingGrenadeLaunchAt=pending.launchAt;}
         if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);
         if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,...visible}=p;return {...visible,...animation};}
         return {...p,...animation,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};

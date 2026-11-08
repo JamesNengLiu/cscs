@@ -1,7 +1,7 @@
 // Bounded, reusable geometry. Smoke is an approximate occlusion volume, not original CS rendering.
 import {createProjectileModels,PROJECTILE_MODEL_LIMIT} from './cs2-native-projectiles.js';
 import {createExplosionEffects} from './cs2-explosion-effects.js';
-import {createProjectileBuffer} from './projectile-buffer.js';
+import {createProjectileBuffer} from './cs2-projectile-buffer.js';
 export const FX_LIMITS=Object.freeze({projectiles:PROJECTILE_MODEL_LIMIT,smokes:32});
 const clamp01=n=>Math.max(0,Math.min(1,Number(n)||0));
 export function flashOpacity(until,amount,time,fade=1.4){

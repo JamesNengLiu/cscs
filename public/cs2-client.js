@@ -27,7 +27,7 @@ import {createAwpView} from './cs2-awp-view.js';
 import {createMuzzlePulse} from './muzzle-pulse.js';
 import {muzzleFlashProfile} from './muzzle-flash.js';
 import {createPresentationWarmup} from './presentation-warmup.js';
-import {createGrenadePrediction,GRENADE_PROTOCOL} from './cs2-grenade-intent.js';
+import {createGrenadePrediction,GRENADE_PROTOCOL,GRENADE_KINDS} from './cs2-grenade-intent.js';
 import {createGpuTimer} from './gpu-timer.js';
 import {SCOPED_SENSITIVITY,createMouseSettings,bindMouseSettings,mouseTurnFactor} from './mouse-settings.js';
 import {createViewmodelCamera,formatViewmodelAttachment} from './cs2-viewmodel-presentation.js';
@@ -154,7 +154,7 @@ $('previewButton').onclick=()=>{preview=true;sceneDirty=true;$('lobby').hidden=t
 
 $('backButton').onclick=()=>{if(!connected){location.href='/';return;}preview=false;sceneDirty=true;$('lobby').hidden=false;$('previewPanel').hidden=true;};
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{view=button.dataset.view;sceneDirty=true;};
-const keys=new Set(),inputSampler=createInputSampler();let mouseFire=false,audio=null,maxBurst=0,maxRecoilPitch=0;
+const keys=new Set(),inputSampler=createInputSampler();let mouseFire=false,grenadeButtons=0,audio=null,maxBurst=0,maxRecoilPitch=0;
 let localMovementSounds=createMovementSoundState(),audioRound=null,radioMenuIndex=null;
 const acoustics=createAcousticSampler((a,b)=>CLIENT_WORLD.collision.trace(a,b,0,{radius:0,channel:'audio'}));
 const worldAudio=createWorldAudio(()=>audio);
@@ -170,10 +170,10 @@ const grenadePrediction=createGrenadePrediction({send:message=>send(message)});
 function canSwitchWeapon(p,key,fallback){return Boolean(resolveViewWeapon(p,key,state?.bomb,fallback));}
 function weaponActionContext(){return {supported:weaponActionProtocol,round:state?.round,seq:inputSeq,ack:player()?.ackInputSeq||0,commands:pendingCommands,firePending:inputSampler.diagnostics().pendingPresses.includes('fire'),active:locked&&player()?.alive&&allowsPlayerActions(state?.phase),viewTime:snapshotBuffer.diagnostics().playbackTimeMs/1000,interpDelayMs:snapshotBuffer.diagnostics().delayMs};}
 function transmit(m){if(socket.readyState===WebSocket.OPEN){weaponSwitchView.sent(m);if(isWeaponAction(m.type))m=awpView.intent(m,player(),{round:state?.round,stateTime:serverTime(),phase:state?.phase,canSwitch:m.type==='equip'&&canSwitchWeapon(player(),m.weapon,m.fallbackWeapon)});if(m.type==='ping')networkDiagnostics.ping(m.sent);socket.send(JSON.stringify(m));networkDiagnostics.queues(socket.bufferedAmount);}}
-function send(m){if(socket.readyState!==WebSocket.OPEN)return;if(m.type==='equip')m=weaponSwitchView.intent(m,player(),{round:state?.round,phase:state?.phase,bomb:state?.bomb,canQueue:weaponActionOrder.pending<WEAPON_ACTION_LIMIT});if(weaponActionProtocol&&isWeaponAction(m.type))m=weaponActionOrder.prepare(m,weaponActionContext());if(m)transmit(m);}
+function send(m){if(socket.readyState!==WebSocket.OPEN)return;if(m.type==='equip'){if(GRENADE_KINDS.includes(player()?.weapon)&&canSwitchWeapon(player(),m.weapon,m.fallbackWeapon)){grenadePrediction.cancel({preserveReleased:true});grenadeButtons=0;}m=weaponSwitchView.intent(m,player(),{round:state?.round,phase:state?.phase,bomb:state?.bomb,canQueue:weaponActionOrder.pending<WEAPON_ACTION_LIMIT});}if(weaponActionProtocol&&isWeaponAction(m.type))m=weaponActionOrder.prepare(m,weaponActionContext());if(m)transmit(m);}
 function flushWeaponActions(){for(const m of weaponActionOrder.flush(weaponActionContext()))transmit(m);}
 function notify(text,seconds=3){$('notice').textContent=text;noticeUntil=performance.now()+seconds*1000;}
-function clearInput(){weaponSwitchView.cancel();grenadePrediction.cancel();weaponActionOrder.cancel();closeRadio();keys.clear();mouseFire=false;pendingCommands=[];inputSampler.reset();physicsAccumulator=0;shotFeedback.cancel();muzzlePulse.reset();send({type:'input',input:{...blankInput(),yaw,pitch,round:lastRound,cancelThroughSeq:inputSeq}});}
+function clearInput(){weaponSwitchView.cancel();grenadePrediction.cancel();grenadeButtons=0;weaponActionOrder.cancel();closeRadio();keys.clear();mouseFire=false;pendingCommands=[];inputSampler.reset();physicsAccumulator=0;shotFeedback.cancel();muzzlePulse.reset();send({type:'input',input:{...blankInput(),yaw,pitch,round:lastRound,cancelThroughSeq:inputSeq}});}
 function queueInputEdge(){if(locked)inputSampler.observe(input());}
 function presentLocalShot(event,now=performance.now()){
   if(event.weapon!==player()?.weapon)return;
@@ -202,7 +202,7 @@ async function prepareCombat(){
    actor.update(0,{team,weapon:team==='T'?'glock18':'usp',alive:true,grounded:true,x:0,y:0,z:0});
    await renderer.compileAsync(actor.group,camera,scene);
   }
-  if(weaponView)for(const id of ['knife','ak47','m4a1','awp','usp','glock18']){
+  if(weaponView)for(const id of ['knife','ak47','m4a1','awp','usp','glock18',...GRENADE_KINDS]){
    text('joinButton','准备 '+weaponName(id)+'…');await weaponView.setWeapon(id);
    const info=weaponView.info();if(info.error)throw Error(info.error);
    await renderer.compileAsync(weaponView.group,camera,scene);
@@ -254,14 +254,14 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       me.hitRecoveryVersion=m.hitRecoveryVersion===1?1:0;
       me.collisionVersion=m.collisionVersion??0;
       me.jumpFatigueVersion=m.jumpFatigueVersion??0;
-      if(!local||lastRound!==m.round){resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;}
-      else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;}
+      if(!local||lastRound!==m.round){grenadeButtons=0;resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;}
+      else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){grenadeButtons=0;local={...me};playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;}
       else {const result=reconcileMovement(me,pendingCommands,m.round,m.players),allowance=predictionCorrectionLimit(local,result.player,{previousAuthority,authority:me,intervalSeconds:m.time-previousStateTime,activeRecovery:recoveryCorrection});lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction,{maxDistance:allowance});if(allowance>.5&&Math.hypot(correction.x,correction.y,correction.z)>.05)recoveryCorrection=true;if(lastCorrection>allowance)viewFeedback.reset();playerCamera.rebase(local,result.player,{maxDistance:allowance});local=result.player;pendingCommands=result.pending;}
-      if(activeWeapon!==me.weapon){if(activeWeapon&&ownedWeapons(me,m.bomb).includes(activeWeapon))lastWeapon=activeWeapon;activeWeapon=me.weapon;sceneDirty=true;}
+      if(activeWeapon!==me.weapon){grenadeButtons=0;if(activeWeapon&&ownedWeapons(me,m.bomb).includes(activeWeapon))lastWeapon=activeWeapon;activeWeapon=me.weapon;sceneDirty=true;}
       weaponSwitchView.observe(me,{round:m.round,time:m.time,protocol:weaponSwitchViewProtocol,phase:m.phase});
       awpView.observe(me,{round:m.round,stateTime:m.time,protocol:m.scopeProtocol,nowMs:performance.now()});
       const confirmedShot=shotFeedback.observe(me,{round:m.round,stateTime:m.time,nowMs:performance.now()});if(confirmedShot)presentLocalShot(confirmedShot);
-      grenadePrediction.observe(me,{round:m.round,stateTime:m.time,phase:m.phase});
+      grenadePrediction.observe(me,{round:m.round,stateTime:m.time,phase:m.phase,grenadeProfileId:m.grenadeProfileId});
       if(me.flashUntil!==undefined){flashUntil=Number(me.flashUntil)||0;flashAmount=clamp(Number(me.flashAmount)||0,0,1);flashFade=Number(me.flashFade)||1.4;}
       if(!me.alive){flashUntil=0;flashAmount=0;}
       const signature=JSON.stringify([me.alive,me.weapon,me.zoom,me.shieldRaised,me.reloadAt,me.armour,me.flashUntil,me.flashAmount,me.flashFade,me.grenadePhase,me.grenadeStartedAt,me.grenadeThrownAt,m.bomb]);
@@ -337,8 +337,19 @@ $('gameMenuButton').addEventListener('click',openGameMenu);
 document.addEventListener('pointerlockchange',()=>{sceneDirty=true;if(locked)rememberGameplayDiagnostics();locked=document.pointerLockElement===canvas&&!shop.isOpen;if(locked)lookDiagnostics?.begin({wallNow:performance.now(),yaw,pitch,rawMode:pointerInput.diagnostics().mode,sensitivity:mouseSettings.value});else lookDiagnostics?.end({wallNow:performance.now(),reason:'pointer-unlocked'});if(joined)setMenuVisible(!locked&&!shop.isOpen);clearInput();frameMetrics.reset();resolution.reset();viewFeedback.reset();presentationWarmup.resume();});
 document.addEventListener('pointerlockerror',()=>{if(!pointerInput.inflight&&document.pointerLockElement!==canvas)notify('鼠标捕获失败，请点击“进入游戏”重试');});
 document.addEventListener('mousemove',e=>{if(locked&&!document.hidden&&$('resume').hidden){const receivedAt=lookDiagnosticsEnabled?performance.now():0;if(!pointerInput.observe(e.movementX,e.movementY))return;const p=player(),viewPlayer=p?.weapon==='awp'?{alive:p.alive,weapon:p.weapon,zoom:awpView.zoom(p,{stateTime:serverTime()})}:p;const factor=mouseTurnFactor(mouseSettings,scopedSettings,viewPlayer);yaw-=e.movementX*factor;pitch=clamp(pitch-e.movementY*factor,-PITCH_LIMIT,PITCH_LIMIT);if(lookDiagnosticsEnabled)lookDiagnostics.observe({receivedAt,eventTimestamp:e.timeStamp,movementX:e.movementX,movementY:e.movementY,yaw,pitch,factor});}});
-document.addEventListener('mousedown',e=>{if(!locked||shop.isOpen||!$('resume').hidden)return;if(e.button===0&&!mouseFire){mouseFire=true;grenadePrediction.press(player(),{round:lastRound,stateTime:serverTime(),phase:state?.phase,yaw,pitch});queueInputEdge();sceneDirty=true;}if(e.button===2){e.preventDefault();send({type:'secondary'});}});
-document.addEventListener('mouseup',e=>{if(e.button===0){mouseFire=false;grenadePrediction.release({yaw,pitch});queueInputEdge();sceneDirty=true;}});
+function grenadeInputContext(){return {round:lastRound,stateTime:serverTime(),phase:state?.phase,yaw,pitch,eventTimeStamp:arguments[0]?.timeStamp,grenadeProfileId:state?.grenadeProfileId,afterInputSeq:typeof inputSeq==='number'?inputSeq:0};}
+document.addEventListener('mousedown',e=>{
+ if(!locked||shop.isOpen||!$('resume').hidden)return;
+ const grenade=GRENADE_KINDS.includes(player()?.weapon),bit=e.button===0?1:e.button===2?2:0;
+ if(e.button===0&&!mouseFire){mouseFire=true;queueInputEdge();sceneDirty=true;}
+ if(grenade&&bit){e.preventDefault();grenadeButtons|=bit;grenadePrediction.buttons(player(),grenadeButtons,grenadeInputContext(e));sceneDirty=true;}
+ else if(e.button===2){e.preventDefault();send({type:'secondary'});}
+});
+document.addEventListener('mouseup',e=>{
+ const bit=e.button===0?1:e.button===2?2:0;
+ if(bit&&(grenadeButtons&bit)){grenadeButtons&=~bit;grenadePrediction.buttons(player(),grenadeButtons,grenadeInputContext(e));sceneDirty=true;}
+ if(e.button===0){mouseFire=false;queueInputEdge();sceneDirty=true;}
+});
 document.addEventListener('contextmenu',e=>{
   if(shop.isOpen){e.preventDefault();resumeGame();}
   else if(locked)e.preventDefault();

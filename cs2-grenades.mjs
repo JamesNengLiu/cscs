@@ -3,6 +3,9 @@ import {direction} from './public/math.js';
 import {RULES as LEGACY_RULES} from './public/config.js';
 import {FLASH_TIMING} from './public/grenade-state.js';
 import {createSmokeVolume,pruneSmokeFields} from './public/cs2-smoke-field.js';
+import {throwMode} from './public/cs2-grenade-controls.js';
+import {createGrenadeFlight} from './cs2-grenade-flight.mjs';
+import {buildCS2GrenadeLaunch} from './cs2-grenade-launch.mjs';
 
 // Independently implemented from the references and deviations in docs/grenades-fidelity.md.
 export const GRENADE_LIMITS = Object.freeze({active:64, smokes:32, ttl:10, smokeSeconds:20,
@@ -17,6 +20,12 @@ export function createGrenadeRuntime(world,{profile=null}={}){
  const RULES=world.movement.rules,MAP_BOUNDS=world.collision.bounds,{eyeHeight,bodyHeight}=world.movement;
  const trace=(a,b)=>world.collision.trace(a,b,0,{radius:0,channel:'grenade'});
  const projectileTrace=(a,b)=>world.collision.trace(a,b,0,{radius:profile?.radius||0,channel:'grenade'});
+ const trajectory=profile?.trajectoryVersion===1,substep=trajectory?profile.simulationStep??1/128:GRENADE_LIMITS.substep;
+ if(!Number.isFinite(substep)||substep<1/1024||substep>GRENADE_LIMITS.maxDelta)throw Error('Invalid grenade simulation step');
+ const maxSteps=Math.ceil(GRENADE_LIMITS.maxDelta/substep)+1;
+ const projectileTTL=trajectory?profile.projectileTTL??20:GRENADE_LIMITS.ttl;
+ if(!Number.isFinite(projectileTTL)||projectileTTL<=0||projectileTTL>60)throw Error('Invalid grenade lifetime');
+ const flight=trajectory?createGrenadeFlight({sweep,trace:projectileTrace,gravity:RULES.gravity*profile.gravityScale,elasticity:profile.elasticity,restSpeed:profile.restSpeed,maxSpeed:GRENADE_LIMITS.maxSpeed,maxContacts:profile.maxContacts??4,floorNormal:profile.floorNormal??.7,restNormal:profile.restNormal??.7,contactSlop:profile.contactSlop??0,bounceBias:profile.bounceBias??0,floorDampingSpeed:profile.floorDampingSpeed??0,floorDampingDot:profile.floorDampingDot??.5,componentStopEpsilon:profile.componentStopEpsilon??0,simulationStep:substep}):null;
 const KINDS = new Set(['hegrenade', 'flashbang', 'smokegrenade']);
 const FUSE = profile?.fuseSeconds??1.5;
 const HE_RADIUS = 350*METRES_PER_UNIT;
@@ -38,24 +47,33 @@ function capVelocity(p) {
 }
 
 /** Authoritative throw commit; consume inventory only after successful creation. Invalid throws return null. */
-function createGrenade(owner, kind, now, secondary=false) {
+function createGrenade(owner, kind, now, options=false) {
   if (!validPlayer(owner) || !['T','CT'].includes(owner.team) || !KINDS.has(kind) ||
       !Number.isFinite(now) || now < 0 || now > Number.MAX_SAFE_INTEGER-FUSE) return null;
+  // Old callers used a secondary boolean that had no effect. Preserve that
+  // contract; the versioned CS2 intent is the sole source of new strengths.
+  const requested=typeof options==='boolean'?1:options&&typeof options==='object'&&!Array.isArray(options)?options.strength:NaN;
+  if(!Number.isFinite(requested)||requested<0||requested>1)return null;
+  const strength=Number.isFinite(profile?.strengthSpeedFloor)&&Number.isFinite(profile?.strengthSpeedRange)?requested:1;
+  if(trajectory){
+    const launch=buildCS2GrenadeLaunch(world,profile,owner,kind,{strength});if(!launch)return null;
+    const grenade={id:`grenade-${randomUUID()}`,ownerId:owner.id,team:owner.team,kind,strength,mode:throwMode(strength),...launch,bornAt:now,detonateAt:now+FUSE,simulatedAt:now,grounded:false,resting:false,bounces:0,nextThinkAt:now+(profile.smokeThinkSeconds??.1),detonationQueued:false};
+    capVelocity(grenade);return grenade;
+  }
   const yaw = (finite(owner.yaw) % (Math.PI*2)+finite(owner.recoilYaw) % (Math.PI*2)) % (Math.PI*2);
   // Browser pitch is positive up; GoldSrc pitch is positive down.
   const pitch = -clamp(finite(owner.pitch)+finite(owner.recoilPitch), -Math.PI/2, Math.PI/2)*180/Math.PI;
   const throwPitch = -10 + pitch*(pitch < 0 ? 80/90 : 100/90);
   const forward = direction(yaw, -throwPitch*Math.PI/180);
-  const speed = profile?profile.weapons[kind].throwVelocity*profile.throwVelocityScale*METRES_PER_UNIT:Math.min(750,(90-throwPitch)*6)*METRES_PER_UNIT;
+  const speedScale=strength===1?1:profile.strengthSpeedFloor+profile.strengthSpeedRange*strength;
+  const speed = (profile?profile.weapons[kind].throwVelocity*profile.throwVelocityScale*METRES_PER_UNIT:Math.min(750,(90-throwPitch)*6)*METRES_PER_UNIT)*speedScale;
   const eye = {x:owner.x, y:owner.y+eyeHeight(owner), z:owner.z};
   const clearanceDistance=profile?.throwClearance??16*METRES_PER_UNIT;
   const clearance=projectileTrace(eye,{x:eye.x+forward.x*clearanceDistance,y:eye.y+forward.y*clearanceDistance,z:eye.z+forward.z*clearanceDistance});
   if (clearance.startSolid) return null;
-  // CS secondary is shield operation, not an underhand throw. Keep the API flag without inventing one.
-  void secondary;
   const backoff=profile?.throwBackoff||0,inherit=profile?.inheritedVelocityScale??1,origin=profile?{x:clearance.end.x-forward.x*backoff,y:clearance.end.y-forward.y*backoff,z:clearance.end.z-forward.z*backoff}:clearance.end;
   if(projectileTrace(origin,origin).startSolid)return null;
-  const p = {id:`grenade-${randomUUID()}`, ownerId:owner.id, team:owner.team, kind,
+  const p = {id:`grenade-${randomUUID()}`, ownerId:owner.id, team:owner.team, kind,strength,mode:throwMode(strength),
     ...origin, vx:forward.x*speed+clamp(finite(owner.vx),-50,50)*inherit,
     vy:forward.y*speed+clamp(finite(owner.vy),-50,50)*inherit,
     vz:forward.z*speed+clamp(finite(owner.vz),-50,50)*inherit,
@@ -65,9 +83,9 @@ function createGrenade(owner, kind, now, secondary=false) {
 }
 
 // Slab sweep against authoritative player hulls; no endpoint-only body overlap checks.
-function sweepBody(start, end, player) {
-  const min = [player.x-RULES.radius, player.y, player.z-RULES.radius];
-  const max = [player.x+RULES.radius, player.y+bodyHeight(player), player.z+RULES.radius];
+function sweepBody(start, end, player,radius=0) {
+  const min = [player.x-RULES.radius-radius, player.y-radius, player.z-RULES.radius-radius];
+  const max = [player.x+RULES.radius+radius, player.y+bodyHeight(player)+radius, player.z+RULES.radius+radius];
   let enter = 0, leave = 1, normal = [0,0,0], inside = true;
   for (const [i,k] of ['x','y','z'].entries()) {
     const delta = end[k]-start[k];
@@ -91,7 +109,10 @@ function sweep(start, end, players, ownerId) {
   let hit = projectileTrace(start,end);
   for (const player of players) {
     if (!validPlayer(player) || player.id === ownerId) continue;
-    const body = sweepBody(start,end,player);
+    const body = sweepBody(start,end,player,trajectory?profile.radius:0);
+    // A teammate can walk into an airborne grenade or overlap its release
+    // point. Permit separation from that body; world embedding remains fatal.
+    if(trajectory&&body?.startSolid)continue;
     if (body && body.fraction < hit.fraction) hit = body;
   }
   return hit;
@@ -152,6 +173,13 @@ function integrate(p,dt,players,onBounce=()=>{}) {
   return validPosition(p);
 }
 function smokeThink(p,time) {
+  if(trajectory){
+    if(time+1e-9<p.nextThinkAt)return false;
+    const period=profile.smokeThinkSeconds??.1;
+    if(!Number.isFinite(period)||period<=0||period>1)return false;
+    p.nextThinkAt+=Math.max(1,Math.floor((time-p.nextThinkAt+1e-9)/period)+1)*period;
+    return time+1e-9>=p.detonateAt&&p.resting&&!p.groundBody&&length(p)<=profile.restSpeed+1e-9;
+  }
   if(time+1e-9<p.nextThinkAt)return false;
   if(p.detonationQueued)return true;
   if(p.grounded){p.vx*=.95;p.vy*=.95;p.vz*=.95;}
@@ -214,7 +242,7 @@ function explode(game, p, players) {
 function validProjectile(p, now) {
   return p && validId(p.id) && validId(p.ownerId) && ['T','CT'].includes(p.team) && KINDS.has(p.kind) &&
     validPosition(p) && ['vx','vy','vz','bornAt','detonateAt'].every(k => Number.isFinite(p[k])) &&
-    p.bornAt >= 0 && p.bornAt <= now && p.detonateAt >= p.bornAt && now-p.bornAt < GRENADE_LIMITS.ttl;
+    p.bornAt >= 0 && p.bornAt <= now && p.detonateAt >= p.bornAt && now-p.bornAt < projectileTTL;
 }
 
 /** Game advances time first. dt is elapsed seconds, not milliseconds. No client hit data is accepted. */
@@ -234,31 +262,38 @@ function stepGrenades(game, dt) {
   const active = (Array.isArray(game.projectiles) ? game.projectiles : []).slice(0,GRENADE_LIMITS.active);
   game.projectiles = [];
   const ids = new Set();
+  const onBounce=projectile=>{
+    if(game.time-(projectile.lastBounceSound??-100)>.12){projectile.lastBounceSound=game.time;game.emit({type:'bounce',id:projectile.id,kind:projectile.kind,from:position(projectile)});}
+  };
+  const advance=(p,seconds)=>(trajectory?flight.step(p,seconds,players,onBounce):integrate(p,seconds,players,onBounce))&&validPosition(p);
   for (const p of active) {
-    if (!validProjectile(p,now) || ids.has(p.id) || trace(p,p).startSolid) continue;
+    if (!validProjectile(p,now) || ids.has(p.id) || (trajectory?projectileTrace(p,p):trace(p,p)).startSolid) continue;
     ids.add(p.id);
     capVelocity(p);
     p.bounces = Number.isSafeInteger(p.bounces) && p.bounces >= 0 ? p.bounces : 0;
     let time=Math.max(p.bornAt,finite(p.simulatedAt,p.bornAt));
     // Keep a fractional fixed-step remainder; discard only elapsed stall debt.
-    if(now-time>elapsed+GRENADE_LIMITS.substep+1e-9)time=now-elapsed;
+    if(now-time>elapsed+substep+1e-9)time=now-elapsed;
     const end=p.kind==='smokegrenade'?now:Math.min(now,p.detonateAt);
     if(!Number.isFinite(p.nextThinkAt))p.nextThinkAt=p.bornAt+.1;
-    let valid=true,detonated=false;
-    while(time+GRENADE_LIMITS.substep<=end+1e-9){
-      const next=time+GRENADE_LIMITS.substep;
-      if(p.kind==='smokegrenade'&&smokeThink(p,next)){detonated=true;break;}
-      if(!integrate(p,GRENADE_LIMITS.substep,players,projectile=>{
-        if(game.time-(projectile.lastBounceSound??-100)>.12){projectile.lastBounceSound=game.time;game.emit({type:'bounce',id:projectile.id,kind:projectile.kind,from:position(projectile)});}
-      })){valid=false;break;}
+    let valid=true,detonated=false,steps=0;
+    while(time+substep<=end+1e-9&&(!trajectory||steps<maxSteps)){
+      const next=time+substep;
+      if(!trajectory&&p.kind==='smokegrenade'&&smokeThink(p,next)){detonated=true;break;}
+      if(!advance(p,substep)){valid=false;break;}
+      steps++;
       time=next;
+      if(trajectory&&p.kind==='smokegrenade'&&smokeThink(p,time)){detonated=true;break;}
     }
     if(!valid)continue;
+    // Timed HE/flash explode at their actual fuse endpoint even when that is
+    // a fractional half-step. Do not explode from the previous full tick.
+    if(trajectory&&p.kind!=='smokegrenade'&&now+1e-9>=p.detonateAt&&end-time>1e-9&&steps<maxSteps){if(!advance(p,end-time))continue;time=end;}
     p.simulatedAt=time;
     if(detonated||(p.kind!=='smokegrenade'&&now+1e-9>=p.detonateAt))explode(game,p,players);
     else game.projectiles.push(p);
   }
 }
 
- return{createGrenade,stepGrenades,clipBounceVelocity,limits:GRENADE_LIMITS};
+ return{createGrenade,stepGrenades,clipBounceVelocity,integrateProjectile:(p,seconds,players=[],onBounce=()=>{})=>(trajectory?flight.step(p,seconds,players,onBounce):integrate(p,seconds,players,onBounce))&&validPosition(p),limits:GRENADE_LIMITS,simulation:Object.freeze({trajectoryVersion:trajectory?1:0,substep,maxSteps,maxContacts:trajectory?flight.settings.maxContacts:null})};
 }

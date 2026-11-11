@@ -10,6 +10,7 @@ import {chromium} from 'playwright';
 import {createExperimentalServer} from '../cs2-server.mjs';
 import {createSmokeVolume} from '../public/cs2-smoke-field.js';
 import {direction} from '../public/math.js';
+import {instrumentCS2FrameBody} from './fixtures/cs2-frame-observer.mjs';
 
 const args=new Set(process.argv.slice(2));
 const option=(name,fallback)=>process.argv.find(a=>a.startsWith('--'+name+'='))?.slice(name.length+3)??fallback;
@@ -22,22 +23,21 @@ const output=path.resolve(option('output','.local/cs2/simple-smoke-2026-11-08/pe
 const source=await readFile('public/cs2-client.js','utf8'),nextSmoke=await readFile('public/cs2-smoke-renderer.js','utf8'),oldSmoke=execFileSync('git',['show',baselineCommit+':public/cs2-smoke-renderer.js'],{encoding:'utf8'});
 const gpuMarker='onSample:sample=>{if(sample.tag?.active',attachMarker='const smokeRenderer=createSmokeRenderer(THREE,{renderer,scene,camera});';
 assert.equal(source.split(gpuMarker).length,2);assert.equal(source.split(attachMarker).length,2);
-const injected=source.replace(gpuMarker,'onSample:sample=>{window.__simpleSmokePerf.gpu(sample);if(sample.tag?.active').replace(attachMarker,attachMarker+'window.__simpleSmokePerf.refs={renderer,smokeRenderer,camera,scene};');
+const injected=instrumentCS2FrameBody(source.replace(gpuMarker,'onSample:sample=>{window.__simpleSmokePerf.gpu(sample);if(sample.tag?.active').replace(attachMarker,attachMarker+'window.__simpleSmokePerf.refs={renderer,smokeRenderer,camera,scene};'),{before:'window.__simpleSmokePerf.beforeFrame(now)',after:'window.__simpleSmokePerf.afterFrame(__cs2ObservedFrame,now);'});
 execFileSync(process.execPath,['--check','--input-type=module'],{input:injected});
 for(const body of [oldSmoke,nextSmoke])execFileSync(process.execPath,['--check','--input-type=module'],{input:body});
 if(!args.has('--run')||args.has('--prepare')){console.log(JSON.stringify({status:'prepared-not-run',baselineCommit,seconds,warmupMs,cases,viewport:{width:1920,height:1080,dpr:1,quality:'sharp'},output,injectedSyntaxChecked:true}));process.exit(0);}
 assert.notEqual(sha(nextSmoke),sha(oldSmoke),'New renderer is still identical to the raymarch baseline');
 
-const sourceFiles=['public/cs2-client.js','public/cs2-smoke-renderer.js','public/cs2-smoke-field.js','public/cs2-effects.js','public/cs2-native-viewmodel.js','cs2-game.mjs','cs2-grenades.mjs','tests/cs2-simple-smoke-performance-browser.mjs'];
+const sourceFiles=['public/cs2-client.js','public/cs2-smoke-renderer.js','public/cs2-smoke-field.js','public/cs2-effects.js','public/cs2-native-viewmodel.js','cs2-game.mjs','cs2-grenades.mjs','tests/cs2-simple-smoke-performance-browser.mjs','tests/fixtures/cs2-frame-observer.mjs'];
 const fingerprints=async()=>Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,sha(await readFile(file))])));
 const report={status:'running',startedAt:new Date().toISOString(),scope:'One actual Chrome hardware renderer on the complete native map, identical scripted view and fields. A/B/A changes only the smoke renderer; no physical LAN, panel refresh, hardware mouse latency or multi-device FPS certification.',baselineCommit,oldSmokeSHA256:sha(oldSmoke),newSmokeSHA256:sha(nextSmoke),clientSHA256:sha(source),injectedClientSHA256:sha(injected),seconds,warmupMs,cases,viewport:{width:1920,height:1080,dpr:1,quality:'sharp'},sourceHashesBefore:await fingerprints(),phases:[],errors:[],requests:[]};
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function stats(values){const a=values.filter(Number.isFinite).sort((a,b)=>a-b),at=p=>a.length?a[Math.ceil((a.length-1)*p)]:null;return{samples:a.length,min:a[0]??null,p50:at(.5),p95:at(.95),p99:at(.99),max:a.at(-1)??null,mean:a.length?a.reduce((s,v)=>s+v,0)/a.length:null};}
 function installCapture(){
- const c={refs:null,active:null,start(){this.active={at:performance.now(),frames:[],gpu:[],longTasks:[]};},stop(){const s=this.active;this.active=null;return{...s,durationMs:performance.now()-s.at};},gpu(s){if(this.active&&s.submittedAt>=this.active.at)this.active.gpu.push({ms:s.ms,submittedAt:s.submittedAt,completedAt:s.completedAt,serial:s.serial});}};window.__simpleSmokePerf=c;
- const native=requestAnimationFrame.bind(window);window.requestAnimationFrame=callback=>native(function(stamp){if(callback.name!=='frame'||!c.active)return callback(stamp);const sample=c.active,start=performance.now();try{return callback(stamp);}finally{sample.frames.push({start,end:performance.now(),rafAt:stamp,cpuMs:performance.now()-start,render:window.lanStrike?.getRenderInfo(),programs:c.refs?.renderer.info.programs.length,visibility:document.visibilityState,focused:document.hasFocus()});}});
+ const c={refs:null,active:null,start(){this.active={at:performance.now(),frames:[],gpu:[],longTasks:[]};},stop(){const s=this.active;this.active=null;return{...s,durationMs:performance.now()-s.at};},gpu(s){if(this.active&&s.submittedAt>=this.active.at)this.active.gpu.push({ms:s.ms,submittedAt:s.submittedAt,completedAt:s.completedAt,serial:s.serial});},beforeFrame(){return this.active?{sample:this.active,start:performance.now()}:null;},afterFrame(mark,stamp){if(!mark)return;const {sample,start}=mark,end=performance.now();sample.frames.push({start,end,rafAt:stamp,cpuMs:end-start,render:window.lanStrike?.getRenderInfo(),programs:this.refs?.renderer.info.programs.length,visibility:document.visibilityState,focused:document.hasFocus()});}};window.__simpleSmokePerf=c;
  if(PerformanceObserver.supportedEntryTypes.includes('longtask'))new PerformanceObserver(list=>{if(c.active)for(const entry of list.getEntries())if(entry.startTime>=c.active.at)c.active.longTasks.push({at:entry.startTime,ms:entry.duration});}).observe({type:'longtask',buffered:false});
- localStorage.setItem('lan-strike-quality','sharp');
+ localStorage.setItem('lan-strike-cs2:lan-strike-quality','sharp');
 }
 function summarize(raw){const frames=raw.frames,intervals=frames.slice(1).map((f,i)=>f.start-frames[i].start);return{windowMs:raw.durationMs,callbacks:frames.length,callbacksPerWallSecond:frames.length*1000/raw.durationMs,firstCallbackOffsetMs:frames[0]?.start-raw.at,lastCallbackToWindowEndMs:frames.length?raw.durationMs-(frames.at(-1).end-raw.at):null,cpuMs:stats(frames.map(f=>f.cpuMs)),callbackIntervalMs:stats(intervals),rafIntervalMs:stats(frames.slice(1).map((f,i)=>f.rafAt-frames[i].rafAt)),gpuMs:stats(raw.gpu.map(s=>s.ms)),drawCalls:stats(frames.map(f=>f.render?.calls)),triangles:stats(frames.map(f=>f.render?.triangles)),programCounts:stats(frames.map(f=>f.programs)),longFramesOver33ms:intervals.filter(ms=>ms>33).length,longFramesOver50ms:intervals.filter(ms=>ms>50).length,longTasks:raw.longTasks,hiddenCallbacks:frames.filter(f=>f.visibility!=='visible').length};}
 

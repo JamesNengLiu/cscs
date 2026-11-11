@@ -11,7 +11,10 @@ globalThis.onmessage=event=>{
  }
  const controller=new AbortController();jobs.set(m.id,controller);activeBytes+=m.bytes;
  void(async()=>{
-  try{const result=await fetchInflatedResource(m,{signal:controller.signal});globalThis.postMessage({type:'inflated-resource',id:m.id,...result},[result.buffer]);}
+  // At most four liveness reports per second per job; payload bytes are never
+  // copied here.
+  let reportedAt=performance.now();const onProgress=received=>{const now=performance.now();if(now-reportedAt<250)return;reportedAt=now;globalThis.postMessage({type:'resource-progress',id:m.id,received});};
+  try{const result=await fetchInflatedResource(m,{signal:controller.signal,onProgress});globalThis.postMessage({type:'inflated-resource',id:m.id,...result},[result.buffer]);}
   catch(error){globalThis.postMessage({type:'resource-error',id:m.id,name:error?.name==='AbortError'?'AbortError':'Error',message:String(error?.message||'CS2 resource decoding failed').slice(0,256)});}
   finally{controller.abort();jobs.delete(m.id);activeBytes-=m.bytes;}
  })();

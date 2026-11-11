@@ -11,7 +11,9 @@ export function resourceAbortReason(signal){
 
 // Called only in the dedicated resource worker. Read into the declared-size
 // buffer there, so neither gzip work nor chunk assembly occupies the game loop.
-export async function fetchInflatedResource({url,bytes},{signal,fetchResource=globalThis.fetch}={}){
+// onProgress(receivedBytes) reports decoded progress so the owner can tell a
+// slow but live transfer from a stalled one.
+export async function fetchInflatedResource({url,bytes},{signal,fetchResource=globalThis.fetch,onProgress}={}){
  validateResourceRequest(url,bytes);
  const active=()=>{if(signal?.aborted)throw resourceAbortReason(signal);};active();
  const response=await fetchResource(url,{signal});active();
@@ -21,7 +23,7 @@ export async function fetchInflatedResource({url,bytes},{signal,fetchResource=gl
   const output=new Uint8Array(bytes);let offset=0;
   for(;;){active();const {value,done}=await reader.read();active();if(done)break;
    if(!(value instanceof Uint8Array)||value.byteLength>bytes-offset)throw Error('CS2 resource decoded length mismatch');
-   output.set(value,offset);offset+=value.byteLength;
+   output.set(value,offset);offset+=value.byteLength;onProgress?.(offset);
   }
   if(offset!==bytes)throw Error('CS2 resource decoded length mismatch');
   return{buffer:output.buffer,workerReadWallMs:performance.now()-started};

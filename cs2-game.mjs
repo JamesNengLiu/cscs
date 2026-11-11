@@ -19,7 +19,7 @@ import {allowsPlayerActions} from './public/round-state.js';
 import {selectCharacter} from './public/characters-config.js';
 import {ECONOMY,clampMoney,equipmentPrice} from './public/economy.js';
 import {armourDamage} from './public/armour.js';
-import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/cs2-input-protocol.js';
+import {MOVEMENT_SYNC,INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,INPUT_BACKLOG_LIMIT,canRetireHeldInput,LEGACY_INPUT_GRACE_SECONDS,normalizeInputCommand,isNeutralInput,validInputSequence} from './public/cs2-input-protocol.js';
 import {GRENADE_TIMING,resetGrenadeThrow,grenadeActionPhase} from './public/grenade-state.js';
 import {GRENADE_PROTOCOL,normalizeGrenadeIntent} from './public/cs2-grenade-intent.js';
 import {createThrowControl,changeThrowButtons,throwStrength,throwMode} from './public/cs2-grenade-controls.js';
@@ -110,7 +110,7 @@ class ExperimentalGame {
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
     // Physics advances on neutral input as well as numbered commands. Keep its
     // clock separate from the combat/input ACK used by reliable action barriers.
-    p.movementTick=0;p.movementTimelineVersion=MOVEMENT_TIMELINE_VERSION;p.movementEdgeSeq=0;p.movementEdgeTick=0;
+    p.movementTick=0;p.movementTimelineVersion=MOVEMENT_TIMELINE_VERSION;p.movementEdgeSeq=0;p.movementEdgeTick=0;p.movementAppliedTick=0;
     this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
   credit(p,amount,reason){if(!Number.isFinite(amount)||!amount)return;p.money=clampMoney(p.money,amount);this.emit({type:'money',id:p.id,amount,money:p.money,reason});}
@@ -135,7 +135,7 @@ class ExperimentalGame {
       if(state.sequenced||cancel!==undefined){this.cancelGrenadeIntent(p);if(p.grenadePhase!=='throw')resetGrenadeThrow(p);}
       const watermark=validInputSequence(cancel)&&cancel<=p.ackInputSeq+MAX_INPUT_QUEUE?cancel:0;
       state.skipThrough=Math.max(state.skipThrough,p.lastInputSeq,watermark);
-      state.queue.clear();state.gapSince=null;
+      state.queue.clear();state.gapSince=null;state.appliedInput=null;
       p.input=input;p.jumpHeld=false;p.fireHeld=false;
       this.#flushInputActions(p,true);
       // Ordinary legacy trigger release must finish an already-started burst.
@@ -258,14 +258,25 @@ class ExperimentalGame {
       if(this.serverTick-c.receivedTick<=MAX_INPUT_AGE_TICKS)break;
       state.queue.delete(c.seq);this.#skipInput(p,c.seq);state.gapSince=null;
     }
-    const next=[...state.queue.values()].sort((a,b)=>a.seq-b.seq)[0];
+    const remaining=[...state.queue.values()].sort((a,b)=>a.seq-b.seq);
+    let next=remaining[0];
     if(!next){state.gapSince=null;return neutral();}
     if(next.seq>p.ackInputSeq+1){
       state.gapSince??=this.serverTick;
       if(this.serverTick-state.gapSince<INPUT_REORDER_TICKS)return neutral();
       this.#skipInput(p,next.seq-1);
     }
-    state.queue.delete(next.seq);state.gapSince=null;
+    // Bounded backlog. Still exactly one simulated command per tick: the extra
+    // command is retired through the ordinary skip ACK, not replayed. Only a
+    // non-firing/non-use motion sample whose buttons and axes equal both the
+    // last applied command and its direct successor is eligible. Pure movement
+    // can take the newer look angle, but no button/axis edge or action fence is
+    // retired, and every firing/use aim sample remains intact.
+    const following=remaining[1];
+    if(remaining.length>INPUT_BACKLOG_LIMIT&&following.seq===next.seq+1&&!state.actions.some(action=>action.seq===next.seq)&&canRetireHeldInput(state.appliedInput,next.input,following.input)){
+      state.queue.delete(next.seq);this.#skipInput(p,next.seq);next=following;
+    }
+    state.queue.delete(next.seq);state.gapSince=null;state.appliedInput=next.input;
     return next;
   }
   canBuy(p){return !!p?.alive&&['countdown','live'].includes(this.phase)&&this.time<=this.buyEndAt&&buyZoneAt(p);}
@@ -598,7 +609,9 @@ class ExperimentalGame {
       // Synthetic idle is not a real button release. Preserve the edge latches
       // without firing/jumping, so loss cannot manufacture another press.
       if(preserveEdges)p.jumpHeld=heldJump;
-      if(command.seq){p.ackInputSeq=command.seq;p.lastAppliedInputSeq=command.seq;p.appliedInputCommands++;}
+      // lastAppliedInputSeq/movementAppliedTick are one measured pair: the physics
+      // step that consumed this command. Skipped commands never update it.
+      if(command.seq){p.ackInputSeq=command.seq;p.lastAppliedInputSeq=command.seq;p.movementAppliedTick=p.movementTick;p.appliedInputCommands++;}
       const inputState=this.#inputs.get(p.id);if(command.seq)inputState.lastOrder=command.receivedOrder;
       combat.push({p,command,preserveEdges,beforeAck,done:false,order:command.seq?command.receivedOrder:inputState.sequenced?inputState.lastOrder:inputState.receivedOrder});
     }
@@ -616,8 +629,10 @@ class ExperimentalGame {
         if(p.grenadePhase){Object.assign(p,{grenadeButtons,grenadeStrength,grenadeMode});if(grenadeProfile?.trajectoryVersion===1){const intent=this.#inputs.get(p.id)?.grenadeIntent;if(intent){p.grenadeLaunchAt=intent.launchAt||0;p.grenadeLaunchDeferred=!!intent.launchDeferred;p.grenadeVisualThrowAt=intent.visualThrowAt||0;}}}
         const pending=this.#inputs.get(p.id)?.pendingGrenadeLaunch;if(pending){p.pendingGrenadeActionId=pending.actionId;p.pendingGrenadeLaunchAt=pending.launchAt;}
         if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);
-        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,movementTick,movementTimelineVersion,movementEdgeSeq,movementEdgeTick,...visible}=p;return {...visible,...animation};}
-        return {...p,...animation,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
+        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,movementTick,movementTimelineVersion,movementEdgeSeq,movementEdgeTick,movementAppliedTick,...visible}=p;return {...visible,...animation};}
+        // inputBacklog lets the owner's prediction mirror the bounded-backlog rule.
+        const inputState=this.#inputs.get(p.id),queued=[...(inputState?.queue.keys()||[])].sort((a,b)=>a-b);
+        return {...p,...animation,canBuy:this.canBuy(p),inputBacklog:queued.length,inputBacklogSeqs:queued,inputBacklogProtected:[...new Set((inputState?.actions||[]).map(action=>action.seq))],inputBacklogAppliedInput:inputState?.appliedInput?{...inputState.appliedInput}:null,inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}
 }
 

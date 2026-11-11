@@ -87,5 +87,6 @@ node tests/cs2-ballistics-browser.mjs --run
 - [匪家至黄车的性能及弹孔排查](docs/cs2-yellow-car-shot-delay-2026-11-06.md)
 - [已确认的性能缺陷修复](docs/cs2-confirmed-performance-fixes-2026-11-06.md)
 - [AK／M4A1-S／AWP 弹道校准 v2](docs/cs2-ballistics-calibration-2026-11-07.md)
+- [出帧时机、延迟预测与联机恢复修复](docs/cs2-frame-pacing-prediction-fixes-2026-11-11.md)
 
 这些文档保留各轮验证的条件和限制，历史服务状态与命令以当时记录为准；本分支当前入口以上述启动章节为准。Git 和素材边界遵循 [AGENTS.md](AGENTS.md)。

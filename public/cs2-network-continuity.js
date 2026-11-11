@@ -51,5 +51,23 @@ export function predictionCorrectionLimit(before,after,{previousAuthority,author
  // limit for the still-decaying old offset. Carry that already valid offset
  // only when this error fits its own evidence; unexplained jumps stay hard.
  const compound=(gap>0||skipped>0)&&error<=evidenceBudget&&retained!==null&&(activeRecovery||retained<=.5)?Math.min(8,retained+error+.01):.5;
- return Math.max(evidenceBudget,continuing,compound);
+ // The next trustworthy applied-pair replay can undo part of the initial
+ // outage error. Keeping a SMALLER carry spends no new recovery allowance.
+ // Do not let a large reversal cross the whole old envelope, expand it, or
+ // revive a vector outside the already authorised absolute cap.
+ const remainder=activeRecovery&&retained!==null&&retained<=8&&error<=retained?Math.hypot(before.x+correction.x-after.x,before.y+correction.y-after.y,before.z+correction.z-after.z):Infinity;
+ const reducing=Number.isFinite(remainder)&&retained!==null&&remainder<=retained?retained:.5;
+ return Math.max(evidenceBudget,continuing,compound,reducing);
+}
+
+// An authorised recovery offset shows the view away from the authoritative
+// player, while shots still originate from the authoritative position. Bound
+// how long that can last: the decay speed never falls below what clears the
+// largest offset of the current recovery within RECOVERY_SETTLE_SECONDS.
+// Offsets up to 1.25 m keep the previous speed, so ordinary corrections are
+// unchanged; only the metres-wide outage recoveries become faster.
+export const RECOVERY_SETTLE_SECONDS=.5;
+export function recoveryDecaySpeed(moveSpeed,peakOffset=0){
+ const base=Math.max(2.5,Math.min(6,(Number.isFinite(moveSpeed)?moveSpeed:0)*.9));
+ return Number.isFinite(peakOffset)&&peakOffset>0?Math.max(base,peakOffset/RECOVERY_SETTLE_SECONDS):base;
 }

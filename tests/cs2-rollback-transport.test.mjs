@@ -7,7 +7,7 @@ import {CS2_WEAPON_PROFILE} from '../public/cs2-weapon-profile.js';
 import {createCS2Game} from '../cs2-game.mjs';
 import {GameConnection} from '../public/cs2-game-connection.js';
 import {applyScopeAwareAction} from '../cs2-scope-actions.mjs';
-import {INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,buildInputBatch} from '../public/cs2-input-protocol.js';
+import {INPUT_DT,MAX_INPUT_QUEUE,MAX_INPUT_BATCH,MAX_INPUT_AGE_TICKS,INPUT_REORDER_TICKS,INPUT_BACKLOG_LIMIT,buildInputBatch} from '../public/cs2-input-protocol.js';
 import {createReassembler} from '../public/cs2-net-wire.js';
 import {createPresentationClock} from '../public/cs2-presentation-clock.js';
 import {createTerrainCameraResponse,CS2_TERRAIN_CAMERA} from '../public/cs2-terrain-camera.js';
@@ -117,7 +117,7 @@ test('CS2 real pending datagram writer recovers alongside 60Hz authority without
   assert.ok(releasedAt-blockedAt>=100,'Use an actual unresolved writer promise, not a forged old timestamp');
   const repair=writes.filter(m=>m.type==='inputCritical'&&m.commands.length&&m.commands.every(c=>!c.fire));assert.ok(repair.length>0,'The real native-writer guard must activate the repair lane');
   assert.ok(writes.every((m,i)=>i===0||m.actionSeq>writes[i-1].actionSeq),'Recovery shares globally increasing reliable action order');assert.deepEqual(writes.filter(m=>m.type==='equip').map(m=>m.switchSeq),[1,2]);
-  assert.equal(new Set(shots(f).map(e=>e.shotId)).size,1);assert.equal(f.p.ammo,4);assert.equal(f.p.weapon,'awp');assert.equal(f.p.zoom,90);assert.equal(f.p.resumeZoomAt,0);assert.equal(f.q.hp,ordinary.q.hp);assert.equal(acks.every(a=>a.ok),true);assert.equal(f.p.skippedInputCommands,0);
+  assert.equal(new Set(shots(f).map(e=>e.shotId)).size,1);assert.equal(f.p.ammo,4);assert.equal(f.p.weapon,'awp');assert.equal(f.p.zoom,90);assert.equal(f.p.resumeZoomAt,0);assert.equal(f.q.hp,ordinary.q.hp);assert.equal(acks.every(a=>a.ok),true);assert.ok(f.p.skippedInputCommands<=12-INPUT_BACKLOG_LIMIT,'Only redundant held samples above the bounded backlog may be retired; the fire and Q/Q edges asserted above all ran');
   assert.ok(repair.every(m=>m.commands.length<=MAX_INPUT_BATCH&&!m.commands.some(c=>Object.hasOwn(c,'predictionTick'))));
  }finally{clearInterval(timer);clearTimeout(watchdog);clearTimeout(releaseTimer);releaseWriter?.();wire.finish();}
 });
@@ -149,7 +149,7 @@ test('CS2 ACK-stall recovery with a fast writer preserves fire/Q/Q while input d
    if(seq===20&&f.p.ackInputSeq>=20&&acks.length===2&&f.p.weapon==='awp')resolve();
   }catch(error){reject(error);}},1000/60);});clearInterval(timer);await wire.controlQueue;
   assert.ok(dropped>0);assert.equal(wire.inputRecoveryWrites.writerTriggeredJobs,0,'Every native datagram write resolved promptly');assert.ok(wire.inputRecoveryWrites.ackStallProbeJobs>0,'ACK stagnation must activate actual reliable redundancy');
-  assert.ok(writes.every((m,i)=>i===0||m.actionSeq>writes[i-1].actionSeq));assert.deepEqual(writes.filter(m=>m.type==='equip').map(m=>m.switchSeq),[1,2]);assert.ok(acks.every(a=>a.ok));assert.equal(new Set(shots(f).map(e=>e.shotId)).size,1);assert.equal(f.p.ammo,4);assert.equal(f.q.hp,ordinary.q.hp);assert.equal(f.p.weapon,'awp');assert.equal(f.p.zoom,90);assert.equal(f.p.skippedInputCommands,0);
+  assert.ok(writes.every((m,i)=>i===0||m.actionSeq>writes[i-1].actionSeq));assert.deepEqual(writes.filter(m=>m.type==='equip').map(m=>m.switchSeq),[1,2]);assert.ok(acks.every(a=>a.ok));assert.equal(new Set(shots(f).map(e=>e.shotId)).size,1);assert.equal(f.p.ammo,4);assert.equal(f.q.hp,ordinary.q.hp);assert.equal(f.p.weapon,'awp');assert.equal(f.p.zoom,90);assert.ok(f.p.skippedInputCommands<=20-INPUT_BACKLOG_LIMIT,'Only redundant held samples above the bounded backlog may be retired; the fire and Q/Q edges asserted above all ran');
  }finally{clearInterval(timer);clearTimeout(watchdog);wire.finish();}
 });
 

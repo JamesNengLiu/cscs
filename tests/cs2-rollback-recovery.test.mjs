@@ -10,7 +10,7 @@ import {createTerrainCameraResponse,CS2_TERRAIN_CAMERA} from '../public/cs2-terr
 const world=await loadExperimentalWorld({movementProfile:CS2_MOVEMENT_PROFILE});
 const m=world.movement,c=world.collision,rules=m.rules;
 const continuity=(await readFile(new URL('../public/cs2-network-continuity.js',import.meta.url),'utf8')).replace(/^import .*\n/gm,'').replace(/\bexport /g,'');
-const limit=new Function('RULES','trace','collides','maxMoveSpeed',continuity+'\nreturn predictionCorrectionLimit;')(rules,c.trace,c.collides,m.maxMoveSpeed);
+const {predictionCorrectionLimit:limit,recoveryDecaySpeed,RECOVERY_SETTLE_SECONDS}=new Function('RULES','trace','collides','maxMoveSpeed',continuity+'\nreturn {predictionCorrectionLimit,recoveryDecaySpeed,RECOVERY_SETTLE_SECONDS};')(rules,c.trace,c.collides,m.maxMoveSpeed);
 const cameraSource=(await readFile(new URL('../public/cs2-player-camera.js',import.meta.url),'utf8')).replace(/^import .*\n/gm,'').replace('export function createPlayerCamera','function createPlayerCamera');
 const predictionSource=await readFile(new URL('../public/cs2-prediction.js',import.meta.url),'utf8');
 const correctionSource=predictionSource.slice(predictionSource.indexOf('export function visualCorrection')).replace(/\bexport /g,'');
@@ -61,24 +61,34 @@ test('ordinary states cannot discard an already authorised three-metre recovery 
  assert.ok(elapsed>2);
 });
 
-test('the eight-metre cap settles at the existing stationary recovery speed without truncating its tail',()=>{
+test('recovery decay keeps the previous speed for ordinary offsets and bounds how long a large offset can stay on screen',()=>{
+ assert.equal(recoveryDecaySpeed(0,0),2.5);assert.equal(recoveryDecaySpeed(0),2.5);assert.equal(recoveryDecaySpeed(6.35,0),6.35*.9);assert.equal(recoveryDecaySpeed(100,0),6);
+ assert.equal(recoveryDecaySpeed(0,1.25),2.5,'Offsets up to 1.25 m are unchanged');assert.equal(recoveryDecaySpeed(6.35,2),6.35*.9);
+ assert.equal(recoveryDecaySpeed(0,8),8/RECOVERY_SETTLE_SECONDS);assert.equal(recoveryDecaySpeed(6.35,8),16);
+ for(const bad of [NaN,Infinity,-1,undefined])assert.equal(recoveryDecaySpeed(bad,bad),2.5);
+});
+
+test('the eight-metre cap settles within the bounded recovery time without truncating its tail',()=>{
  let before=player({vx:0}),after=player({x:2,vx:0}),offset=visualCorrection(before,after,undefined,{maxDistance:limit(before,after,context({intervalSeconds:1}))});
  near(offset.x,8);
- let active=true,settledAt=null,largestDecay=0;
+ let active=true,settledAt=null,nearAt=null,largestDecay=0,peak=0;
  for(let frame=1;frame<=600;frame++){
   // The actual client renders/decays between coalesced state applications.
   // Later states retain the old offset and add only tiny ordinary errors.
-  const previous=length(offset);offset=decayCorrection(offset,1/75,{maxSpeed:2.5});largestDecay=Math.max(largestDecay,previous-length(offset));
+  // Same order as the client frame: track the peak of this recovery, then decay.
+  const previous=length(offset);peak=active?Math.max(peak,previous):0;offset=decayCorrection(offset,1/75,{maxSpeed:recoveryDecaySpeed(0,peak)});largestDecay=Math.max(largestDecay,previous-length(offset));
   if(frame%3===0){
    before=after;after={...after,x:after.x-(frame<=75?.002:0)};
    const allowed=limit(before,after,context({activeRecovery:active,correction:offset})),next=visualCorrection(before,after,offset,{maxDistance:allowed});
    if(length(offset)>.001)assert.ok(length(next)>.001,'the old two-metre limit must not discard a large stationary recovery');
    offset=next;assert.ok(allowed<=8);
   }
+  if(length(offset)<.5)nearAt??=frame/75;
   if(length(offset)<.001){active=false;settledAt??=frame/75;}
  }
- assert.ok(largestDecay<=2.5/75+1e-12);
- assert.ok(settledAt>3&&settledAt<5,'the bounded stationary recovery must finish in a finite few seconds');
+ assert.ok(largestDecay<=8/RECOVERY_SETTLE_SECONDS/75+1e-9,'the slide is rate limited, never an instant snap');
+ assert.ok(nearAt>RECOVERY_SETTLE_SECONDS-.1&&nearAt<=RECOVERY_SETTLE_SECONDS+.1,'a stationary eight-metre recovery must be back within half a metre in about the settle time, not seconds: '+nearAt);
+ assert.ok(settledAt<1.5,'the exponential tail and the small follow-up corrections still finish promptly: '+settledAt);
  assert.ok(length(offset)<1e-12,'no permanent residual is retained');
 });
 
@@ -107,6 +117,47 @@ test('compound recovery cannot justify a new error without its own evidence or e
  near(allowed,8);assert.deepEqual(visualCorrection(before,after,oversized,{maxDistance:allowed}),{x:0,y:0,z:0});
  // A stale large vector without the active-recovery marker is not authorised.
  assert.deepEqual(visualCorrection(before,after,offset,{maxDistance:limit(before,after,context({intervalSeconds:.2,correction:offset}))}),{x:0,y:0,z:0});
+});
+
+test('strict receiver outage followed by an applied-pair reversal shrinks the authorised carry without a second snap',()=>{
+ // Scalar transitions observed in the actual650ms receiver-duplex fixture:
+ // old authority/idle time first moves prediction back, then the next actual
+ // applied pair and known backlog move it partially forward. This checks the
+ // integrated correction policy, without storing original map/receipt data.
+ const before=player({x:0,z:-10,vx:0,vz:-6.35}),first={...before,y:before.y+.01073063468813329,z:before.z+3.1265227720045132,vz:-.9000066666666666};
+ const firstLimit=limit(before,first,context({intervalSeconds:19/30}));
+ let carry=visualCorrection(before,first,undefined,{maxDistance:firstLimit});
+ const peak=length(carry);assert.ok(peak>3&&peak<firstLimit);
+ carry=decayCorrection(carry,1/60,{maxSpeed:recoveryDecaySpeed(1.3059833333333333,peak)});
+ const beforePair={...first,z:first.z-.0200748194444444,vz:-1.3059833333333333};
+ const appliedPair={...beforePair,y:beforePair.y-.008537363205664672,z:beforePair.z-1.30502115838285,vz:-5.696653076385857};
+ const existing=length(carry),composed={x:beforePair.x+carry.x-appliedPair.x,y:beforePair.y+carry.y-appliedPair.y,z:beforePair.z+carry.z-appliedPair.z};
+ assert.ok(length(composed)<existing,'The new trusted replay reduces the old recovery envelope');
+ const allowed=limit(beforePair,appliedPair,context({activeRecovery:true,correction:carry,authority:authority({skippedInputCommands:1})}));
+ const next=visualCorrection(beforePair,appliedPair,carry,{maxDistance:allowed});
+ assert.ok(length(next)>1.5&&length(next)<1.9,'The old carry must not be cut to zero by the normal .5m rule');
+ for(const key of ['x','y','z'])near(appliedPair[key]+next[key],beforePair[key]+carry[key]);
+ assert.ok(allowed<=8);
+});
+
+test('large recovery cancellation never authorises an expanding, oversized or new-life error',()=>{
+ const before=player(),carry={x:3.2,y:0,z:0};
+ const shrinking=player({x:11.3}),allowed=limit(before,shrinking,context({activeRecovery:true,correction:carry}));
+ assert.ok(allowed>=1.9);near(visualCorrection(before,shrinking,carry,{maxDistance:allowed}).x,1.9);
+ for(const [after,options] of [
+  [player({x:9}),{}],
+  [player({x:10,y:3.3}),{}],
+  [player({x:16.4}),{}],
+  [shrinking,{activeRecovery:false}],
+  [shrinking,{authority:authority({teleport:true})}],
+  [shrinking,{authority:authority({lifeId:1})}],
+  [shrinking,{intervalSeconds:1.2}],
+ ]){
+  const limitOptions=context({activeRecovery:true,correction:carry,...options}),cap=limit(before,after,limitOptions);
+  assert.deepEqual(visualCorrection(before,after,carry,{maxDistance:cap}),{x:0,y:0,z:0});
+ }
+ const invalid={x:8.1,y:0,z:0};near(limit(before,shrinking,context({activeRecovery:true,correction:invalid})),.5);
+ const overflow={x:Number.MAX_VALUE,y:Number.MAX_VALUE,z:Number.MAX_VALUE};near(limit(before,shrinking,context({activeRecovery:true,correction:overflow})),.5);
 });
 
 test('life boundaries, explicit discontinuities and non-short gaps keep the hard reset policy',()=>{

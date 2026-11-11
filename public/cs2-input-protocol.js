@@ -12,6 +12,20 @@ export const MAX_INPUT_QUEUE=128;
 export const MAX_INPUT_BATCH=32;
 export const MAX_INPUT_AGE_TICKS=30;
 export const INPUT_REORDER_TICKS=2;
+// One command is simulated per tick, so a burst that arrives after a delivery
+// interruption would otherwise stay queued for the rest of the life as input
+// delay. Above this depth the authority retires one redundant held-input
+// command per tick (acknowledged as skipped, never simulated) until the queue
+// is back at the limit. Commands that carry a button or axis change are kept.
+export const INPUT_BACKLOG_LIMIT=4;
+export const HELD_INPUT_KEYS=Object.freeze(['f','s','fire','jump','crouch','walk','use']);
+// Pure movement may coalesce an older look sample in favour of its successor
+// to remove queued input latency. This is not a promise to reproduce every old
+// turning trajectory. Firing/use samples and action fences stay protected.
+export function sameHeldInput(a,b){return Boolean(a&&b)&&HELD_INPUT_KEYS.every(key=>a[key]===b[key]);}
+// A held trigger can fire again when its cooldown expires. It is not redundant
+// merely because no new button edge occurred; use can also advance an action.
+export function canRetireHeldInput(previous,current,following,same=sameHeldInput){return Boolean(current)&&!current.fire&&!current.use&&same(current,previous)&&same(current,following);}
 export const INPUT_REDUNDANCY=8;
 export const INPUT_VIEW_PROTOCOL=1;
 export const COMBAT_ORDER_VERSION=1;

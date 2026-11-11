@@ -57,7 +57,9 @@ import {createWeaponActionOrder,isWeaponAction,WEAPON_ACTION_PROTOCOL,WEAPON_ACT
 import {createWeaponSwitchView,resolveViewWeapon,WEAPON_SWITCH_VIEW_PROTOCOL} from './cs2-weapon-switch-view.js';
 import {createRenderedInputView} from './rendered-input-view.js';
 import {createNetworkDiagnostics,observeLongTasks,buildDiagnosticReport} from './network-diagnostics.js';
+import {createKillFeed} from './cs2-kill-feed.js';
 const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,document.getElementById(id));return nodes.get(id);},canvas=$('game');
+const killFeed=createKillFeed($('feed'),{signal:CLIENT_LIFETIME.signal});
 const text=(id,value)=>{const node=$(id),next=String(value);if(node.textContent!==next)node.textContent=next;};
 const style=(id,key,value)=>{const node=$(id);if(node.style[key]!==value)node.style[key]=value;};
 let mouseStorage;try{const backing=localStorage,prefix='lan-strike-cs2:';mouseStorage={getItem:key=>backing.getItem(prefix+key)??backing.getItem(key),setItem:(key,value)=>backing.setItem(prefix+key,value),removeItem:key=>backing.removeItem(prefix+key)};}catch{}
@@ -291,7 +293,7 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       me.collisionVersion=m.collisionVersion??0;
       socket.observeInputAck?.(m.round,me.ackInputSeq||0);
       me.jumpFatigueVersion=m.jumpFatigueVersion??0;
-      if(!local||lastRound!==m.round){grenadeButtons=0;resetRoundAudio(m.round);shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};movementClock.reset(me);lastMovementTimeline=null;playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();recoilPresentation.reset('round');lastActiveRecoilPresentation=null;muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;recoveryPeak=0;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;sessionDiagnostics?.note('round-change',sessionContext('round-change'));}
+      if(!local||lastRound!==m.round){grenadeButtons=0;resetRoundAudio(m.round);killFeed.clear();shotEffects.clear();playerHitEffects.clear();worldEffects.clear();crosshairFeedback.reset();local={...me};movementClock.reset(me);lastMovementTimeline=null;playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();yaw=me.yaw;pitch=me.pitch;lastRound=m.round;renderY=null;sceneDirty=true;inputSeq=0;pendingCommands=[];inputSampler.reset();shotFeedback.reset();recoilPresentation.reset('round');lastActiveRecoilPresentation=null;muzzlePulse.reset();physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;recoveryPeak=0;lastWeapon=null;activeWeapon=null;flashUntil=0;flashAmount=0;sessionDiagnostics?.note('round-change',sessionContext('round-change'));}
       else if(!me.alive||!allowsPlayerActions(m.phase)||!locked){socket.cancelInputRecovery?.(m.round,inputSeq);grenadeButtons=0;local={...me};movementClock.reset(me);playerCamera.reset(local);viewFeedback.reset();weaponCosmetics.clear();weaponActionOrder.cancel();pendingCommands=[];physicsAccumulator=0;correction={x:0,y:0,z:0};recoveryCorrection=false;recoveryPeak=0;}
       else {const result=reconcileMovement(me,pendingCommands,m.round,m.players,{clock:movementClock}),allowance=predictionCorrectionLimit(local,result.player,{previousAuthority,authority:me,intervalSeconds:m.time-previousStateTime,activeRecovery:recoveryCorrection,correction});lastMovementTimeline=result.timeline;movementClock.observe(result.player);lastCorrection=Math.hypot(local.x-result.player.x,local.y-result.player.y,local.z-result.player.z);networkDiagnostics.prediction(lastCorrection,result.pending.length);correction=visualCorrection(local,result.player,correction,{maxDistance:allowance});if(allowance>.5&&Math.hypot(correction.x,correction.y,correction.z)>.05)recoveryCorrection=true;if(lastCorrection>allowance)viewFeedback.reset();playerCamera.rebase(local,result.player,{maxDistance:allowance});local=result.player;pendingCommands=result.pending;}
       if(activeWeapon!==me.weapon){grenadeButtons=0;if(activeWeapon&&ownedWeapons(me,m.bomb).includes(activeWeapon))lastWeapon=activeWeapon;activeWeapon=me.weapon;sceneDirty=true;}
@@ -322,7 +324,7 @@ socket.onmessage=event=>{const m=JSON.parse(event.data);
       flashUntil=Number(e.flashUntil??e.until)||((Number(e.time)||serverTime())+(Number(e.duration)||3));
       flashAmount=clamp(Number(e.flashAmount??e.amount??1),0,1);flashFade=Number(e.fade)||1.4;sceneDirty=true;
     }
-    if(e.type==='kill'){const div=document.createElement('div');div.textContent=`${e.attacker} → ${e.victim}`;$('feed').prepend(div);setTimeout(()=>div.remove(),5500);}
+    if(e.type==='kill')killFeed.add(e,{myId});
     if(e.type==='damage'&&e.id===myId)damageAt=performance.now();
     if(e.type==='explosion'){if(nativeContent)smokeRenderer.explode(e,serverTime());worldEffects.explode(e,serverTime());sceneDirty=true;}
     if(e.type==='shot'){if(nativeContent)smokeRenderer.shot(e);

@@ -385,7 +385,13 @@ class ExperimentalGame {
       if(p.shield)this.releaseShield(p);else {const best=p.primary||p.pistol;if(best)this.releaseGun(p,best);}
       if(p.defuseKit){this.drops.push({id:`drop-${++this.nextDrop}`,kind:'defusekit',x:p.x,y:p.y,z:p.z,pickupAt:this.time+.5,endAt:this.time+180});p.defuseKit=false;this.drops=this.drops.slice(-64);}this.dropBomb(p);
       if(killer){if(killer===p){killer.kills--;}else if(killer.team===p.team){killer.kills--;this.credit(killer,ECONOMY.teamKillPenalty,'teamkill');}else {killer.kills++;this.credit(killer,ECONOMY.killReward,'kill');}}
-      this.emit({type:'kill',attacker:killer?.name||'环境',victim:p.name,team:killer?.team,weapon:options.kind||killer?.weapon});
+      // Death notices describe the lethal damage, never the attacker's current
+      // equipment or a previous head hit. A delayed grenade may kill after its
+      // owner switches weapons; missing damage metadata must not invent a gun.
+      const weapon=typeof options.kind==='string'&&options.kind?options.kind:'world';
+      this.emit({type:'kill',attacker:killer?.name||'环境',victim:p.name,team:killer?.team,weapon,
+        attackerId:killer?.id??null,victimId:p.id,attackerTeam:killer?.team??null,victimTeam:p.team,
+        headshot:own(GUNS,weapon)&&options.hitgroup==='head'&&!options.blast,suicide:killer===p,environment:!killer});
       this.sound(p,['player/die1.wav','player/die2.wav','player/die3.wav','player/death6.wav'][Math.min(3,Math.floor(this.audioRandom()*4))],{channel:'auto',priority:15});
     }return healthDamage;
   }

@@ -64,7 +64,8 @@ export function createPlayerCamera({mode='baseline',stablePresentation=false,ter
     },
     rebase(before,after,{maxDistance=.5}={}){
       const delta={x:after.x-before.x,y:after.y-before.y,z:after.z-before.z};
-      if(!physical||Math.hypot(delta.x,delta.y,delta.z)>(mode==='responsive'?maxDistance:.5)){reset(after);return;}
+      const limit=Number.isFinite(maxDistance)&&maxDistance>=0?Math.min(8,maxDistance):.5;
+      if(!physical||Math.hypot(delta.x,delta.y,delta.z)>limit){reset(after);return;}
       for(const sample of new Set([older,previous,current])){for(const k of ['x','y','z'])sample[k]+=delta[k];sample.feetY+=delta.y;}
       if(responsive)for(const k of ['x','y','z'])responsive[k]+=delta[k];
       const afterPose=pose(after);

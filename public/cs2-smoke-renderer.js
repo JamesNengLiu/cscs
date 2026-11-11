@@ -1,7 +1,7 @@
-// Depth-aware, bounded volumetric pilot. This is a raymarched density field,
-// not translucent sphere geometry. World rendering remains one pass; smoke
-// adds one fullscreen composite only while a visible volume is active.
-import {SMOKE_FIELD_LIMITS,SMOKE_FIELD_VERSION,smokeEnvelope,applySmokeShot,applySmokeExplosion} from './cs2-smoke-field.js';
+// Bounded uniform fog: one analytic depth-clipped segment per cloud, no
+// particles, density samples or animated noise. The existing depth/scene
+// target and warmup contract keep walls, inside views and first-use stable.
+import {SMOKE_FIELD_LIMITS,SMOKE_FIELD_VERSION,smokeEnvelope} from './cs2-smoke-field.js';
 
 const fragmentShader=`
 precision highp float;
@@ -13,56 +13,33 @@ uniform mat4 uInverseProjection;
 uniform mat4 uCameraWorld;
 uniform vec3 uCamera;
 uniform int uCount;
-uniform int uOverflowCount;
-uniform vec4 uVolumes[4];
-uniform vec2 uShape[4];
-uniform vec4 uOverflow[28];
-uniform vec2 uOverflowShape[28];
-uniform vec4 uHoleFrom[16];
-uniform vec4 uHoleTo[16];
-uniform vec4 uClear[8];
-uniform float uClearStrength[8];
-float noiseField(vec3 p){return .68+.16*sin(p.x*2.1+p.y*1.9)+.09*sin(p.z*3.4-p.x*1.2)+.07*sin(p.y*4.5+p.z*2.7);}
-float lineDistance(vec3 p,vec3 a,vec3 b){vec3 d=b-a;float t=clamp(dot(p-a,d)/max(dot(d,d),.000001),0.,1.);return length(p-a-d*t);}
-float densityAt(vec3 p,int i){
- vec3 radius=vec3(uVolumes[i].w,uShape[i].x,uVolumes[i].w);
- float edge=length((p-uVolumes[i].xyz)/radius);
- float density=(1.-smoothstep(.35,1.,edge))*clamp(noiseField(p),.2,1.)*uShape[i].y;
- for(int j=0;j<4;j++){int h=i*4+j;float strength=uHoleTo[h].w;if(strength>0.){float d=lineDistance(p,uHoleFrom[h].xyz,uHoleTo[h].xyz)/max(.001,uHoleFrom[h].w);density*=1.-exp(-d*d*2.)*strength;}}
- for(int j=0;j<2;j++){int h=i*2+j;float strength=uClearStrength[h];if(strength>0.){float d=distance(p,uClear[h].xyz)/max(.001,uClear[h].w);density*=1.-(1.-smoothstep(.65,1.,d))*strength;}}
- return max(0.,density);
-}
+uniform vec4 uVolumes[32];
+uniform vec2 uShape[32];
 void main(){
  vec2 sampleUv=vUv*uSampleScale;
- vec4 sceneColor=texture2D(tScene,sampleUv);float depth=texture2D(tDepth,sampleUv).r;
+ vec4 sceneColor=texture2D(tScene,sampleUv);
+ float depth=texture2D(tDepth,sampleUv).r;
  vec4 view=uInverseProjection*vec4(vUv*2.-1.,depth*2.-1.,1.);view/=view.w;
- vec3 world=(uCameraWorld*view).xyz,delta=world-uCamera;float maxDistance=length(delta);vec3 ray=delta/max(maxDistance,.00001);
- vec3 smokeLight=vec3(.34,.33,.31);float transmittance=1.;
- for(int i=0;i<4;i++){
+ vec3 world=(uCameraWorld*view).xyz,delta=world-uCamera;
+ float maxDistance=length(delta);vec3 ray=delta/max(maxDistance,.00001);
+ float opticalDepth=0.;
+ for(int i=0;i<32;i++){
   if(i>=uCount)break;
-  vec3 radius=vec3(uVolumes[i].w,uShape[i].x,uVolumes[i].w),ro=(uCamera-uVolumes[i].xyz)/radius,rd=ray/radius;
+  vec3 radius=vec3(uVolumes[i].w,uShape[i].x,uVolumes[i].w);
+  vec3 ro=(uCamera-uVolumes[i].xyz)/radius,rd=ray/radius;
   float a=dot(rd,rd),b=dot(ro,rd),c=dot(ro,ro)-1.,disc=b*b-a*c;
-  if(disc<=0.)continue;
+  if(disc<=0.||a<=0.)continue;
   float root=sqrt(disc),nearT=max(0.,(-b-root)/a),farT=min(maxDistance,(-b+root)/a);
-  if(farT<=nearT)continue;
-  float stepLength=(farT-nearT)/8.;
-  for(int j=0;j<8;j++){
-   vec3 p=uCamera+ray*(nearT+(float(j)+.5)*stepLength);
-   float density=densityAt(p,i);transmittance*=exp(-density*stepLength*2.15);
-  }
+  // A cheap analytic rim keeps the cloud from looking like a cut-out oval.
+  // Its solid core extends to 80% of the radius; no density sampling is used.
+  float rim=clamp(disc/(a*.36),0.,1.);rim=rim*rim*(3.-2.*rim);
+  opticalDepth+=max(0.,farT-nearT)*rim*uShape[i].y*2.15;
+  // Stop processing dense fog by saturating towards opacity. This can only
+  // strengthen occlusion, including in front of bright HDR scene colours.
+  if(opticalDepth>=8.)break;
  }
- // Additional confirmed clouds retain conservative occlusion. They use the
- // exact depth-bounded ellipsoid segment length instead of per-sample detail;
- // reduced quality may hide more, never reveal an enemy through the fifth cloud.
- for(int i=0;i<28;i++){
-  if(i>=uOverflowCount)break;
-  vec3 radius=vec3(uOverflow[i].w,uOverflowShape[i].x,uOverflow[i].w),ro=(uCamera-uOverflow[i].xyz)/radius,rd=ray/radius;
-  float a=dot(rd,rd),b=dot(ro,rd),c=dot(ro,ro)-1.,disc=b*b-a*c;
-  if(disc<=0.)continue;
-  float root=sqrt(disc),nearT=max(0.,(-b-root)/a),farT=min(maxDistance,(-b+root)/a);
-  if(farT>nearT)transmittance*=exp(-(farT-nearT)*uOverflowShape[i].y*2.15);
- }
- gl_FragColor=vec4(mix(smokeLight,sceneColor.rgb,transmittance),sceneColor.a);
+ float transmittance=opticalDepth>=8.?0.:exp(-opticalDepth);
+ gl_FragColor=vec4(mix(vec3(.34,.33,.31),sceneColor.rgb,transmittance),sceneColor.a);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`;
@@ -70,10 +47,10 @@ void main(){
 export function createSmokeRenderer(THREE,{renderer,scene,camera}={}){
  if(!THREE||!renderer||!scene||!camera)throw Error('Smoke renderer requires THREE, renderer, scene and camera');
  const size=new THREE.Vector2(),activeViewport=new THREE.Vector4(),savedViewport=new THREE.Vector4(),savedScissor=new THREE.Vector4();
- let target=null,width=0,height=0,activeWidth=0,activeHeight=0,targetAllocations=0,disposed=false,volumes=[],renderCount=0,prewarmed=false,lastVisible=0,degradedVolumes=0,firstRender=null;
+ let target=null,width=0,height=0,activeWidth=0,activeHeight=0,targetAllocations=0,disposed=false,volumes=[],renderCount=0,prewarmed=false,lastVisible=0,firstRender=null;
  const warmup={compileCalls:0,draws:0,objectBatches:0,representativesSkipped:0,totalMs:0,compileWaitMs:0,submitMs:0,peakSubmitMs:0,programsBefore:null,programsAfter:null};let compositeDrawWarmed=false;
  const lastRender={frame:0,worldSubmitMs:0,compositeSubmitMs:0,programsBefore:null,programsAfterWorld:null,programsAfterComposite:null};
- const uniforms={tScene:{value:null},tDepth:{value:null},uSampleScale:{value:new THREE.Vector2(1,1)},uInverseProjection:{value:new THREE.Matrix4()},uCameraWorld:{value:new THREE.Matrix4()},uCamera:{value:new THREE.Vector3()},uCount:{value:0},uOverflowCount:{value:0},uVolumes:{value:Array.from({length:4},()=>new THREE.Vector4())},uShape:{value:Array.from({length:4},()=>new THREE.Vector2())},uOverflow:{value:Array.from({length:28},()=>new THREE.Vector4())},uOverflowShape:{value:Array.from({length:28},()=>new THREE.Vector2())},uHoleFrom:{value:Array.from({length:16},()=>new THREE.Vector4())},uHoleTo:{value:Array.from({length:16},()=>new THREE.Vector4())},uClear:{value:Array.from({length:8},()=>new THREE.Vector4())},uClearStrength:{value:new Float32Array(8)}};
+ const uniforms={tScene:{value:null},tDepth:{value:null},uSampleScale:{value:new THREE.Vector2(1,1)},uInverseProjection:{value:new THREE.Matrix4()},uCameraWorld:{value:new THREE.Matrix4()},uCamera:{value:new THREE.Vector3()},uCount:{value:0},uVolumes:{value:Array.from({length:32},()=>new THREE.Vector4())},uShape:{value:Array.from({length:32},()=>new THREE.Vector2())}};
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,2,0,0,2],2));
  const material=new THREE.ShaderMaterial({uniforms,vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader,depthTest:false,depthWrite:false,toneMapped:true,transparent:false});
  const compositeScene=new THREE.Scene(),compositeCamera=new THREE.Camera(),quad=new THREE.Mesh(geometry,material);quad.frustumCulled=false;compositeScene.add(quad);
@@ -108,7 +85,7 @@ export function createSmokeRenderer(THREE,{renderer,scene,camera}={}){
    if(!compositeDrawWarmed){await waitWarm([inWarmSurface(false,()=>renderer.compileAsync?renderer.compileAsync(compositeScene,compositeCamera):renderer.compile(compositeScene,compositeCamera))],signal);checkWarm(signal);}
    compileMs=performance.now()-at;warmup.compileCalls++;warmup.compileWaitMs+=compileMs;
   }
-  if(!compileOnly){const at=performance.now();inWarmSurface(true,()=>renderer.render(scene,camera));if(bothTargets)inWarmSurface(false,()=>renderer.render(scene,camera));if(!compositeDrawWarmed){const count=uniforms.uCount.value,overflow=uniforms.uOverflowCount.value;uniforms.uCount.value=uniforms.uOverflowCount.value=0;try{inWarmSurface(false,()=>renderer.render(compositeScene,compositeCamera));compositeDrawWarmed=true;}finally{uniforms.uCount.value=count;uniforms.uOverflowCount.value=overflow;}}submitMs=performance.now()-at;warmup.draws++;warmup.submitMs+=submitMs;warmup.peakSubmitMs=Math.max(warmup.peakSubmitMs,submitMs);}
+  if(!compileOnly){const at=performance.now();inWarmSurface(true,()=>renderer.render(scene,camera));if(bothTargets)inWarmSurface(false,()=>renderer.render(scene,camera));if(!compositeDrawWarmed){const count=uniforms.uCount.value;uniforms.uCount.value=0;try{inWarmSurface(false,()=>renderer.render(compositeScene,compositeCamera));compositeDrawWarmed=true;}finally{uniforms.uCount.value=count;}}submitMs=performance.now()-at;warmup.draws++;warmup.submitMs+=submitMs;warmup.peakSubmitMs=Math.max(warmup.peakSubmitMs,submitMs);}
   const result={compileWaitMs:compileMs,submitMs,totalMs:performance.now()-started,programsBefore:before,programsAfter:renderer.info?.programs?.length??null};warmup.totalMs+=result.totalMs;warmup.programsAfter=result.programsAfter;return result;
  }
  function warmRepresentativeKey(object){
@@ -123,14 +100,19 @@ export function createSmokeRenderer(THREE,{renderer,scene,camera}={}){
    await warmTick();
   }return{objects:unique.length,inputObjects:input.length,representativeDuplicates:input.length-unique.length,batches:Math.ceil(unique.length/batchSize),totalMs:performance.now()-started};
  }
- function sync(state){if(disposed)return;volumes=(Array.isArray(state?.smokes)?state.smokes:[]).filter(v=>v?.fieldVersion===SMOKE_FIELD_VERSION&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z)&&Number.isFinite(v.radius)&&v.radius>0&&v.radius<=8&&Number.isFinite(v.bornAt)&&Number.isFinite(v.endAt)).slice(0,SMOKE_FIELD_LIMITS.volumes).map(v=>structuredClone(v));}
- function shot(event){if(!disposed)applySmokeShot(volumes,event,Number.isFinite(event?.time)?event.time:0);}
- function explode(event,time){if(!disposed)applySmokeExplosion(volumes,event,Number.isFinite(event?.time)?event.time:time);}
+ function sync(state){
+  if(disposed)return;
+  volumes=(Array.isArray(state?.smokes)?state.smokes:[]).slice(0,SMOKE_FIELD_LIMITS.volumes).filter(v=>v?.fieldVersion===SMOKE_FIELD_VERSION&&[v.x,v.y,v.z,v.radius,v.bornAt,v.endAt].every(Number.isFinite)&&v.radius>0&&v.radius<=8&&v.endAt>v.bornAt&&(v.height===undefined||Number.isFinite(v.height)&&v.height>0&&v.height<=8)).map(v=>({id:v.id,x:v.x,y:v.y,z:v.z,radius:v.radius,height:v.height??3.2,bornAt:v.bornAt,endAt:v.endAt}));
+ }
+ // Uniform fog deliberately has no bullet apertures or blast density pulses.
+ // Keep the presentation API so event delivery and all combat paths stay intact.
+ function shot(){}
+ function explode(){}
  function render(now){
   if(disposed||!Number.isFinite(now))return false;
   camera.updateMatrixWorld();projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(projection);candidates.length=0;
-  for(const v of volumes){const opacity=smokeEnvelope(v,now);if(opacity<=0)continue;sphere.center.set(v.x,v.y+(v.height||3.2)*.45,v.z);sphere.radius=v.radius;if(frustum.intersectsSphere(sphere))candidates.push({volume:v,opacity,distance:sphere.center.distanceToSquared(camera.position)});}
-  candidates.sort((a,b)=>a.distance-b.distance);lastVisible=Math.min(4,candidates.length);degradedVolumes=Math.min(28,Math.max(0,candidates.length-4));if(!lastVisible)return false;
+  for(const v of volumes){const opacity=smokeEnvelope(v,now);if(opacity<=0)continue;sphere.center.set(v.x,v.y+(v.height||3.2)*.45,v.z);sphere.radius=v.radius;if(frustum.intersectsSphere(sphere))candidates.push({volume:v,opacity});}
+  lastVisible=candidates.length;if(!lastVisible)return false;
   renderer.getCurrentViewport(activeViewport);
   if(!prewarmed)prewarm();else resize();
   // The backbuffer keeps its maximum capacity during automatic scaling. Match
@@ -138,18 +120,16 @@ export function createSmokeRenderer(THREE,{renderer,scene,camera}={}){
   activeWidth=Math.max(1,Math.min(width,Math.floor(activeViewport.z)));activeHeight=Math.max(1,Math.min(height,Math.floor(activeViewport.w)));
   target.viewport.set(0,0,activeWidth,activeHeight);target.scissor.set(0,0,activeWidth,activeHeight);target.scissorTest=true;
   uniforms.uSampleScale.value.set(activeWidth/width,activeHeight/height);
-  uniforms.uCount.value=lastVisible;uniforms.uOverflowCount.value=degradedVolumes;uniforms.uCamera.value.setFromMatrixPosition(camera.matrixWorld);uniforms.uCameraWorld.value.copy(camera.matrixWorld);uniforms.uInverseProjection.value.copy(camera.projectionMatrixInverse);
-  for(let i=0;i<degradedVolumes;i++){const c=candidates[i+4],v=c.volume,scale=.2+.8*c.opacity;uniforms.uOverflow.value[i].set(v.x,v.y+(v.height||3.2)*.45,v.z,v.radius*scale);uniforms.uOverflowShape.value[i].set((v.height||3.2)*.55*scale,c.opacity);}
-  for(let i=0;i<4;i++){
-   const c=candidates[i],v=c?.volume,opacity=c?.opacity||0;if(v){const scale=.2+.8*opacity;uniforms.uVolumes.value[i].set(v.x,v.y+(v.height||3.2)*.45,v.z,v.radius*scale);uniforms.uShape.value[i].set((v.height||3.2)*.55*scale,opacity);}else {uniforms.uVolumes.value[i].set(0,0,0,1);uniforms.uShape.value[i].set(1,0);}
-   const holes=(v?.holes||[]).filter(h=>h.endAt>now).slice(-4),clears=(v?.clears||[]).filter(h=>h.endAt>now).slice(-2);
-   for(let j=0;j<4;j++){const h=holes[j],index=i*4+j;if(h){const strength=Math.max(0,Math.min(1,(h.endAt-now)/(h.endAt-h.bornAt)));uniforms.uHoleFrom.value[index].set(h.from.x,h.from.y,h.from.z,h.radius);uniforms.uHoleTo.value[index].set(h.to.x,h.to.y,h.to.z,strength);}else {uniforms.uHoleFrom.value[index].set(0,0,0,1);uniforms.uHoleTo.value[index].set(0,0,0,0);}}
-   for(let j=0;j<2;j++){const h=clears[j],index=i*2+j;if(h){uniforms.uClear.value[index].set(h.position.x,h.position.y,h.position.z,h.radius);uniforms.uClearStrength.value[index]=Math.sin(Math.max(0,Math.min(1,(now-h.bornAt)/(h.endAt-h.bornAt)))*Math.PI);}else{uniforms.uClear.value[index].set(0,0,0,1);uniforms.uClearStrength.value[index]=0;}}
+  uniforms.uCount.value=lastVisible;uniforms.uCamera.value.setFromMatrixPosition(camera.matrixWorld);uniforms.uCameraWorld.value.copy(camera.matrixWorld);uniforms.uInverseProjection.value.copy(camera.projectionMatrixInverse);
+  for(let i=0;i<lastVisible;i++){
+   const {volume:v,opacity}=candidates[i],scale=.2+.8*opacity;
+   uniforms.uVolumes.value[i].set(v.x,v.y+v.height*.45,v.z,v.radius*scale);
+   uniforms.uShape.value[i].set(v.height*.55*scale,opacity);
   }
   const previous=renderer.getRenderTarget(),autoClear=renderer.autoClear,scissorTest=renderer.getScissorTest();renderer.getViewport(savedViewport);renderer.getScissor(savedScissor);
   try{const started=performance.now(),programsBefore=renderer.info?.programs?.length??null;renderer.autoClear=true;renderer.setScissorTest(false);renderer.setRenderTarget(target);renderer.render(scene,camera);const worldDone=performance.now(),programsAfterWorld=renderer.info?.programs?.length??null;renderer.setRenderTarget(previous);renderer.render(compositeScene,compositeCamera);Object.assign(lastRender,{frame:renderCount+1,worldSubmitMs:worldDone-started,compositeSubmitMs:performance.now()-worldDone,programsBefore,programsAfterWorld,programsAfterComposite:renderer.info?.programs?.length??null});if(!firstRender)firstRender={...lastRender};renderCount++;return true;}
   finally{renderer.setRenderTarget(previous);renderer.autoClear=autoClear;renderer.setViewport(savedViewport);renderer.setScissor(savedScissor);renderer.setScissorTest(scissorTest);}
  }
  function dispose(){if(disposed)return;disposed=true;target?.dispose();geometry.dispose();material.dispose();compositeScene.remove(quad);volumes=[];}
- return{sync,shot,explode,render,prewarm,warmCurrentScene,warmObjects,get target(){return target;},resize,dispose,diagnostics:()=>({fieldVersion:SMOKE_FIELD_VERSION,mode:'depth-aware-raymarch-pilot',samples:8,maxDetailedVolumes:4,maxConservativeVolumes:28,visibleVolumes:lastVisible+degradedVolumes,detailedVolumes:lastVisible,degradedVolumes,droppedVolumes:0,volumes:volumes.length,width,height,activeWidth,activeHeight,sampleScale:uniforms.uSampleScale.value.toArray(),targetAllocations,renderCount,firstRender,lastRender:{...lastRender},warmup:{...warmup},prewarmed,disposed,depthTexture:!!target?.depthTexture,extraDraws:lastVisible?1:0})};
+ return{sync,shot,explode,render,prewarm,warmCurrentScene,warmObjects,get target(){return target;},resize,dispose,diagnostics:()=>({fieldVersion:SMOKE_FIELD_VERSION,mode:'simple-depth-fog',samples:0,maxDetailedVolumes:0,maxConservativeVolumes:32,visibleVolumes:lastVisible,simpleVolumes:lastVisible,detailedVolumes:0,degradedVolumes:0,bulletHoles:false,explosionClearing:false,densityCoefficient:2.15,droppedVolumes:0,volumes:volumes.length,width,height,activeWidth,activeHeight,sampleScale:uniforms.uSampleScale.value.toArray(),targetAllocations,renderCount,firstRender,lastRender:{...lastRender},warmup:{...warmup},prewarmed,disposed,depthTexture:!!target?.depthTexture,extraDraws:lastVisible?1:0})};
 }

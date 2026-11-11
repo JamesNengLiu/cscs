@@ -5,17 +5,24 @@ import {createTextureStream} from './cs2-texture-stream.js';
 import {createMapIndexUploadManager} from './cs2-index-upload.js';
 import {createSourceMaterials} from './cs2-materials.js';
 import {probeVisibleMaterials} from './cs2-material-probe.js';
+import {createCS2ResourceLoader} from './cs2-resource-loader.js';
 const BASE='/assets/cs2-optimized/';
 const tick=()=>new Promise(requestAnimationFrame);
 export async function loadOptimizedMap({scene,renderer,camera,progress,load,prepareActors,prepareEffects,initialView,signal}){
  const active=()=>{if(signal?.aborted)throw signal.reason||new DOMException('Map loading cancelled','AbortError');};active();
+ let resources=null,stream=null,stopStream=null,boot=true,disposed=false;
+ try{
  const query=new URLSearchParams(location.search),cull=query.get('culling')!=='none',pvsEnabled=query.get('pvs')!=='0',batching=query.get('batch')!=='0';
  renderer.debug.onShaderError=(gl,program,vertex,fragment)=>{throw Error('优化材质编译失败：'+(gl.getShaderInfoLog(fragment)||gl.getShaderInfoLog(vertex)||gl.getProgramInfoLog(program)));};
  for(const extension of ['EXT_texture_compression_bptc','EXT_texture_compression_rgtc','WEBGL_compressed_texture_s3tc'])if(!renderer.getContext().getExtension(extension))throw Error('Native compressed textures unavailable: '+extension);
  const fetchJson=async name=>{const r=await fetch(BASE+name,{signal});if(!r.ok)throw Error('缺少优化资源 '+name);return r.json();},metaAt=performance.now();
  const [manifest,textureIndex]=await Promise.all(['map.json','textures.json'].map(fetchJson));load.metadataMs=performance.now()-metaAt;
  load.visibilityDownloadBytes=manifest.visibility.downloadBytes;
- active();async function inflate(url){const response=await fetch(url,{signal});if(!response.ok||!response.body)throw Error('加载失败 '+url);const data=await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();active();return data;}
+ resources=createCS2ResourceLoader({signal});
+ const resourcePath=url=>new URL(url,location.href).pathname;
+ const sizes=new Map([[resourcePath(BASE+manifest.geometry.file),manifest.geometry.bytes],[resourcePath(BASE+manifest.visibility.file),manifest.visibility.bytes]]);
+ for(const tiers of Object.values(textureIndex.textures))for(const spec of [tiers.preview,tiers.full]){const url=resourcePath(BASE+spec.file);if(sizes.has(url)&&sizes.get(url)!==spec.bytes)throw Error('Conflicting CS2 resource sizes');sizes.set(url,spec.bytes);}
+ active();async function inflate(url){const path=resourcePath(url),data=await resources.load(path,sizes.get(path));active();return data;}
  const begin=performance.now();let geometryPromise=inflate(BASE+manifest.geometry.file);const visibilityPromise=inflate(BASE+manifest.visibility.file);
  // Prefetch may outlive an initial-view rejection; mark it handled until the
  // caller cancels the shared signal, while still awaiting it on the normal path.
@@ -23,8 +30,8 @@ export async function loadOptimizedMap({scene,renderer,camera,progress,load,prep
  const actorsPrepared=prepareActors?.();prepareEffects?.();
  if(initialView){const view=await initialView(manifest);active();if(!['eye','target'].every(k=>Array.isArray(view?.[k])&&view[k].length===3&&view[k].every(Number.isFinite)))throw Error('Invalid initial experimental camera');camera.position.fromArray(view.eye);camera.lookAt(new THREE.Vector3().fromArray(view.target));}
  else{const spawn=manifest.spawns.find(s=>s.team==='T'),angle=spawn.sourceAngles[1]*Math.PI/180;camera.position.fromArray(spawn.position);camera.position.y+=1.65;camera.lookAt(camera.position.clone().add(new THREE.Vector3(Math.sin(angle)*8,0,Math.cos(angle)*8)));}camera.updateMatrixWorld();
- const stream=await createTextureStream({renderer,index:textureIndex,base:BASE,progress,inflate});const stopStream=()=>stream.dispose();signal?.addEventListener('abort',stopStream,{once:true});active();const visibility=createWorldVisibility(manifest.visibility,await visibilityPromise);
- let boot=true,disposed=false;const pumpBoot=async()=>{while(boot&&!disposed&&!signal?.aborted){await tick();if(!boot||disposed||signal?.aborted)break;const at=performance.now();for(let i=0;i<8&&performance.now()-at<2;i++)if(!stream.pump())break;}};void pumpBoot();
+ stream=await createTextureStream({renderer,index:textureIndex,base:BASE,progress,inflate});stopStream=()=>stream.dispose();signal?.addEventListener('abort',stopStream,{once:true});active();const visibility=createWorldVisibility(manifest.visibility,await visibilityPromise);
+ const pumpBoot=async()=>{while(boot&&!disposed&&!signal?.aborted){await tick();if(!boot||disposed||signal?.aborted)break;const at=performance.now();for(let i=0;i<8&&performance.now()-at<2;i++)if(!stream.pump())break;}};void pumpBoot();
  const frustum=new THREE.Frustum(),clip=new THREE.Matrix4(),groups=manifest.geometry.groups;
  const parts=groups.map(group=>group.parts.map(part=>({...part,box:new THREE.Box3(new THREE.Vector3().fromArray(part.bounds.min),new THREE.Vector3().fromArray(part.bounds.max)),shown:false})));
  const selections=parts.map(list=>new Uint8Array(list.length));let lastRowPosition=null,cachedRow=null;
@@ -92,5 +99,6 @@ export async function loadOptimizedMap({scene,renderer,camera,progress,load,prep
   update(now){if(disposed||signal?.aborted||passWarming)return;stream.pump(now);camera.updateMatrixWorld();const matrix=camera.matrixWorld.elements,projection=camera.projectionMatrix.elements;
    if(matrix.some((v,i)=>Math.abs(v-lastMatrix[i])>1e-9)||projection.some((v,i)=>v!==lastProjection[i])){lastMatrix=matrix.slice();lastProjection=projection.slice();selected=selection();counters=applySelection(selected);updates++;const ids=counters.wanted;if(initialProbeLimited||ids.size!==activeMaterials.size||[...ids].some(i=>!activeMaterials.has(i))){initialProbeLimited=false;activeMaterials=ids;currentReady=stream.wanted([...ids].map(i=>manifest.materials[i]));void currentReady.catch(()=>{});}}
    if(now-lastTrim>1000){lastTrim=now;stream.trim();}
-  },settled:async()=>{await currentReady;active();const error=renderer.getContext().getError();if(error!==0)throw Error('WebGL error after streaming: '+error);return stream.info();},info:()=>({...stream.info(),...counters,wanted:undefined,updates,pvs:pvsEnabled,culling:cull,batching,retainedGeometryCPUBytes,passWarming,passWarmup}),dispose(){disposed=true;boot=false;indexUploads.close();signal?.removeEventListener('abort',stopStream);stream.dispose();}};
+  },settled:async()=>{await currentReady;active();const error=renderer.getContext().getError();if(error!==0)throw Error('WebGL error after streaming: '+error);return stream.info();},info:()=>({...stream.info(),...counters,wanted:undefined,updates,pvs:pvsEnabled,culling:cull,batching,retainedGeometryCPUBytes,passWarming,passWarmup,resourceInflation:resources.diagnostics()}),dispose(){if(disposed)return;disposed=true;boot=false;signal?.removeEventListener('abort',stopStream);try{indexUploads.close();}finally{try{stream.dispose();}finally{resources.dispose();}}}};
+ }catch(error){disposed=true;boot=false;if(stopStream)signal?.removeEventListener('abort',stopStream);try{stream?.dispose();}catch{}resources?.dispose(error);throw error;}
 }

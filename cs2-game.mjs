@@ -29,7 +29,7 @@ import {MAIN_BALLISTICS_VERSION} from './public/weapon-feel.js';
 import {hitRecoveryProfile} from './public/hit-recovery.js';
 import {WEAPON_ACTION_LIMIT} from './public/cs2-weapon-action-order.js';
 // The legacy movement corrections remain enabled; no old world module loads.
-const HIT_SLOWDOWN_VERSION=1,COLLISION_VERSION=1,JUMP_FATIGUE_VERSION=1;
+const HIT_SLOWDOWN_VERSION=1,COLLISION_VERSION=1,JUMP_FATIGUE_VERSION=1,MOVEMENT_TIMELINE_VERSION=1;
 // Relative input-edge time affects only strength selection. It never advances
 // preparation, simulation, projectile birth/fuse, movement or weapon clocks.
 function grenadeControlTime(intent,now){return intent?.clientClock?intent.controlAt+intent.edgeElapsed+Math.max(0,now-intent.edgeReceivedAt):now;}
@@ -108,6 +108,9 @@ class ExperimentalGame {
     this.#inputs.set(p.id,{queue:new Map(),sequenced:false,gapSince:null,skipThrough:0,grenadeIntent:null,actions:[],receivedOrder:0,lastOrder:0,grenadeReceiptSeq:0,grenadeReceiptAction:0});
     p.grenadeAckSeq=0;p.grenadeActionId=0;p.grenadeIntentStatus='';p.grenadeRejectedActionId=0;p.grenadeButtons=0;p.grenadeStrength=1;p.grenadeMode='overhand';
     p.appliedInputCommands=0;p.skippedInputCommands=0;p.lastAppliedInputSeq=0;
+    // Physics advances on neutral input as well as numbered commands. Keep its
+    // clock separate from the combat/input ACK used by reliable action barriers.
+    p.movementTick=0;p.movementTimelineVersion=MOVEMENT_TIMELINE_VERSION;p.movementEdgeSeq=0;p.movementEdgeTick=0;
     this.activate(p,p.primary||p.pistol||'knife',this.time,false);refillAmmo(p);p.nextAttackAt=0;resetWeapon(p);
   }
   credit(p,amount,reason){if(!Number.isFinite(amount)||!amount)return;p.money=clampMoney(p.money,amount);this.emit({type:'money',id:p.id,amount,money:p.money,reason});}
@@ -581,7 +584,9 @@ class ExperimentalGame {
       const locomotion=this.#locomotion.get(p)||createLocomotionState(p);
       const latchEnabled=grenadeProfile?.trajectoryVersion===1&&grenadeProfile.jumpLatchEnabled,latchActive=latchEnabled&&(p.grenadePhase==='pin'||p.grenadePhase==='hold')&&GRENADE_IDS.includes(p.weapon),pending=latchEnabled?this.#inputs.get(p.id)?.pendingGrenadeLaunch:null,jumpState=latchActive?this.#grenadeJumps.get(p):null,
         sampleJump=(latchActive||pending)&&(jumpState&&!jumpState.pose||pending?.jumpState&&!pending.jumpState.pose||p.grounded&&p.input.jump&&!heldJump),jumpBefore=sampleJump?captureGrenadePose(p,eyeHeight(p)):null;
-      const beforeMove={x:p.x,y:p.y,z:p.z,vx:p.vx,vy:p.vy,vz:p.vz,grounded:p.grounded};movePlayer(p,p.input,dt,all);
+      const beforeStance=Boolean(p.crouch||p.ducking),beforeWalk=Boolean(p.walk);
+      const beforeMove={x:p.x,y:p.y,z:p.z,vx:p.vx,vy:p.vy,vz:p.vz,grounded:p.grounded};movePlayer(p,p.input,dt,all);p.movementTick++;
+      if(command.seq&&(heldJump!==p.jumpHeld||beforeStance!==Boolean(p.crouch||p.ducking)||beforeWalk!==Boolean(p.walk))){p.movementEdgeSeq=command.seq;p.movementEdgeTick=p.movementTick;}
       if(jumpBefore){const after=captureGrenadePose(p,eyeHeight(p),command.seq||p.lastAppliedInputSeq||0);if(latchActive){const state=recordGrenadeJump(jumpState,grenadeProfile,jumpBefore,after,this.time-dt,this.time,p.input.jump&&!heldJump);if(state)this.#grenadeJumps.set(p,state);else this.#grenadeJumps.delete(p);}if(pending)pending.jumpState=recordGrenadeJump(pending.jumpState,grenadeProfile,jumpBefore,after,this.time-dt,this.time,p.input.jump&&!heldJump);}
       else{if(jumpState&&(p.grounded||this.time-jumpState.cachedAt>grenadeProfile.jumpLatchWindowSeconds))this.#grenadeJumps.delete(p);if(pending?.jumpState&&(p.grounded||this.time-pending.jumpState.cachedAt>grenadeProfile.jumpLatchWindowSeconds))pending.jumpState=null;}
       const presentation=stepLocomotion(locomotion,p,dt);this.#locomotion.set(p,presentation.state);p.playerLocomotion=presentation.pose;
@@ -611,7 +616,7 @@ class ExperimentalGame {
         if(p.grenadePhase){Object.assign(p,{grenadeButtons,grenadeStrength,grenadeMode});if(grenadeProfile?.trajectoryVersion===1){const intent=this.#inputs.get(p.id)?.grenadeIntent;if(intent){p.grenadeLaunchAt=intent.launchAt||0;p.grenadeLaunchDeferred=!!intent.launchDeferred;p.grenadeVisualThrowAt=intent.visualThrowAt||0;}}}
         const pending=this.#inputs.get(p.id)?.pendingGrenadeLaunch;if(pending){p.pendingGrenadeActionId=pending.actionId;p.pendingGrenadeLaunchAt=pending.launchAt;}
         if(p.playerLocomotion)p.playerLocomotion=copyLocomotion(p.playerLocomotion);
-        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,...visible}=p;return {...visible,...animation};}
+        if(viewerId&&p.id!==viewerId){const {money,inventory,ammoPool,grenades,reserve,ammo,flashUntil,flashAmount,flashFade,defuseKit,nightvision,nightvisionOn,hitRecoveryVersion,movementTick,movementTimelineVersion,movementEdgeSeq,movementEdgeTick,...visible}=p;return {...visible,...animation};}
         return {...p,...animation,canBuy:this.canBuy(p),inventory:structuredClone(p.inventory),ammoPool:{...p.ammoPool},grenades:{...p.grenades}};
       })};}
 }

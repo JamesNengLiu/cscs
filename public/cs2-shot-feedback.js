@@ -5,6 +5,11 @@ import {consumeGunShot} from './cs2-client-world.js';
 import {INPUT_DT,MAX_INPUT_QUEUE} from './cs2-input-protocol.js';
 const POSE=['x','y','z','yaw','pitch','vx','vy','vz','grounded','groundPlayer','crouch','duckAmount','walk'];
 const poseCopy=p=>Object.fromEntries(POSE.filter(k=>p?.[k]!==undefined).map(k=>[k,p[k]]));
+const punchCopy=p=>({pitch:p.recoilPitch||0,yaw:p.recoilYaw||0,pitchVelocity:p.cs2PunchVersion===2?p.cs2RecoilPitchVelocity||0:0,yawVelocity:p.cs2PunchVersion===2?p.cs2RecoilYawVelocity||0:0});
+function recoilImpulse(p,before,at){
+  if(p.cs2PunchVersion!==2||!Number.isFinite(p.cs2PunchTime)||Math.abs(p.cs2PunchTime-at)>1e-8)return null;
+  return {at,deltaPitch:(p.recoilPitch||0)-before.pitch,deltaYaw:(p.recoilYaw||0)-before.yaw,deltaPitchVelocity:(p.cs2RecoilPitchVelocity||0)-before.pitchVelocity,deltaYawVelocity:(p.cs2RecoilYawVelocity||0)-before.yawVelocity};
+}
 // Predict only a copied weapon state and presentation. No traces, health,
 // inventory, authoritative ammunition or world hit effects are produced here.
 export function createShotFeedback({maxAgeMs=1200}={}){
@@ -29,10 +34,13 @@ export function createShotFeedback({maxAgeMs=1200}={}){
     if(s.weapon===weapon)lastVisual=s;
     return {...s};
   }
-  function remember(copy,command,follow,profile){
+  function remember(copy,command,follow,profile,before,at){
     const k=key(copy.weapon,copy.shotsFired);let s=known.get(k);
     if(!s){s={seq:command.seq,round,weapon:copy.weapon,ordinal:copy.shotsFired,at:command.at,follow,played:false,auth:false,silenced:!!copy.silenced};known.set(k,s);}
     s.recoilYaw=profile.recoilYaw||0;s.recoilPitch=profile.recoilPitch||0;s.ammo=copy.ammo;
+    // Read-only camera metadata, captured around this consume at the same
+    // simulation time. It never participates in weapon replay or networking.
+    s.recoilImpulse=recoilImpulse(copy,before,at);
     if(known.size>256)known.delete(known.keys().next().value);return s;
   }
   function rebuild(player,stateTime){
@@ -48,8 +56,8 @@ export function createShotFeedback({maxAgeMs=1200}={}){
       updateReload(copy,at);
       if(c.switchBlocked)copy.burstRemaining=0;
       if(w&&c.weapon===copy.weapon&&copy.alive&&!copy.shieldRaised&&!c.switchBlocked){
-        if(copy.burstRemaining>0&&at+1e-8>=copy.nextBurstAt){const p=consumeGunShot(copy,at,true,()=>.5);if(p){copy.burstRemaining--;shots.push(remember(copy,c,true,p));}else copy.burstRemaining=0;copy.nextBurstAt=at+shotFollowupInterval(copy);}
-        if(c.input.fire&&!copy.action&&(w?.automatic||copy.burstMode||!copy.fireHeld)){const p=consumeGunShot(copy,at,false,()=>.5);if(p)shots.push(remember(copy,c,false,p));}
+        if(copy.burstRemaining>0&&at+1e-8>=copy.nextBurstAt){const before=punchCopy(copy),p=consumeGunShot(copy,at,true,()=>.5);if(p){copy.burstRemaining--;shots.push(remember(copy,c,true,p,before,at));}else copy.burstRemaining=0;copy.nextBurstAt=at+shotFollowupInterval(copy);}
+        if(c.input.fire&&!copy.action&&(w?.automatic||copy.burstMode||!copy.fireHeld)){const before=punchCopy(copy),p=consumeGunShot(copy,at,false,()=>.5);if(p)shots.push(remember(copy,c,false,p,before,at));}
       }
       copy.fireHeld=Boolean(c.input.fire);
     }
@@ -105,6 +113,7 @@ export function createShotFeedback({maxAgeMs=1200}={}){
       return {...player,...reload,ammo:view?.weapon===player.weapon?view.ammo:player.ammo,weaponLocalClock:true,weaponShotToken:shot?.token||`base:${round}:${player.weapon}`,weaponShotAt:shot?shot.at/1000:-100};
     },
     authoritative(){view=null;},
+    recoilPresentation:()=>lastVisual?{token:lastVisual.token,round:lastVisual.round,weapon:lastVisual.weapon,seq:lastVisual.seq,ordinal:lastVisual.ordinal,impulse:lastVisual.recoilImpulse?{...lastVisual.recoilImpulse}:null}:null,
     view:()=>view,
     diagnostics:()=>({pending:pending.filter(p=>!p.auth).length,predicted,suppressed,history:history.length,
       recoil:view?{weapon:view.weapon,yaw:view.recoilYaw||0,pitch:view.recoilPitch||0}:null}),

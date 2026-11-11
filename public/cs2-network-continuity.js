@@ -31,11 +31,25 @@ export function remoteGapSafe(from,to,context,players=[]){
 }
 // Keep the existing small-error behavior. Larger recovery is allowed only for
 // same-life delayed/skipped authority, never an explicit teleport or new spawn.
-export function predictionCorrectionLimit(before,after,{previousAuthority,authority,intervalSeconds=0,activeRecovery=false}={}){
- if(!previousAuthority||!authority||!before?.alive||!after?.alive||previousAuthority.id!==authority.id||previousAuthority.team!==authority.team||previousAuthority.alive!==authority.alive||previousAuthority.playedRound!==authority.playedRound||previousAuthority.recoilSeed!==authority.recoilSeed||authority.teleport||previousAuthority.teleportId!==authority.teleportId||previousAuthority.teleportSeq!==authority.teleportSeq||(previousAuthority.spawnId??previousAuthority.spawnSeq??previousAuthority.lifeId)!==(authority.spawnId??authority.spawnSeq??authority.lifeId))return .5;
+export function predictionCorrectionLimit(before,after,{previousAuthority,authority,intervalSeconds=0,activeRecovery=false,correction}={}){
+ if(!previousAuthority||!authority||!before?.alive||!after?.alive||previousAuthority.id!==authority.id||previousAuthority.team!==authority.team||previousAuthority.alive!==authority.alive||previousAuthority.playedRound!==authority.playedRound||previousAuthority.recoilSeed!==authority.recoilSeed||authority.teleport||authority.discontinuity||['teleportId','teleportSeq','spawnId','spawnSeq','lifeId'].some(key=>previousAuthority[key]!==authority[key])||(before.id!==undefined&&before.id!==authority.id)||(after.id!==undefined&&after.id!==authority.id))return .5;
+ // A short delivery interruption can leave several metres of valid predicted
+ // travel to recover. Evidence and a finite distance cap distinguish this from
+ // a teleport; a long interruption must still take the normal hard reset.
+ if(!Number.isFinite(intervalSeconds)||intervalSeconds<0||intervalSeconds>1.1)return .5;
  const skipped=Math.max(0,(authority.skippedInputCommands||0)-(previousAuthority.skippedInputCommands||0));
- const gap=Number.isFinite(intervalSeconds)&&intervalSeconds>.075?Math.min(.35,intervalSeconds):0;
+ const gap=intervalSeconds>.075?Math.min(1,intervalSeconds):0;
  const speed=Math.max(maxMoveSpeed(after),Math.hypot(before.vx||0,before.vz||0));
- const continuing=activeRecovery&&Math.hypot(before.x-after.x,before.y-after.y,before.z-after.z)<.5;
- return Math.max(continuing?2:.5,Math.min(2,speed*Math.max(gap,skipped/60)*1.25+.1));
+ const error=Math.hypot(before.x-after.x,before.y-after.y,before.z-after.z);
+ const retained=correction&&['x','y','z'].every(key=>Number.isFinite(correction[key]))?Math.hypot(correction.x,correction.y,correction.z):null;
+ // Keep an already authorised offset while fresh small corrections arrive.
+ // It must not be cut back to the initial allowance on the next normal state.
+ // Missing metadata retains the previous API's bounded two-metre fallback.
+ const continuing=activeRecovery&&error<=.5?(retained===null?(correction===undefined?2:.5):Math.min(8,retained+error+.01)):.5;
+ const evidenceBudget=Math.max(.5,Math.min(8,speed*Math.max(gap,Math.min(1,skipped/60))*1.25+.1));
+ // A second evidenced interruption authorises its NEW error, not a replacement
+ // limit for the still-decaying old offset. Carry that already valid offset
+ // only when this error fits its own evidence; unexplained jumps stay hard.
+ const compound=(gap>0||skipped>0)&&error<=evidenceBudget&&retained!==null&&(activeRecovery||retained<=.5)?Math.min(8,retained+error+.01):.5;
+ return Math.max(evidenceBudget,continuing,compound);
 }
